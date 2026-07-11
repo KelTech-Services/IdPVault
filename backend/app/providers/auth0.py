@@ -7,6 +7,7 @@ object or fixed list that rejects pagination params. A few are feature-gated
 (custom domains = paid) or deprecated (rules) and may be absent on a tenant; those
 are recorded empty rather than failing the whole backup.
 """
+import copy
 import logging
 import re
 import time
@@ -143,12 +144,13 @@ class Auth0Adapter(ProviderAdapter):
         return out
 
     def _write_with_strip(self, c, method, path, payload):
-        """Write to Auth0, auto-dropping any top-level fields it rejects as
-        'Additional properties not allowed' (read-only/computed export fields),
-        one error round at a time, until it accepts the body. Returns the response."""
-        payload = dict(payload)
+        """Write to Auth0, auto-dropping fields it rejects as 'Additional properties
+        not allowed' (read-only/computed export fields) — including nested ones it
+        reports as '... on property X' — one error round at a time, until it accepts
+        the body. Returns the final response."""
+        payload = copy.deepcopy(payload)
         r = None
-        for _ in range(12):
+        for _ in range(16):
             r = self._req(c, method, path, json=payload)
             if r.status_code != 400:
                 return r
@@ -156,14 +158,22 @@ class Auth0Adapter(ProviderAdapter):
                 msg = r.json().get("message", "")
             except Exception:
                 msg = ""
-            m = re.search(r"Additional properties not allowed:\s*([^'\"]+)", msg)
+            m = re.search(r"Additional properties not allowed:\s*([^']+)'"
+                          r"(?:\s*on property\s+([\w.]+))?", msg)
             if not m:
                 return r
-            bad = [f.strip() for f in m.group(1).split(",") if f.strip() in payload]
-            if not bad:                      # rejected field isn't a droppable top-level key
+            fields = [f.strip() for f in m.group(1).split(",")]
+            target = payload
+            if m.group(2):                       # nested: descend into the named parent
+                for seg in m.group(2).split("."):
+                    target = target.get(seg) if isinstance(target, dict) else None
+            removed = False
+            if isinstance(target, dict):
+                for f in fields:
+                    if target.pop(f, None) is not None:
+                        removed = True
+            if not removed:
                 return r
-            for f in bad:
-                payload.pop(f, None)
         return r
 
     def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:

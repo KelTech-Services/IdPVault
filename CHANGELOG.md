@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.9] — 2026-07-11
+### Fixed
+- Auth0 restore self-heal now also handles **nested** read-only fields: Auth0 reports
+  some rejected fields as "Additional properties not allowed: X on property Y" (e.g.
+  `jwt_configuration.secret_encoded`); the write descends into the named sub-object,
+  strips the field, and retries — not just top-level fields.
+
 ## [0.7.8] — 2026-07-11
 ### Fixed
 - Auth0 config restore writes now self-heal against Auth0's strict schema: when a
