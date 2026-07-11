@@ -40,6 +40,12 @@ throttled, admin-only, explicit confirm. Okta + Authentik.
 Self-service profile: change own password, enable/disable TOTP MFA (stdlib TOTP + QR
 enrollment, secrets encrypted at rest). MFA enforced at sign-in.
 
+**v0.7.0–0.7.3** — security & provider hardening: login brute-force lockout, security
+headers, HTTPS-aware secure cookies, self-health stale-backup alerting; reverse-proxy
+hardening (canonical Public URL, `X-Forwarded-Proto`, optional Host enforcement); Auth0
+switched to OAuth2 client-credentials (auto-minted Management API tokens); provider-driven
+Add-Tenant form (per-provider fields).
+
 ## v0.7 — next
 
 - Restore apply for Okta and Auth0 **config** adapters

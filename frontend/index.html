@@ -191,17 +191,19 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div id="addform" class="hidden">
       <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
+        <div><label>Provider</label><select id="f_provider" onchange="onProviderChange()"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
         <div><label>Name</label><input id="f_name" placeholder="KelTech Authentik"></div>
         <div><label>Slug</label><input id="f_slug" placeholder="keltech-authentik"></div>
-        <div><label>Provider</label><select id="f_provider"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
         <div><label>Base URL</label><input id="f_url" placeholder="https://auth.example.com"></div>
-        <div><label>API token</label><input id="f_token" type="password" placeholder="paste token — encrypted at rest"></div>
+        <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token — encrypted at rest"></div>
+        <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
+        <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
         <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
-        <div style="grid-column:span 2"><label>Full-DR Postgres URL (optional — self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik — leave blank to skip"></div>
-        <div><label>Identity backup (users & assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
-        <div><label>Identity schedule (cron, UTC)</label><input id="f_identcron" placeholder="0 6 * * *"></div>
-        <div><label>Identity retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
+        <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional — self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik — leave blank to skip"></div>
+        <div id="fd_ident"><label>Identity backup (users & assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+        <div id="fd_identcron"><label>Identity schedule (cron, UTC)</label><input id="f_identcron" placeholder="0 6 * * *"></div>
+        <div id="fd_identkeep"><label>Identity retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
       <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
@@ -626,9 +628,13 @@ function editTenant(id){
   document.getElementById('f_name').value = t.name;
   document.getElementById('f_slug').value = t.slug;
   document.getElementById('f_provider').value = t.provider;
+  onProviderChange();
   document.getElementById('f_url').value = t.base_url || '';
   document.getElementById('f_token').value = '';
   document.getElementById('f_token').placeholder = 'leave blank to keep current token';
+  document.getElementById('f_clientid').value = '';
+  document.getElementById('f_clientsecret').value = '';
+  if(t.provider==='auth0'){ document.getElementById('f_clientid').placeholder='leave blank to keep current'; document.getElementById('f_clientsecret').placeholder='leave blank to keep current'; }
   document.getElementById('f_cron').value = t.schedule_cron || '';
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
@@ -640,46 +646,61 @@ function editTenant(id){
   document.getElementById('f_provider').disabled = true;
   document.getElementById('f_delete').classList.remove('hidden');
 }
+function onProviderChange(){
+  const p = document.getElementById('f_provider').value;
+  const show = (id,on)=>document.getElementById(id).classList.toggle('hidden', !on);
+  const isAuth0 = p==='auth0', hasIdentity = (p==='authentik'||p==='okta');
+  show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
+  show('fd_dburl', p==='authentik');
+  show('fd_ident', hasIdentity); show('fd_identcron', hasIdentity); show('fd_identkeep', hasIdentity);
+  document.getElementById('f_url').placeholder = isAuth0 ? 'https://your-tenant.us.auth0.com' : p==='okta' ? 'https://your-org.okta.com' : 'https://auth.example.com';
+  if(!editingId) document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token — encrypted at rest' : 'paste token — encrypted at rest';
+}
 function resetForm(){
   editingId = null;
   document.getElementById('formtitle').textContent = '';
   document.getElementById('f_slug').disabled = false;
   document.getElementById('f_provider').disabled = false;
   document.getElementById('f_token').placeholder = 'paste token — encrypted at rest';
-  ['f_name','f_slug','f_url','f_token','f_cron','f_dburl','f_identcron'].forEach(i=>document.getElementById(i).value='');
+  ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_cron','f_dburl','f_identcron'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('f_provider').value='authentik';
   document.getElementById('f_ident').value='false';
   document.getElementById('f_identkeep').value=14;
   document.getElementById('f_keep').value = 30;
   document.getElementById('f_delete').classList.add('hidden');
+  onProviderChange();
 }
 async function saveTenant(){
+  const prov = v('f_provider');
+  const auth0cred = ()=>{ const cid=v('f_clientid'), sec=v('f_clientsecret'); return (cid&&sec) ? cid+':'+sec : ''; };
   if(editingId){
     const body = { name: v('f_name'), base_url: v('f_url'),
       schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
-      identity_enabled: v('f_ident')==='true', identity_schedule_cron: v('f_identcron') || null,
+      identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: v('f_identcron') || null,
       identity_retention_keep: parseInt(v('f_identkeep')||'14') };
-    if(v('f_token')) body.api_token = v('f_token');
-    const dbraw = document.getElementById('f_dburl').value;
-    if(dbraw==='') {} else body.db_url = dbraw.trim();
+    const tok = prov==='auth0' ? auth0cred() : v('f_token');
+    if(tok) body.api_token = tok;
+    if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); }
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
-      toast('Tenant updated.' + (body.api_token ? ' API token rotated.' : ''));
+      toast('Tenant updated.' + (body.api_token ? ' Credentials rotated.' : ''));
       toggleAdd(); loadTenants();
     } catch(e){ toast('Update failed: '+e.message, true); }
     return;
   }
+  if(prov==='auth0' && !auth0cred()) return toast('Auth0 needs both Client ID and Client Secret', true);
   const body = {
-    name: v('f_name'), slug: v('f_slug'), provider: v('f_provider'),
-    base_url: v('f_url'), api_token: v('f_token'),
+    name: v('f_name'), slug: v('f_slug'), provider: prov,
+    base_url: v('f_url'), api_token: prov==='auth0' ? auth0cred() : v('f_token'),
     schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
-    db_url: v('f_dburl') || null,
-    identity_enabled: v('f_ident')==='true', identity_schedule_cron: v('f_identcron') || null,
+    db_url: prov==='authentik' ? (v('f_dburl') || null) : null,
+    identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: v('f_identcron') || null,
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
-  if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and token are required', true);
+  if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and credentials are required', true);
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
-    toast(`Tenant "${body.name}" created — token encrypted and stored.`);
+    toast(`Tenant "${body.name}" created — credentials encrypted and stored.`);
     toggleAdd(); loadTenants();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }

@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.3] — 2026-07-11
+### Changed
+- Auth0 adapter now authenticates via OAuth2 **client-credentials**: the stored
+  credential is the M2M app's `client_id:client_secret`, and the adapter mints a
+  fresh Management API token per run (cached until near expiry). Fixes scheduled
+  Auth0 backups silently failing once a pasted Management token expired (~24h).
+### Added
+- Provider-driven Add-Tenant form: Provider is chosen first and the required fields
+  adapt to it — Auth0 shows Client ID + Client Secret; the Full-DR Postgres URL and
+  identity-backup fields appear only for providers that support them.
+
+## [0.7.2] — 2026-07-11
+### Changed
+- Spacing under the Public URL help text in Settings.
+
 ## [0.7.1] — 2026-07-11
 ### Added
 - Deployment / reverse-proxy hardening: canonical **Public URL** setting used for
