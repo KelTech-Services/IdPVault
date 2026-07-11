@@ -41,7 +41,17 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.7.1", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def host_guard(request: Request, call_next):
+    # Reject unexpected Host headers when strict enforcement is enabled (health/metrics exempt).
+    if request.url.path not in ("/healthz", "/metrics"):
+        from app.core import deploy
+        if not deploy.host_allowed(request):
+            return JSONResponse({"detail": "host not allowed"}, status_code=400)
+    return await call_next(request)
 
 
 @app.middleware("http")

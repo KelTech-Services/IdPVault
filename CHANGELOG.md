@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.1] — 2026-07-11
+### Added
+- Deployment / reverse-proxy hardening: canonical **Public URL** setting used for
+  email links, HTTPS/secure-cookie detection (honours `X-Forwarded-Proto`), and an
+  optional strict **Host enforcement** toggle (default off; health/metrics exempt).
+- uvicorn started with `--proxy-headers` for correct scheme/host behind a proxy.
+
 ## [0.7.0] — 2026-07-11
 ### Added
 - Login brute-force protection: configurable failed-attempt lockout (default 5

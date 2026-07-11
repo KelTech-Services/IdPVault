@@ -3,7 +3,7 @@ first-run setup, self-service password change + TOTP MFA management."""
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from app.core import crypto, security, totp
+from app.core import crypto, deploy, security, totp
 from app.models.db import AuditLog, MfaTrust, SessionLocal, Setting, User
 
 router = APIRouter(tags=["auth"])
@@ -37,7 +37,7 @@ def setup(body: SetupIn, request: Request, response: Response) -> dict:
         db.commit()
         token = security.create_session(db, u.id)
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax",
-                        secure=request.url.scheme == "https",
+                        secure=deploy.is_secure(request),
                         max_age=security.SESSION_DAYS * 86400)
     return {"username": u.username, "role": u.role}
 
@@ -123,7 +123,7 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
         token = security.create_session(db, u.id)
         db.add(AuditLog(actor=u.username, action="auth.login", detail={}))
         db.commit()
-    secure = request.url.scheme == "https"
+    secure = deploy.is_secure(request)
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=secure,
                         max_age=security.SESSION_DAYS * 86400)
     if new_trust:
@@ -204,7 +204,7 @@ def forgot(body: ForgotIn, request: Request) -> dict:
                 db.commit()
                 try:
                     from app.core.mailer import send_mail
-                    base = str(request.base_url).rstrip("/")
+                    base = deploy.public_base(request)
                     send_mail(u.email, "IdPVault password reset",
                               f"A password reset was requested for your IdPVault account "
                               f"(username: {u.username}).\n\nSet a new password:\n"

@@ -4,6 +4,7 @@ import secrets as pysecrets
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from app.core import deploy
 from app.core.security import hash_password, require_admin
 from app.models.db import AuditLog, AuthSession, MfaTrust, SessionLocal, User
 
@@ -43,7 +44,7 @@ def create_user(body: UserIn, request: Request) -> dict:
     emailed = False
     try:
         from app.core.mailer import send_mail
-        base = str(request.base_url).rstrip("/")
+        base = deploy.public_base(request)
         send_mail(body.email, "You've been invited to IdPVault",
                   f"An IdPVault account was created for you (username: {body.username}).\n\n"
                   f"Set your password here: {base}/#invite={invite}\n\n"
@@ -113,7 +114,7 @@ def reset_password(user_id: int, request: Request) -> dict:
     if email:
         try:
             from app.core.mailer import send_mail
-            base = str(request.base_url).rstrip("/")
+            base = deploy.public_base(request)
             send_mail(email, "IdPVault password reset",
                       f"A password reset was requested for your IdPVault account "
                       f"(username: {u.username}).\n\nSet a new password:\n{base}/#invite={token}\n\n"

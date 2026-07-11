@@ -30,6 +30,8 @@ class SettingsIn(BaseModel):
     login_max_attempts: int | None = None    # failed logins before lockout (default 5)
     login_lockout_minutes: int | None = None  # lockout duration (default 15)
     stale_backup_hours: int | None = None     # alert if scheduled backup older than this (default 26)
+    public_url: str | None = None             # canonical public URL (links, https, host enforcement)
+    enforce_host: bool | None = None          # reject requests whose Host != public_url host
 
 
 def _get(db, key: str) -> dict:
@@ -68,7 +70,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "stale_backup_hours"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "stale_backup_hours", "public_url", "enforce_host"):
             v = getattr(body, k)
             if v is not None:
                 general[k] = v
