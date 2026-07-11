@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.6.7", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.6.8", lifespan=lifespan)
 
 
 @app.middleware("http")

@@ -21,6 +21,7 @@ class SmtpIn(BaseModel):
 class SettingsIn(BaseModel):
     smtp: SmtpIn | None = None
     alert_webhook_url: str | None = None
+    alert_webhook_format: str | None = None  # auto | slack | ntfy
     default_schedule_cron: str | None = None
     default_retention_keep: int | None = None
     okta_rate_reserve_pct: int | None = None  # 0-90; headroom left on Okta limits
@@ -63,7 +64,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days"):
             v = getattr(body, k)
             if v is not None:
                 general[k] = v
@@ -75,6 +76,18 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
 
 class TestMailIn(BaseModel):
     to: str
+
+
+@router.post("/settings/test-alert")
+def test_alert() -> dict:
+    from app.core.alerts import test_webhook
+    r = test_webhook()
+    if not r.get("configured"):
+        raise HTTPException(422, "no alert webhook configured")
+    if not r.get("ok"):
+        raise HTTPException(502, f"webhook returned {r.get('status') or r.get('error')} "
+                                 f"(format: {r.get('format')})")
+    return r
 
 
 @router.post("/settings/test-email")
