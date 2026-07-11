@@ -159,11 +159,11 @@ class AuthentikAdapter(ProviderAdapter):
             raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
         return r
 
-    def apply_identities(self, snap: dict) -> dict:
+    def apply_identities(self, snap: dict, only_keys=None) -> dict:
         """Additive restore: create missing users (by username), re-add group
         memberships. App access is governed by config policy bindings (restore config
         for that). Resolved by natural key so recreated-object ids don't break edges."""
-        rep = {"users": {"created": 0, "existing": 0, "failed": []},
+        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
                "group_memberships": {"added": 0, "skipped": 0, "failed": []},
                "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
                "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
@@ -188,6 +188,9 @@ class AuthentikAdapter(ProviderAdapter):
                     continue
                 if uname in live_user:
                     rep["users"]["existing"] += 1
+                    continue
+                if only_keys is not None and uname not in only_keys:
+                    rep["users"]["skipped"] += 1
                     continue
                 try:
                     body = {"username": uname, "name": u.get("name") or uname,

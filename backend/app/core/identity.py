@@ -56,6 +56,18 @@ def _uid(o: dict) -> str:
     return str(o.get("id") or o.get("pk") or o.get("username") or "")
 
 
+def _ukey(u: dict) -> str:
+    prof = u.get("profile") or {}
+    return prof.get("login") or u.get("username") or str(u.get("id") or u.get("pk") or "")
+
+
+def _ulabel(u: dict) -> dict:
+    prof = u.get("profile") or {}
+    name = prof.get("displayName") or (str(prof.get("firstName", "")) + " "
+           + str(prof.get("lastName", ""))).strip() or u.get("name") or ""
+    return {"key": _ukey(u), "label": name, "email": prof.get("email") or u.get("email") or ""}
+
+
 def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
     """Dry-run: what a restore WOULD do. Read-only."""
     import json
@@ -74,17 +86,20 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
         snap = storage.read_identities(t.slug, snapshot_ts, data_key)
         live = adapter.export_identities()
 
-        live_users = {_uid(u): u for u in live.get("users", [])}
-        users_plan = []
+        live_by_key = {_ukey(u): u for u in live.get("users", [])}
+        users_plan, recreate_users = [], []
+        RECREATE_LIST_CAP = 1000
         for u in snap.get("users", []):
-            uid = _uid(u)
-            lv = live_users.get(uid)
+            k = _ukey(u)
+            lv = live_by_key.get(k)
             if lv is None:
-                users_plan.append({"user_id": uid, "action": "recreate"})
+                users_plan.append({"user_id": k, "action": "recreate"})
+                if len(recreate_users) < RECREATE_LIST_CAP:
+                    recreate_users.append(_ulabel(u))
             elif json.dumps(u, sort_keys=True) != json.dumps(lv, sort_keys=True):
-                users_plan.append({"user_id": uid, "action": "update"})
+                users_plan.append({"user_id": k, "action": "update"})
             else:
-                users_plan.append({"user_id": uid, "action": "identical"})
+                users_plan.append({"user_id": k, "action": "identical"})
 
         def _edge_set(rows, keys):
             return {tuple(str(r.get(k)) for k in keys) for r in rows}
@@ -117,12 +132,15 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                         detail={"tenant": t.slug, "snapshot": snapshot_ts}))
         db.commit()
         return {"summary": summary, "manual_steps": manual_steps,
+                "recreate_users": recreate_users,
+                "recreate_truncated": recreate > len(recreate_users),
                 "note": "Provenance-preserving: group-inherited access is restored via group "
                         "memberships + group→app assignments; only genuinely DIRECT user→app "
                         "assignments are recreated as direct. Apply (write) is a separate step."}
 
 
-def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
+def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
+                           only_keys: list | None = None) -> dict:
     """Write path: recreate missing users + re-add missing edges. Additive,
     idempotent, per-object reporting. Persists a RestoreRun report."""
     from app.core import crypto, storage
@@ -137,7 +155,7 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
         snap = storage.read_identities(t.slug, snapshot_ts, data_key)
-        report = adapter.apply_identities(snap)  # may raise NotImplementedError
+        report = adapter.apply_identities(snap, set(only_keys) if only_keys else None)
 
         summary = {}
         for cat, r in report.items():

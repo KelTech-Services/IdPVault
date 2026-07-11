@@ -56,6 +56,7 @@ def restore_preview(tenant_id: int, body: IdRestoreIn, request: Request) -> dict
 class IdApplyIn(BaseModel):
     snapshot_ts: str
     confirm: bool = False  # must be true — guards against accidental writes
+    selection: list[str] | None = None  # user natural keys to recreate; None = all missing
 
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
@@ -63,7 +64,8 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")
     try:
-        return apply_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
+        return apply_identity_restore(tenant_id, body.snapshot_ts,
+                                      request.state.user["username"], body.selection)
     except NotImplementedError as e:
         raise HTTPException(501, str(e))
     except FileNotFoundError:

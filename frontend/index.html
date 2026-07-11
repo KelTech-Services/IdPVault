@@ -69,6 +69,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 .modal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px;width:820px;max-width:94vw;max-height:88vh;overflow:auto}
 .chk{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .chk label{display:flex;gap:6px;align-items:center;font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:5px 10px;border-radius:7px;cursor:pointer}
+.ulist{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:8px}
+.ulist label{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--panel2);font-size:.83rem;cursor:pointer}
+.ulist label:last-child{border-bottom:none}
+.ulist label:hover{background:var(--panel2)}
+.ulist .em{color:var(--dim);font-size:.78rem}
 
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px;width:380px;display:grid;gap:14px}
@@ -101,7 +106,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.5.1</span>
+  <span class="ver">v0.5.2</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -783,10 +788,28 @@ async function identityPreview(ts){
       <div style="font-size:.85rem">+${p.summary.group_memberships_to_add} group memberships · +${p.summary.app_group_assignments_to_add} group→app · +${p.summary.app_user_assignments_direct_to_add} direct user→app</div>
       ${p.manual_steps.length?`<div style="margin-top:8px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
       <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>
+      ${_renderRecreateList(p)}
       <div style="margin-top:10px">${_idApplyable(p)?`<button class="danger" onclick="identityApply('${ts}')">Apply identity restore</button> <span class="muted" style="font-size:.78rem">writes to the live tenant</span>`:'<span class="muted" style="font-size:.82rem">Nothing to apply — live already matches this snapshot.</span>'}</div></div>`;
   }catch(e){ box.innerHTML=`<span class="muted">Preview failed: ${esc(e.message)}</span>`; }
 }
 
+
+
+const RECREATE_SELECT_MAX = 200;
+function _renderRecreateList(p){
+  const list = p.recreate_users || [];
+  if(!list.length) return '';
+  if(list.length > RECREATE_SELECT_MAX || p.recreate_truncated){
+    return `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem"><b>${list.length}${p.recreate_truncated?'+':''} users to recreate</b> — too many to select individually; Apply restores all</summary></details>`;
+  }
+  return `<details style="margin-top:10px" open>
+    <summary style="cursor:pointer;font-size:.85rem"><b>${list.length} user(s) to recreate</b> — pick which to restore</summary>
+    <div style="margin:6px 0"><button onclick="_selAll(true)">Select all</button> <button onclick="_selAll(false)">Unselect all</button></div>
+    <div class="ulist" id="id_recreate_list">
+      ${list.map(u=>`<label><input type="checkbox" value="${esc(u.key)}" checked> <span>${esc(u.label||u.key)}</span> ${u.email?`<span class="em">${esc(u.email)}</span>`:''}</label>`).join('')}
+    </div></details>`;
+}
+function _selAll(v){ document.querySelectorAll('#id_recreate_list input[type=checkbox]').forEach(b=>b.checked=v); }
 
 function _idApplyable(p){
   const u = p.summary.users;
@@ -794,11 +817,19 @@ function _idApplyable(p){
        + (p.summary.app_group_assignments_to_add||0) + (p.summary.app_user_assignments_direct_to_add||0) > 0;
 }
 async function identityApply(ts){
-  if(!confirm('APPLY identity restore? This WRITES to the live tenant — recreates missing users and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?')) return;
+  let selection = null;
+  const boxes = document.querySelectorAll('#id_recreate_list input[type=checkbox]');
+  if(boxes.length){
+    selection = [...boxes].filter(b=>b.checked).map(b=>b.value);
+    if(selection.length===0 && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
+  }
+  const n = selection ? selection.length : 'all missing';
+  if(!confirm(`APPLY identity restore? This WRITES to the live tenant — recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
   const box = document.getElementById('id_preview');
   box.innerHTML = '<span class="muted">Applying identity restore… (throttled; may take a while)</span>';
   try{
-    const r = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify({snapshot_ts:ts, confirm:true})});
+    const payload = {snapshot_ts:ts, confirm:true}; if(selection) payload.selection = selection;
+    const r = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     const rep = r.summary;
     const line = (cat) => { const c=rep[cat]||{}; return `${cat.replace(/_/g,' ')}: ${c.created!=null?c.created+' created, ':''}${c.added!=null?c.added+' added, ':''}${c.existing!=null?c.existing+' existing, ':''}${c.skipped!=null?c.skipped+' skipped, ':''}${c.failed?('<span class=\'st-failed\'>'+c.failed+' failed</span>'):'0 failed'}`; };
     box.innerHTML = `<div class="panel" style="background:var(--panel2)">

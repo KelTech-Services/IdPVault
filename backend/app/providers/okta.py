@@ -152,12 +152,12 @@ class OktaAdapter(ProviderAdapter):
             raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
         return r
 
-    def apply_identities(self, snap: dict) -> dict:
+    def apply_identities(self, snap: dict, only_keys=None) -> dict:
         """Additive restore: recreate missing users (by login), then re-add missing
         memberships / group->app / direct user->app edges. Everything resolved by
         NATURAL KEY (login / group name / app label) so recreated-object id changes
         don't break edges. Idempotent: existing users/edges are skipped."""
-        rep = {"users": {"created": 0, "existing": 0, "failed": []},
+        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
                "group_memberships": {"added": 0, "skipped": 0, "failed": []},
                "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
                "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
@@ -197,6 +197,9 @@ class OktaAdapter(ProviderAdapter):
                     continue
                 if login in live_user:
                     rep["users"]["existing"] += 1
+                    continue
+                if only_keys is not None and login not in only_keys:
+                    rep["users"]["skipped"] += 1
                     continue
                 try:
                     r = self._write(c, "POST", "/api/v1/users", params={"activate": "false"},
