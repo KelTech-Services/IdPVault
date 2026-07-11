@@ -86,3 +86,45 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(60), primary_key=True)
     value: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class BackupRun(Base):
+    __tablename__ = "backup_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    ts: Mapped[str] = mapped_column(String(20), index=True)     # snapshot ts (or attempt time on failure)
+    status: Mapped[str] = mapped_column(String(10))              # ok | failed
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class Event(Base):
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    snapshot_ts: Mapped[str] = mapped_column(String(20), index=True)
+    event_type: Mapped[str] = mapped_column(String(10), index=True)   # add | update | delete
+    resource_type: Mapped[str] = mapped_column(String(60), index=True)
+    object_id: Mapped[str] = mapped_column(String(120), default="")
+    object_name: Mapped[str] = mapped_column(String(255), default="")
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class RestoreRun(Base):
+    __tablename__ = "restore_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    snapshot_ts: Mapped[str] = mapped_column(String(20))
+    mode: Mapped[str] = mapped_column(String(10))  # dry_run | apply
+    actor: Mapped[str] = mapped_column(String(120), default="system")
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)   # counts per action/status
+    results: Mapped[dict] = mapped_column(JSON, default=dict)   # {"items": [...]} per-object detail
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

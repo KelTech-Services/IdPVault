@@ -52,6 +52,22 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 .diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}
 .diffstat .add{color:var(--green)}.diffstat .rem{color:var(--red)}.diffstat .chg{color:var(--amber)}
 .muted{color:var(--dim)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+.card .lbl2{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.card .big{font-size:1.6rem;font-weight:600}
+.card .sub{font-size:.78rem;color:var(--dim);margin-top:6px}
+.card.good .big{color:var(--green)}.card.warn .big{color:var(--amber)}.card.bad .big{color:var(--red)}
+.ev-add{color:var(--green)}.ev-update{color:var(--amber)}.ev-delete{color:var(--red)}
+.evtype{font-weight:600;text-transform:uppercase;font-size:.72rem;letter-spacing:.5px}
+.restore-item{display:grid;grid-template-columns:90px 1fr 160px;gap:10px;padding:7px 10px;border-bottom:1px solid var(--panel2);font-size:.84rem;align-items:center}
+.act-create{color:var(--green)}.act-update{color:var(--amber)}.act-identical{color:var(--dim)}
+.st-created,.st-updated{color:var(--green)}.st-failed,.st-unsupported{color:var(--red)}.st-skipped,.st-skipped_managed{color:var(--dim)}.st-planned{color:var(--accent)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:80}
+.modal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px;width:820px;max-width:94vw;max-height:88vh;overflow:auto}
+.chk{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chk label{display:flex;gap:6px;align-items:center;font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:5px 10px;border-radius:7px;cursor:pointer}
+
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px;width:380px;display:grid;gap:14px}
 .logincard img{height:120px;width:auto;justify-self:center;margin-bottom:6px;max-width:100%;object-fit:contain}
@@ -83,9 +99,10 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.2.0</span>
+  <span class="ver">v0.3.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
+    <button data-view="events" onclick="switchView('events')">Events</button>
     <button data-view="users" class="adminonly" onclick="switchView('users')">Users</button>
     <button data-view="settings" class="adminonly" onclick="switchView('settings')">Settings</button>
   </nav>
@@ -96,6 +113,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
   </div>
 </header>
 <main id="view-dashboard">
+  <section class="cards" id="statcards"></section>
   <section class="panel">
     <h2>Tenants <span class="spacer"></span><button class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
@@ -121,7 +139,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <h2>Snapshots — <span id="snaptenant"></span><span class="spacer"></span>
       <button id="diffbtn" disabled onclick="runDiff()">Diff selected (pick 2)</button>
       <button onclick="hideSnaps()">Close</button></h2>
-    <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th></tr></thead>
+    <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="diffpanel">
@@ -130,6 +148,30 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <pre id="diffout"></pre>
   </section>
 </main>
+<main id="view-events" class="hidden">
+  <section class="panel">
+    <h2>Events <span class="spacer"></span>
+      <select id="ev_tenant" onchange="loadEvents()" style="width:auto"></select>
+      <select id="ev_type" onchange="loadEvents()" style="width:auto"><option value="">All changes</option><option value="add">Added</option><option value="update">Updated</option><option value="delete">Deleted</option></select>
+    </h2>
+    <table>
+      <thead><tr><th>When</th><th>Change</th><th>Type</th><th>Object</th><th>Snapshot</th></tr></thead>
+      <tbody id="eventbody"><tr><td colspan="5" class="muted">Select a tenant…</td></tr></tbody>
+    </table>
+  </section>
+</main>
+<div id="restoremodal" class="modal hidden">
+  <div class="box">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore — <span id="r_tenant"></span></h2>
+    <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="r_snap"></span>. Preview is read-only. Apply writes changed objects back to the live tenant.</p>
+    <div id="r_scope" class="chk"></div>
+    <div style="margin:10px 0"><button class="primary" onclick="restorePreview()">Run preview (dry-run)</button>
+      <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
+      <button onclick="closeRestore()">Close</button></div>
+    <div id="r_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
+    <div id="r_items" style="max-height:44vh;overflow:auto"></div>
+  </div>
+</div>
 <main id="view-users" class="hidden">
   <section class="panel">
     <h2>Users <span class="spacer"></span><button class="primary" onclick="document.getElementById('userform').classList.toggle('hidden')">+ Add user</button></h2>
@@ -242,13 +284,15 @@ function showApp(){
   const isAdmin = me.role === 'admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
-  health(); loadTenants(); setInterval(health, 30000);
+  health(); loadTenants(); loadDashboard(); setInterval(health, 30000);
 }
 function switchView(name){
-  ['dashboard','users','settings'].forEach(x => {
+  ['dashboard','events','users','settings'].forEach(x => {
     document.getElementById('view-'+x).classList.toggle('hidden', x !== name);
     document.querySelector(`nav button[data-view=${x}]`).classList.toggle('active', x === name);
   });
+  if(name === 'dashboard') loadDashboard();
+  if(name === 'events') loadEventTenants();
   if(name === 'users') loadUsers();
   if(name === 'settings') loadSettings();
 }
@@ -353,13 +397,17 @@ async function showSnaps(id, slug){
   document.getElementById('snaptenant').textContent = slug;
   document.getElementById('snappanel').classList.remove('hidden');
   document.getElementById('diffbtn').disabled = true;
+  window._snapSlug = slug;
   const sb = document.getElementById('snapbody');
   sb.innerHTML = '<tr><td colspan="2" class="muted">Loading…</td></tr>';
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
     if(!snaps.length){ sb.innerHTML = '<tr><td colspan="2" class="muted">No snapshots yet.</td></tr>'; return; }
-    sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}" onclick="selSnap(this)">
-      <td><input type="checkbox" tabindex="-1"></td><td>${fmtTs(ts)} <span class="muted">(${ts})</span></td></tr>`).join('');
+    const admin = me.role==='admin';
+    sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
+      <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
+      <td onclick="selSnap(this.parentElement)">${fmtTs(ts)} <span class="muted">(${ts})</span></td>
+      <td style="text-align:right">${admin?`<button onclick="openRestore('${ts}')">Restore…</button>`:''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
@@ -456,6 +504,98 @@ async function testEmail(){
   if(!v('s_testto')) return toast('Enter a recipient address first', true);
   try { await api('/settings/test-email', {method:'POST', body: JSON.stringify({to: v('s_testto')})}); toast('Test email sent — check the inbox.'); }
   catch(e){ toast(e.message, true); }
+}
+
+
+/* ---------- dashboard cards ---------- */
+function fmtBytes(n){ if(!n) return '0 B'; const u=['B','KB','MB','GB']; let i=0; while(n>=1024&&i<u.length-1){n/=1024;i++;} return n.toFixed(i?1:0)+' '+u[i]; }
+async function loadDashboard(){
+  const el = document.getElementById('statcards'); if(!el) return;
+  try {
+    const d = await api('/dashboard/summary');
+    const cov = d.coverage, pct = cov.total ? Math.round(cov.ok/cov.total*100) : 0;
+    const covClass = cov.total===0?'':pct===100?'good':pct>=50?'warn':'bad';
+    const unbacked = d.tenants.reduce((a,t)=> a + (t.unbacked_changes||0), 0);
+    el.innerHTML = `
+      <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '—'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
+      <div class="card"><div class="lbl2">Tenants</div><div class="big">${d.tenants.length}</div><div class="sub">${d.tenants.map(t=>t.provider).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||'none'}</div></div>
+      <div class="card ${unbacked>0?'warn':''}"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">across tenants since last backup</div></div>
+      <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
+  } catch(e){ el.innerHTML = `<div class="card bad"><div class="lbl2">Dashboard</div><div class="sub">${esc(e.message)}</div></div>`; }
+}
+
+/* ---------- events ---------- */
+async function loadEventTenants(){
+  const sel = document.getElementById('ev_tenant');
+  if(!_tenants.length){ try{ _tenants = await api('/tenants'); }catch{} }
+  sel.innerHTML = _tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  loadEvents();
+}
+async function loadEvents(){
+  const tid = document.getElementById('ev_tenant').value;
+  const type = document.getElementById('ev_type').value;
+  const tb = document.getElementById('eventbody');
+  if(!tid){ tb.innerHTML='<tr><td colspan="5" class="muted">No tenant.</td></tr>'; return; }
+  tb.innerHTML='<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  try {
+    const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}`);
+    if(!d.events.length){ tb.innerHTML='<tr><td colspan="5" class="muted">No change events yet — these appear after the second backup onward.</td></tr>'; return; }
+    tb.innerHTML = d.events.map(e=>`<tr>
+      <td class="muted">${new Date(e.at).toLocaleString()}</td>
+      <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>
+      <td>${esc(e.resource_type)}</td>
+      <td>${esc(e.object_name||e.object_id||'—')}${e.detail&&e.detail.fields&&e.detail.fields.length?` <span class="muted">(${e.detail.fields.slice(0,6).join(', ')})</span>`:''}</td>
+      <td class="muted">${fmtTs(e.snapshot_ts)}</td></tr>`).join('');
+  } catch(e){ tb.innerHTML=`<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
+}
+
+/* ---------- restore ---------- */
+let _restoreCtx = null;
+async function openRestore(ts){
+  _restoreCtx = { tenantId: snapTenantId, snap: ts };
+  document.getElementById('r_tenant').textContent = window._snapSlug || '';
+  document.getElementById('r_snap').textContent = ts;
+  document.getElementById('r_summary').textContent = '';
+  document.getElementById('r_items').innerHTML = '';
+  document.getElementById('r_applybtn').classList.add('hidden');
+  document.getElementById('r_scope').innerHTML = '<label><input type="radio" name="rscope" value="all" checked> Everything in this snapshot</label>';
+  document.getElementById('restoremodal').classList.remove('hidden');
+}
+function closeRestore(){ document.getElementById('restoremodal').classList.add('hidden'); _restoreCtx=null; }
+function renderRestore(res){
+  const s = res.summary;
+  const acts = s.actions||{}, sts = s.statuses||{};
+  document.getElementById('r_summary').innerHTML =
+    `<b>${s.mode==='dry_run'?'Preview':'Applied'}:</b> ${s.total} objects — ` +
+    Object.entries(acts).map(([k,v])=>`<span class="act-${k}">${v} ${k}</span>`).join(' · ') +
+    (s.mode==='apply' ? ' — ' + Object.entries(sts).map(([k,v])=>`<span class="st-${k}">${v} ${k}</span>`).join(' · ') : '');
+  document.getElementById('r_items').innerHTML =
+    '<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>' +
+    res.items.map(it=>`<div class="restore-item">
+      <div class="act-${it.action}">${it.action}</div>
+      <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'—')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
+      <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`).join('');
+}
+async function restorePreview(){
+  document.getElementById('r_summary').textContent = 'Running preview…';
+  try {
+    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:_restoreCtx.snap})});
+    renderRestore(res);
+    const changes = (res.summary.actions?.create||0)+(res.summary.actions?.update||0);
+    if(changes>0){ document.getElementById('r_applybtn').classList.remove('hidden'); document.getElementById('r_applybtn').textContent = `Apply restore (${changes} changes)`; }
+  } catch(e){ document.getElementById('r_summary').textContent = 'Preview failed: '+e.message; }
+}
+async function restoreApply(){
+  if(!confirm('Apply this restore? It writes changed objects back into the live tenant. This cannot be auto-undone.')) return;
+  document.getElementById('r_summary').textContent = 'Applying…';
+  document.getElementById('r_applybtn').disabled = true;
+  try {
+    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify({snapshot_ts:_restoreCtx.snap})});
+    renderRestore(res);
+    toast('Restore applied — see the report below.');
+    document.getElementById('r_applybtn').classList.add('hidden');
+  } catch(e){ document.getElementById('r_summary').textContent = 'Apply failed: '+e.message; }
+  document.getElementById('r_applybtn').disabled = false;
 }
 
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

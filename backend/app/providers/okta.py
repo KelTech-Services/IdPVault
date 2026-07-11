@@ -46,3 +46,11 @@ class OktaAdapter(ProviderAdapter):
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
             return {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+
+    def count_changes_since(self, iso_ts: str) -> int | None:
+        with self._client() as c:
+            r = c.get("/api/v1/logs", params={"since": iso_ts, "limit": 1000,
+                                              "filter": 'eventType sw "system.' + '" or eventType sw "policy." or eventType sw "application." or eventType sw "group."'})
+            if r.status_code != 200:
+                return None
+            return len(r.json())

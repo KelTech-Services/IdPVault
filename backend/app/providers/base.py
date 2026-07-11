@@ -23,3 +23,11 @@ class ProviderAdapter(ABC):
 
     def restore_object(self, resource_type: str, obj: dict, dry_run: bool = True) -> dict:
         raise NotImplementedError(f"{self.name}: restore not implemented yet")
+
+    def count_changes_since(self, iso_ts: str) -> int | None:
+        """Number of admin/config events in the IdP since iso_ts (UTC).
+        None = provider doesn't support it (yet)."""
+        return None
+
+    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
+        raise NotImplementedError(f"{self.name}: restore (apply) not implemented yet")

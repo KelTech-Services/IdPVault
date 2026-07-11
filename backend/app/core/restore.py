@@ -1,0 +1,114 @@
+"""Restore engine: plan (dry-run) and apply, dependency-ordered, per-object reporting.
+
+Dry-run is provider-agnostic: it compares snapshot objects against a fresh live
+export. Apply pushes objects back through the provider adapter (Authentik today;
+Okta/Auth0 adapters raise not-implemented and land in the report as unsupported).
+"""
+import json
+
+from app.core import crypto, storage
+from app.core.events import _id as obj_id, _name as obj_name
+from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
+from app.providers import get_adapter
+
+# Parents before children. Types not listed restore last, alphabetically.
+RESTORE_ORDER = ["certificates", "property_mappings", "flows", "stages", "policies",
+                 "groups", "providers", "applications", "flow_stage_bindings",
+                 "policy_bindings", "outposts", "brands"]
+NEVER_RESTORE = {"blueprints", "user_schemas"}
+
+
+def _order_key(rtype: str):
+    return (RESTORE_ORDER.index(rtype), "") if rtype in RESTORE_ORDER else (len(RESTORE_ORDER), rtype)
+
+
+def _selected(selection: dict | None, rtype: str, oid: str) -> bool:
+    if not selection:
+        return True
+    rtypes = selection.get("resource_types")
+    objects = selection.get("objects")
+    if objects:
+        return any(o.get("resource_type") == rtype and str(o.get("object_id")) == oid
+                   for o in objects)
+    if rtypes:
+        return rtype in rtypes
+    return True
+
+
+def build_plan(snap_export: dict, live_export: dict, selection: dict | None) -> list[dict]:
+    items = []
+    for rtype in sorted(snap_export.keys(), key=_order_key):
+        if rtype in NEVER_RESTORE:
+            continue
+        live_idx = {obj_id(o): o for o in live_export.get(rtype, [])}
+        for obj in snap_export.get(rtype, []):
+            oid = obj_id(obj)
+            if not _selected(selection, rtype, oid):
+                continue
+            live = live_idx.get(oid)
+            if live is None:
+                action, fields = "create", []
+            else:
+                fields = sorted(k for k in set(obj) | set(live)
+                                if json.dumps(obj.get(k), sort_keys=True, default=str)
+                                != json.dumps(live.get(k), sort_keys=True, default=str))
+                action = "update" if fields else "identical"
+            items.append({"resource_type": rtype, "object_id": oid,
+                          "object_name": obj_name(obj), "action": action,
+                          "changed_fields": fields[:30],
+                          "managed": bool(obj.get("managed")),
+                          "_obj": obj})
+    return items
+
+
+def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
+                mode: str, actor: str) -> dict:
+    assert mode in ("dry_run", "apply")
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise ValueError("tenant not found")
+        data_key = crypto.unwrap_data_key(t.wrapped_data_key)
+        creds = crypto.decrypt(t.enc_credentials, data_key).decode()
+        adapter = get_adapter(t.provider, t.base_url, creds)
+
+        snap = storage.read_snapshot(t.slug, snapshot_ts, data_key)
+        live = adapter.export()
+        plan = build_plan(snap, live, selection)
+
+        for item in plan:
+            obj = item.pop("_obj")
+            if mode == "dry_run":
+                item["status"] = "planned" if item["action"] != "identical" else "skipped"
+                continue
+            if item["action"] == "identical":
+                item["status"] = "skipped"
+                continue
+            if item["managed"]:
+                item["status"] = "skipped_managed"
+                continue
+            try:
+                pushed, live_pk = adapter.push_object(item["resource_type"], obj)
+                item["status"] = pushed
+                item["live_pk"] = live_pk
+            except NotImplementedError as e:
+                item["status"] = "unsupported"
+                item["error"] = str(e)
+            except Exception as e:
+                item["status"] = "failed"
+                item["error"] = str(e)[:300]
+
+        summary: dict = {"mode": mode, "total": len(plan)}
+        for it in plan:
+            for key in ("action", "status"):
+                summary.setdefault(key + "s", {})
+                summary[key + "s"][it[key]] = summary[key + "s"].get(it[key], 0) + 1
+
+        run = RestoreRun(tenant_id=t.id, snapshot_ts=snapshot_ts, mode=mode, actor=actor,
+                         summary=summary, results={"items": plan})
+        db.add(run)
+        db.add(AuditLog(actor=actor, action=f"restore.{mode}",
+                        detail={"tenant": t.slug, "snapshot": snapshot_ts,
+                                "total": len(plan)}))
+        db.commit()
+        return {"restore_run_id": run.id, "summary": summary, "items": plan}

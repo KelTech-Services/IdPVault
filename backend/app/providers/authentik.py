@@ -10,6 +10,7 @@ RESOURCES = {
     "stages": "/api/v3/stages/all/",
     "policies": "/api/v3/policies/all/",
     "policy_bindings": "/api/v3/policies/bindings/",
+    "flow_stage_bindings": "/api/v3/flows/bindings/",
     "property_mappings": "/api/v3/propertymappings/all/",
     "groups": "/api/v3/core/groups/",
     "brands": "/api/v3/core/brands/",
@@ -47,3 +48,69 @@ class AuthentikAdapter(ProviderAdapter):
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
             return {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+
+    def count_changes_since(self, iso_ts: str) -> int | None:
+        with self._client() as c:
+            r = c.get("/api/v3/events/events/", params={
+                "created__gte": iso_ts, "page_size": 1,
+                "action__in": "model_created,model_updated,model_deleted"})
+            if r.status_code != 200:
+                return None
+            return r.json().get("pagination", {}).get("count")
+
+    # ---- restore support ----
+    READONLY_FIELDS = {"pk", "component", "verbose_name", "verbose_name_plural",
+                       "meta_model_name", "managed", "object_uid", "assigned_application_slug",
+                       "assigned_application_name", "assigned_backchannel_application_slug",
+                       "assigned_backchannel_application_name", "outpost_set", "url_download_metadata"}
+
+    _EXACT_PATHS = {
+        "authentik_core.application": "core/applications/",
+        "authentik_core.group": "core/groups/",
+        "authentik_flows.flow": "flows/instances/",
+        "authentik_flows.flowstagebinding": "flows/bindings/",
+        "authentik_policies.policybinding": "policies/bindings/",
+        "authentik_brands.brand": "core/brands/",
+        "authentik_crypto.certificatekeypair": "crypto/certificatekeypairs/",
+        "authentik_outposts.outpost": "outposts/instances/",
+        "authentik_providers_oauth2.scopemapping": "propertymappings/provider/scope/",
+    }
+
+    def _write_path(self, obj: dict) -> str | None:
+        model = obj.get("meta_model_name", "")
+        if model in self._EXACT_PATHS:
+            return self._EXACT_PATHS[model]
+        app, _, cls = model.partition(".")
+        if cls.endswith("propertymapping") or cls.endswith("scopemapping"):
+            if app.startswith("authentik_providers_"):
+                return f"propertymappings/provider/{app.removeprefix('authentik_providers_')}/"
+            if app.startswith("authentik_sources_"):
+                return f"propertymappings/source/{app.removeprefix('authentik_sources_')}/"
+            return None
+        for prefix, seg in (("authentik_policies_", "policies/"), ("authentik_stages_", "stages/"),
+                            ("authentik_providers_", "providers/"), ("authentik_sources_", "sources/")):
+            if app.startswith(prefix):
+                return seg + app.removeprefix(prefix).replace("_", "/") + "/"
+        return None
+
+    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
+        """Create-or-update one object from a snapshot. Returns (action, live_pk)."""
+        if obj.get("managed"):
+            return ("skipped_managed", str(obj.get("pk", "")))
+        path = self._write_path(obj)
+        if not path:
+            raise RuntimeError(f"no write path known for {obj.get('meta_model_name')!r}")
+        payload = {k: v for k, v in obj.items() if k not in self.READONLY_FIELDS}
+        pk = obj.get("pk") or obj.get("brand_uuid")
+        with self._client() as c:
+            if pk is not None:
+                live = c.get(f"/api/v3/{path}{pk}/")
+                if live.status_code == 200:
+                    r = c.put(f"/api/v3/{path}{pk}/", json=payload)
+                    if r.status_code >= 400:
+                        raise RuntimeError(f"PUT {path}{pk}/ -> {r.status_code}: {r.text[:280]}")
+                    return ("updated", str(pk))
+            r = c.post(f"/api/v3/{path}", json=payload)
+            if r.status_code >= 400:
+                raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
+            return ("created", str(r.json().get("pk", "")))
