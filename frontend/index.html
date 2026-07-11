@@ -87,7 +87,12 @@ input::placeholder{color:#556575}
 
 .hidden{display:none!important}
 .muted{color:var(--dim)}
-.empty{text-align:center;color:var(--dim);padding:34px 16px;font-size:.88rem}
+.empty{text-align:center;color:var(--dim);padding:40px 16px;font-size:.88rem}
+.empty svg{width:30px;height:30px;stroke:var(--dim);opacity:.5;margin-bottom:12px}
+.empty .cta{margin-top:14px}
+.skeleton{background:linear-gradient(90deg,var(--panel2),var(--panel3),var(--panel2));background-size:200% 100%;animation:sk 1.3s infinite;border-radius:5px;height:11px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+td button{padding:6px 11px;font-size:.79rem}
 #toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--green);padding:14px 18px;border-radius:var(--radius-sm);font-size:.85rem;max-width:460px;box-shadow:var(--shadow);z-index:99;word-break:break-word}
 #toast.err{border-left-color:var(--red)}
 .snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
@@ -177,7 +182,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.10</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.11</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -368,6 +373,23 @@ const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'applica
   });
 
 let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null;
+
+
+const EI = {
+  db:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>',
+  activity:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
+};
+function emptyRow(cols, icon, text, cta){
+  return `<tr><td colspan="${cols}"><div class="empty">${icon||''}<div>${text}</div>${cta?`<div class="cta">${cta}</div>`:''}</div></td></tr>`;
+}
+function skelRows(cols, n=3){
+  let out='';
+  for(let i=0;i<n;i++){ let c=''; for(let j=0;j<cols;j++) c+=`<td><div class="skeleton" style="width:${45+((i*7+j*13)%40)}%"></div></td>`; out+=`<tr>${c}</tr>`; }
+  return out;
+}
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function v(id){ return document.getElementById(id).value.trim(); }
@@ -572,9 +594,10 @@ function toggleAdd(){ const f=document.getElementById('addform'); f.classList.to
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   const isAdmin = me.role === 'admin';
+  tb.innerHTML = skelRows(6);
   try {
     const ts = await api('/tenants'); _tenants = ts;
-    if(!ts.length){ tb.innerHTML = '<tr><td colspan="6" class="muted">No tenants yet — add your first IdP above.</td></tr>'; return; }
+    if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
     tb.innerHTML = ts.map(t => `<tr>
       <td>${esc(t.name)}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
@@ -680,10 +703,10 @@ async function showSnaps(id, slug){
   document.getElementById('diffbtn').disabled = true;
   window._snapSlug = slug;
   const sb = document.getElementById('snapbody');
-  sb.innerHTML = '<tr><td colspan="2" class="muted">Loading…</td></tr>';
+  sb.innerHTML = skelRows(3);
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
-    if(!snaps.length){ sb.innerHTML = '<tr><td colspan="2" class="muted">No snapshots yet.</td></tr>'; return; }
+    if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet — run a backup to create one.'); return; }
     const admin = me.role==='admin';
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
@@ -718,6 +741,7 @@ async function runDiff(){
 /* ---------- users admin ---------- */
 async function loadUsers(){
   const ub = document.getElementById('userbody');
+  ub.innerHTML = skelRows(5);
   try {
     const us = await api('/users');
     ub.innerHTML = us.map(u => `<tr>
@@ -843,11 +867,11 @@ async function loadEvents(){
   const tid = document.getElementById('ev_tenant').value;
   const type = document.getElementById('ev_type').value;
   const tb = document.getElementById('eventbody');
-  if(!tid){ tb.innerHTML='<tr><td colspan="5" class="muted">No tenant.</td></tr>'; return; }
-  tb.innerHTML='<tr><td colspan="5" class="muted">Loading…</td></tr>';
+  if(!tid){ tb.innerHTML=emptyRow(5, EI.activity, 'No tenant selected.'); return; }
+  tb.innerHTML=skelRows(5);
   try {
     const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}`);
-    if(!d.events.length){ tb.innerHTML='<tr><td colspan="5" class="muted">No change events yet — these appear after the second backup onward.</td></tr>'; return; }
+    if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, 'No change events yet — these appear from the second backup onward.'); return; }
     tb.innerHTML = d.events.map(e=>`<tr>
       <td class="muted">${new Date(e.at).toLocaleString()}</td>
       <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>
@@ -919,11 +943,11 @@ async function restoreApply(){
 /* ---------- audit ---------- */
 async function loadAudit(){
   const tb = document.getElementById('auditbody');
-  tb.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
+  tb.innerHTML = skelRows(4);
   try {
     const f = document.getElementById('au_filter').value;
     const d = await api(`/audit?limit=200${f?'&action='+f:''}`);
-    if(!d.entries.length){ tb.innerHTML='<tr><td colspan="4" class="muted">No entries.</td></tr>'; return; }
+    if(!d.entries.length){ tb.innerHTML=emptyRow(4, EI.list, 'No audit entries yet.'); return; }
     tb.innerHTML = d.entries.map(a=>`<tr>
       <td class="muted">${new Date(a.at).toLocaleString()}</td>
       <td>${esc(a.actor)}</td><td>${esc(a.action)}</td>
@@ -950,10 +974,10 @@ async function browseObjects(){
   if(!_browse || !_browse.type) return;
   const q = document.getElementById('b_search').value.trim();
   const tb = document.getElementById('b_objects');
-  tb.innerHTML = '<tr><td colspan="3" class="muted">Loading…</td></tr>';
+  tb.innerHTML = skelRows(3);
   try {
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects?resource_type=${encodeURIComponent(_browse.type)}${q?'&q='+encodeURIComponent(q):''}`);
-    if(!d.objects.length){ tb.innerHTML='<tr><td colspan="3" class="muted">No matches.</td></tr>'; return; }
+    if(!d.objects.length){ tb.innerHTML=emptyRow(3, EI.search, 'No matching objects.'); return; }
     tb.innerHTML = d.objects.map(o=>`<tr>
       <td>${esc(o.object_name||'—')}</td><td class="muted">${esc(o.object_id)}</td>
       <td><button onclick="viewObject('${esc(o.object_id)}')">View</button></td></tr>`).join('');
@@ -991,10 +1015,10 @@ async function loadIdentityEstimate(){
 }
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
-  tb.innerHTML = '<tr><td colspan="7" class="muted">Loading…</td></tr>';
+  tb.innerHTML = skelRows(7);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML='<tr><td colspan="7" class="muted">No identity snapshots yet. Enable identity backup on the tenant (Edit) and run one.</td></tr>'; return; }
+    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No identity snapshots yet — enable identity backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
       const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
