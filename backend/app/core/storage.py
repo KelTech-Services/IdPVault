@@ -48,7 +48,11 @@ def list_snapshots(tenant_slug: str) -> list[str]:
     base = os.path.join(get_settings().data_dir, tenant_slug)
     if not os.path.isdir(base):
         return []
-    return sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))
+    # Only real config snapshots (dirs holding an objects.json.enc payload). This
+    # deliberately excludes the sibling `identities/` dir, which would otherwise be
+    # treated as a snapshot and break drift detection + retention.
+    return sorted(d for d in os.listdir(base)
+                  if os.path.isfile(os.path.join(base, d, "objects.json.enc")))
 
 
 def prune(tenant_slug: str, keep: int) -> list[str]:

@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.10] — 2026-07-11
+### Fixed
+- Drift detection silently broken for any tenant with identity backup enabled: the
+  `identities/` sub-directory was being listed as a config snapshot and, sorting
+  after the timestamped snapshots, made every backup diff the just-written snapshot
+  against itself — so drift was never detected and the Events feed stayed empty.
+  `list_snapshots` now only returns real config snapshots (dirs containing
+  `objects.json.enc`), which also corrects retention pruning.
+
 ## [0.7.9] — 2026-07-11
 ### Fixed
 - Auth0 restore self-heal now also handles **nested** read-only fields: Auth0 reports
