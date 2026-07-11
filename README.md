@@ -10,12 +10,15 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 
 - Scheduled + on-demand encrypted backups (AES-256-GCM, per-tenant envelope keys)
 - Providers: Authentik, Okta, Auth0 (pluggable adapter interface)
-- Snapshot-to-snapshot diff and drift detection
-- Restore: dry-run first, object-level precision (roadmap: dependency tracking)
-- Retention policies per tenant
-- Audit log of every action
-- Webhook alerts (ntfy / Slack) on drift or failed backups
-- Prometheus metrics endpoint
+- Snapshot-to-snapshot diff, drift detection, and a per-object change events feed
+- Restore engine: dry-run preview, dependency-ordered apply (Authentik), per-object
+  restore reports
+- Multi-user: session login, admin / read-only roles, email invites, SMTP settings
+- Dashboard: coverage, unbacked-changes (live IdP event polling), storage stats
+- Snapshot object browser — inspect any object in any snapshot
+- Retention policies per tenant; audit log with viewer
+- Alerts on drift or failed backups: webhook (ntfy / Slack) + email
+- Prometheus metrics endpoint (set IDPVAULT_METRICS_TOKEN to enable)
 
 ## Quick deploy (Docker Compose / Portainer stack)
 
@@ -31,7 +34,7 @@ See `docker/compose.example.yaml`. Single app image + Postgres, no other depende
 
 ## Status
 
-Early scaffold. Interfaces are stable; provider export coverage expanding.
+v0.4 shipped and deployed. See `docs/ROADMAP.md` for shipped versions and what's next.
 
 ## What a backup contains — and what it doesn't
 
