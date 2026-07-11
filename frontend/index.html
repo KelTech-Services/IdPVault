@@ -177,7 +177,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.8</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.9</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -347,6 +347,8 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div style="grid-column:span 2"><label>Alert webhook URL</label><input id="s_webhook" placeholder="https://mattermost.example.com/hooks/… or https://ntfy.example.com/idpvault"></div>
       <div><label>Webhook format</label><select id="s_webhookfmt"><option value="auto">Auto-detect</option><option value="slack">Slack / Mattermost / Discord</option><option value="ntfy">ntfy</option></select></div>
     </div>
+    <label class="lbl">Which events to send</label>
+    <div class="chk" id="s_events"></div>
     <button class="primary" onclick="saveSettings()">Save settings</button>
     <span style="display:inline-flex;gap:8px;margin-left:16px;align-items:center">
       <button onclick="testAlert(this)">Send test alert</button>
@@ -753,6 +755,16 @@ async function delUser(id, name){
 }
 
 /* ---------- settings ---------- */
+const ALERT_CATALOG = [
+  {key:'drift_detected', label:'Configuration drift detected', when:'a backup finds config changed vs the previous snapshot'},
+  {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or identity) errors'},
+  {key:'backup_success', label:'Backup succeeded',             when:'a backup completes successfully (can be noisy)'},
+  {key:'restore_applied',label:'Restore applied',              when:'a config or identity restore is written to a live tenant'},
+];
+function renderAlertEvents(enabled){
+  document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
+    `<label title="${esc(e.when)}"><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)}</label>`).join('');
+}
 async function loadSettings(){
   try {
     const s = await api('/settings');
@@ -766,6 +778,7 @@ async function loadSettings(){
     document.getElementById('s_from').value = smtp.from_addr || '';
     document.getElementById('s_webhook').value = s.alert_webhook_url || '';
     document.getElementById('s_webhookfmt').value = s.alert_webhook_format || 'auto';
+    renderAlertEvents(Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied']);
     document.getElementById('s_defcron').value = s.default_schedule_cron || '';
     document.getElementById('s_defkeep').value = s.default_retention_keep || '';
     document.getElementById('s_reserve').value = s.okta_rate_reserve_pct || '';
@@ -778,6 +791,7 @@ async function saveSettings(){
             username: v('s_user'), from_addr: v('s_from') },
     alert_webhook_url: v('s_webhook'),
     alert_webhook_format: v('s_webhookfmt'),
+    alert_events: [...document.querySelectorAll('#s_events input:checked')].map(c=>c.value),
     default_schedule_cron: v('s_defcron'),
     default_retention_keep: parseInt(v('s_defkeep')||'0') || null,
     okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null,

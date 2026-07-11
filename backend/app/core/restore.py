@@ -124,4 +124,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                         detail={"tenant": t.slug, "source": src.slug,
                                 "snapshot": snapshot_ts, "total": len(plan)}))
         db.commit()
+        if mode == "apply":
+            from app.core.alerts import alert_restore
+            alert_restore(t.name, "config", summary)
         return {"restore_run_id": run.id, "summary": summary, "items": plan}

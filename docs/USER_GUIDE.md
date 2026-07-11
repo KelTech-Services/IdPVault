@@ -142,9 +142,12 @@ a current code). MFA secrets are encrypted at rest with the master key. Admins c
 
 ## 9. Alerts, audit, metrics
 
-- **Alerts:** drift detected or a backup fails → webhook (Slack / Mattermost / Discord / ntfy)
-  and/or email to admins. Configure in Settings → Alerts; pick the webhook format (auto-detects
-  by URL) and use **Send test alert** to verify delivery. Save before testing.
+- **Alerts:** IdPVault can notify you on four event types — **configuration drift detected**,
+  **backup failed**, **backup succeeded** (off by default, can be noisy), and **restore applied**.
+  Choose which to receive with the checkboxes in Settings → Alerts. Delivery is via webhook
+  (Slack / Mattermost / Discord — rich attachment format with color + fields — or ntfy) and/or
+  email to admins if SMTP is configured. Pick the webhook format (auto-detects by URL) and use
+  **Send test alert** to verify. Save before testing.
 - **Audit log:** every mutating action (logins, tenant/user/settings changes, restores) is
   recorded and viewable by admins.
 - **Metrics:** set `IDPVAULT_METRICS_TOKEN` in the stack to expose a Prometheus `/metrics`

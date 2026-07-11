@@ -175,6 +175,8 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                         detail={"tenant": t.slug, "snapshot": snapshot_ts,
                                 "users_created": created}))
         db.commit()
+        from app.core.alerts import alert_restore
+        alert_restore(t.name, "identity", summary)
         return {"restore_run_id": run.id, "summary": summary, "manual_steps": manual}
 
 

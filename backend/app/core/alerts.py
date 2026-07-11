@@ -1,10 +1,9 @@
-"""Alert delivery: webhook (ntfy / Slack-compatible) + email via stored SMTP.
-
-Called from the backup pipeline on drift detection and backup failure.
-Never raises — alert failure must not break a backup run.
+"""Alert delivery: rich webhook (Slack/Mattermost/Discord attachments or ntfy) +
+admin email. Each alert has a category; only categories the admin subscribed to
+are sent. Called from the backup/restore pipeline. Never raises.
 """
-import json
 import logging
+import time
 
 import httpx
 
@@ -12,16 +11,35 @@ from app.models.db import SessionLocal, Setting, User
 
 log = logging.getLogger(__name__)
 
+# The alert catalog — keep in sync with the Settings UI.
+ALERT_EVENTS = {
+    "drift_detected":  {"label": "Configuration drift detected", "default": True,  "color": "#ffb454"},
+    "backup_failed":   {"label": "Backup failed",                "default": True,  "color": "#ff6b6b"},
+    "backup_success":  {"label": "Backup succeeded",             "default": False, "color": "#3ecf8e"},
+    "restore_applied": {"label": "Restore applied",              "default": True,  "color": "#4d9fff"},
+}
 
-def _webhook_cfg() -> dict:
+
+def _cfg() -> dict:
     with SessionLocal() as db:
         row = db.get(Setting, "general")
         return dict(row.value) if row else {}
 
 
+def _enabled(cfg: dict) -> list:
+    ev = cfg.get("alert_events")
+    if ev is None:
+        return [k for k, v in ALERT_EVENTS.items() if v["default"]]
+    return ev
+
+
+def _admin_emails() -> list:
+    with SessionLocal() as db:
+        return [u.email for u in db.query(User).filter(
+            User.role == "admin", User.is_active == True) if u.email]  # noqa: E712
+
+
 def _webhook_format(url: str, fmt: str) -> str:
-    """slack | ntfy. 'auto' infers from the URL (Slack/Mattermost/Discord/generic
-    incoming webhooks all take Slack-compatible {"text":...} JSON)."""
     if fmt and fmt != "auto":
         return fmt
     u = (url or "").lower()
@@ -30,60 +48,74 @@ def _webhook_format(url: str, fmt: str) -> str:
     return "ntfy"
 
 
-def _post_webhook(url: str, fmt: str, title: str, body: str):
+def _post_webhook(url, fmt, title, body, color="#4d9fff", fields=None):
     if fmt == "slack":
-        return httpx.post(url, json={"text": f"**{title}**\n{body}"}, timeout=10)
-    return httpx.post(url, content=body.encode(),
+        att = {"color": color, "title": title, "text": body,
+               "footer": "IdPVault", "ts": int(time.time()), "mrkdwn_in": ["text"]}
+        if fields:
+            att["fields"] = [{"title": k, "value": str(v), "short": True}
+                             for k, v in fields.items()]
+        return httpx.post(url, json={"attachments": [att]}, timeout=10)
+    text = body
+    if fields:
+        text += "\n" + "\n".join(f"{k}: {v}" for k, v in fields.items())
+    return httpx.post(url, content=text.encode(),
                       headers={"Title": title, "Tags": "warning"}, timeout=10)
 
 
-def _admin_emails() -> list[str]:
-    with SessionLocal() as db:
-        return [u.email for u in db.query(User).filter(
-            User.role == "admin", User.is_active == True) if u.email]  # noqa: E712
-
-
-def send_alert(title: str, body: str) -> None:
-    """Fire-and-forget to webhook and admin emails. Logs, never raises."""
-    cfg = {}
+def send_alert(category: str, title: str, body: str, fields=None) -> None:
+    """Deliver an alert if the admin is subscribed to its category. Never raises."""
     try:
-        cfg = _webhook_cfg()
+        cfg = _cfg()
+        if category not in _enabled(cfg):
+            return
+        color = ALERT_EVENTS.get(category, {}).get("color", "#4d9fff")
         url = cfg.get("alert_webhook_url")
         if url:
             fmt = _webhook_format(url, cfg.get("alert_webhook_format", "auto"))
-            _post_webhook(url, fmt, title, body)
+            _post_webhook(url, fmt, title, body, color, fields)
     except Exception as e:
         log.warning("webhook alert failed: %s", e)
     try:
         from app.core.mailer import send_mail
+        detail = body + ("\n\n" + "\n".join(f"{k}: {v}" for k, v in (fields or {}).items()) if fields else "")
         for addr in _admin_emails():
-            send_mail(addr, f"[IdPVault] {title}", body)
+            send_mail(addr, f"[IdPVault] {title}", detail)
     except Exception as e:
         log.info("email alert skipped: %s", e)
 
 
 def alert_drift(tenant_name: str, snapshot_ts: str, drift: dict) -> None:
-    lines = []
-    for rtype, ch in drift.items():
-        parts = []
-        if ch.get("added"): parts.append(f"+{len(ch['added'])} added")
-        if ch.get("removed"): parts.append(f"-{len(ch['removed'])} removed")
-        if ch.get("changed"): parts.append(f"~{len(ch['changed'])} changed")
-        lines.append(f"  {rtype}: {', '.join(parts)}")
-    send_alert(f"Config drift detected — {tenant_name}",
-               f"Snapshot {snapshot_ts} differs from the previous backup:\n"
-               + "\n".join(lines) + "\n\nReview it in IdPVault → Events.")
+    a = sum(len(c.get("added", [])) for c in drift.values())
+    r = sum(len(c.get("removed", [])) for c in drift.values())
+    c = sum(len(c.get("changed", [])) for c in drift.values())
+    send_alert("drift_detected", f"Config drift — {tenant_name}",
+               "A backup detected configuration changes vs the previous snapshot. "
+               "Review in IdPVault -> Events.",
+               {"Tenant": tenant_name, "Snapshot": snapshot_ts,
+                "Changes": f"+{a} added, -{r} removed, ~{c} changed"})
 
 
 def alert_failure(tenant_name: str, error: str) -> None:
-    send_alert(f"Backup FAILED — {tenant_name}",
-               f"The scheduled backup for {tenant_name} failed:\n\n{error}\n\n"
-               f"Check tenant credentials and IdP availability in IdPVault.")
+    send_alert("backup_failed", f"Backup FAILED — {tenant_name}",
+               "A backup did not complete. Check tenant credentials and IdP availability.",
+               {"Tenant": tenant_name, "Error": error[:400]})
+
+
+def alert_backup_success(tenant_name: str, snapshot_ts: str, total_objects: int) -> None:
+    send_alert("backup_success", f"Backup complete — {tenant_name}",
+               "A backup completed successfully.",
+               {"Tenant": tenant_name, "Snapshot": snapshot_ts, "Objects": total_objects})
+
+
+def alert_restore(tenant_name: str, kind: str, summary: dict) -> None:
+    send_alert("restore_applied", f"Restore applied — {tenant_name}",
+               f"A {kind} restore was applied to the live tenant.",
+               {"Tenant": tenant_name, "Type": kind, "Summary": str(summary)[:400]})
 
 
 def test_webhook() -> dict:
-    """Send a test alert to the configured webhook and report the real result."""
-    cfg = _webhook_cfg()
+    cfg = _cfg()
     url = cfg.get("alert_webhook_url")
     if not url:
         return {"configured": False}
@@ -91,7 +123,8 @@ def test_webhook() -> dict:
     try:
         r = _post_webhook(url, fmt, "IdPVault test alert",
                           "This is a test alert from IdPVault. If you can see this, "
-                          "your alert webhook is working.")
+                          "your alert webhook is working.",
+                          "#4d9fff", {"Status": "OK", "Source": "Settings, Send test alert"})
         return {"configured": True, "ok": r.status_code < 400,
                 "status": r.status_code, "format": fmt, "body": r.text[:200]}
     except Exception as e:

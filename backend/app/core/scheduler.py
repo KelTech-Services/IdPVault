@@ -81,6 +81,8 @@ def run_backup(tenant_id: int) -> dict:
             if drift:
                 from app.core.alerts import alert_drift
                 alert_drift(t.name, manifest["timestamp"], drift)
+            from app.core.alerts import alert_backup_success
+            alert_backup_success(t.name, manifest["timestamp"], sum(manifest["counts"].values()))
             return {"manifest": manifest, "drift": drift}
         except Exception as e:
             db.rollback()
