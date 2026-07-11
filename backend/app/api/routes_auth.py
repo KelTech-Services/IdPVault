@@ -24,7 +24,7 @@ class SetupIn(BaseModel):
 
 
 @router.post("/auth/setup")
-def setup(body: SetupIn, response: Response) -> dict:
+def setup(body: SetupIn, request: Request, response: Response) -> dict:
     if len(body.password) < 8 or not body.username.strip():
         raise HTTPException(422, "username required and password must be >= 8 chars")
     with SessionLocal() as db:
@@ -37,6 +37,7 @@ def setup(body: SetupIn, response: Response) -> dict:
         db.commit()
         token = security.create_session(db, u.id)
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax",
+                        secure=request.url.scheme == "https",
                         max_age=security.SESSION_DAYS * 86400)
     return {"username": u.username, "role": u.role}
 
@@ -56,44 +57,78 @@ def _trust_days(db) -> int:
         return 0
 
 
+def _login_policy(db):
+    row = db.get(Setting, "general")
+    cfg = row.value if row else {}
+    def _i(k, d):
+        try:
+            return int(cfg.get(k) or d)
+        except (TypeError, ValueError):
+            return d
+    return _i("login_max_attempts", 5), _i("login_lockout_minutes", 15)
+
+
 @router.post("/auth/login")
 def login(body: LoginIn, request: Request, response: Response) -> dict:
     import secrets as pysecrets
     from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
     new_trust = None
     with SessionLocal() as db:
         u = db.query(User).filter(User.username == body.username).first()
+
+        if u and u.locked_until and u.locked_until > now:
+            mins = int((u.locked_until - now).total_seconds()) // 60 + 1
+            raise HTTPException(429, f"account temporarily locked — try again in {mins} min")
+
+        def _register_fail():
+            if u is None:
+                return
+            max_att, lock_min = _login_policy(db)
+            u.failed_logins = (u.failed_logins or 0) + 1
+            if u.failed_logins >= max_att:
+                u.locked_until = now + timedelta(minutes=lock_min)
+                u.failed_logins = 0
+                db.add(AuditLog(actor=u.username, action="auth.account_locked",
+                                detail={"minutes": lock_min}))
+            db.commit()
+
         if u is None or not u.is_active or not security.verify_password(body.password, u.password_hash):
+            _register_fail()
             raise HTTPException(401, "invalid credentials")
+
         if u.mfa_enabled:
-            # trusted-device check: skip the code if this browser has a valid trust token
             trusted = False
             tok = request.cookies.get(TRUST_COOKIE)
             if tok:
                 tr = db.query(MfaTrust).filter(MfaTrust.token == tok,
                                                MfaTrust.user_id == u.id).first()
-                if tr and tr.expires_at > datetime.now(timezone.utc):
+                if tr and tr.expires_at > now:
                     trusted = True
             if not trusted:
                 if not body.totp:
                     return {"mfa_required": True}
                 secret = crypto.decrypt(bytes.fromhex(u.mfa_secret_enc), crypto._master_key()).decode()
                 if not totp.verify(secret, body.totp):
+                    _register_fail()
                     raise HTTPException(401, "invalid MFA code")
                 days = _trust_days(db)
                 if days > 0:
                     t = pysecrets.token_urlsafe(32)
-                    db.add(MfaTrust(user_id=u.id, token=t,
-                                    expires_at=datetime.now(timezone.utc) + timedelta(days=days)))
+                    db.add(MfaTrust(user_id=u.id, token=t, expires_at=now + timedelta(days=days)))
                     new_trust = (t, days)
+
+        u.failed_logins = 0
+        u.locked_until = None
         token = security.create_session(db, u.id)
         db.add(AuditLog(actor=u.username, action="auth.login", detail={}))
         db.commit()
-    response.set_cookie(COOKIE, token, httponly=True, samesite="lax",
+    secure = request.url.scheme == "https"
+    response.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=secure,
                         max_age=security.SESSION_DAYS * 86400)
     if new_trust:
         response.set_cookie(TRUST_COOKIE, new_trust[0], httponly=True, samesite="lax",
-                            max_age=new_trust[1] * 86400)
+                            secure=secure, max_age=new_trust[1] * 86400)
     return {"username": u.username, "role": u.role, "mfa_enabled": u.mfa_enabled}
 
 

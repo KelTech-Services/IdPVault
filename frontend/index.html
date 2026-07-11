@@ -182,7 +182,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.11</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.7.0</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -326,6 +326,9 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
       <div><label>Default backup schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
       <div><label>Default retention (snapshots)</label><input id="s_defkeep" type="number" placeholder="30"></div>
+      <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
+      <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
+      <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
     </div>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
@@ -807,6 +810,9 @@ async function loadSettings(){
     document.getElementById('s_defkeep').value = s.default_retention_keep || '';
     document.getElementById('s_reserve').value = s.okta_rate_reserve_pct || '';
     document.getElementById('s_mfadays').value = (s.mfa_trust_days!=null? s.mfa_trust_days : '');
+    document.getElementById('s_maxatt').value = (s.login_max_attempts!=null? s.login_max_attempts : '');
+    document.getElementById('s_lockmin').value = (s.login_lockout_minutes!=null? s.login_lockout_minutes : '');
+    document.getElementById('s_stale').value = (s.stale_backup_hours!=null? s.stale_backup_hours : '');
   } catch(e){ toast(e.message, true); }
 }
 async function saveSettings(){
@@ -819,7 +825,10 @@ async function saveSettings(){
     default_schedule_cron: v('s_defcron'),
     default_retention_keep: parseInt(v('s_defkeep')||'0') || null,
     okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null,
-    mfa_trust_days: parseInt(v('s_mfadays')||'0')
+    mfa_trust_days: parseInt(v('s_mfadays')||'0'),
+    login_max_attempts: parseInt(v('s_maxatt')||'0') || null,
+    login_lockout_minutes: parseInt(v('s_lockmin')||'0') || null,
+    stale_backup_hours: parseInt(v('s_stale')||'0') || null
   };
   if(v('s_pass')) body.smtp.password = v('s_pass');
   try { await api('/settings', {method:'PUT', body: JSON.stringify(body)}); toast('Settings saved.'); loadSettings(); }

@@ -3,6 +3,18 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.0] — 2026-07-11
+### Added
+- Login brute-force protection: configurable failed-attempt lockout (default 5
+  attempts, 15-minute lockout), tracked per account; audit-logged on lockout.
+- Security response headers (X-Content-Type-Options, X-Frame-Options: DENY,
+  Referrer-Policy, Content-Security-Policy).
+- Session/trust cookies set `Secure` automatically when served over HTTPS.
+- Self-health alerting: a daily check alerts (new "Backup overdue / stale"
+  category) if a scheduled tenant has no recent successful backup.
+- Settings for login policy (max attempts, lockout minutes) and stale-backup
+  threshold (hours).
+
 ## [0.6.11] — 2026-07-11
 ### Added
 - Design pass 2: loading skeletons (shimmer rows) replace "Loading…" text.

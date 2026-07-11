@@ -41,7 +41,20 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.6.11", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.7.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    resp = await call_next(request)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "same-origin"
+    resp.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'none'")
+    return resp
 
 
 @app.middleware("http")

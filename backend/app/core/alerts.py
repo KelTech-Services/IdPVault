@@ -17,6 +17,7 @@ ALERT_EVENTS = {
     "backup_failed":   {"label": "Backup failed",                "default": True,  "color": "#ff6b6b"},
     "backup_success":  {"label": "Backup succeeded",             "default": False, "color": "#3ecf8e"},
     "restore_applied": {"label": "Restore applied",              "default": True,  "color": "#4d9fff"},
+    "backup_stale":    {"label": "Backup overdue / stale",       "default": True,  "color": "#ff6b6b"},
 }
 
 
@@ -129,3 +130,10 @@ def test_webhook() -> dict:
                 "status": r.status_code, "format": fmt, "body": r.text[:200]}
     except Exception as e:
         return {"configured": True, "ok": False, "error": str(e)[:200], "format": fmt}
+
+
+def alert_stale(tenant_name: str, hours: float) -> None:
+    send_alert("backup_stale", f"Backup OVERDUE — {tenant_name}",
+               "This tenant has a schedule but no recent successful backup. The scheduler "
+               "or the tenant connection may be failing silently.",
+               {"Tenant": tenant_name, "Last success": f"{hours:.0f}h ago"})

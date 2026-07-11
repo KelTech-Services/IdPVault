@@ -14,6 +14,7 @@ def load_tenant_jobs() -> None:
     """Register cron backup jobs for all tenants with a schedule set."""
     from app.models.db import SessionLocal, Tenant
 
+    scheduler.add_job(health_check, CronTrigger.from_crontab("30 0 * * *"), id="health-check", replace_existing=True)
     with SessionLocal() as db:
         for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
             scheduler.add_job(run_backup, CronTrigger.from_crontab(t.schedule_cron),
@@ -95,3 +96,24 @@ def run_backup(tenant_id: int) -> dict:
             from app.core.alerts import alert_failure
             alert_failure(t.name, str(e)[:490])
             raise
+
+
+def health_check() -> None:
+    # Daily self-health: alert if a scheduled tenant has no recent successful backup.
+    from datetime import datetime, timezone
+    from app.core.alerts import alert_stale
+    from app.models.db import BackupRun, SessionLocal, Setting, Tenant
+    with SessionLocal() as db:
+        row = db.get(Setting, "general")
+        try:
+            max_h = int((row.value.get("stale_backup_hours") if row else None) or 26)
+        except (TypeError, ValueError):
+            max_h = 26
+        now = datetime.now(timezone.utc)
+        for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
+            q = db.query(BackupRun).filter(BackupRun.tenant_id == t.id, BackupRun.status == "ok")
+            last = q.order_by(BackupRun.id.desc()).first()
+            age_h = (now - last.at).total_seconds() / 3600 if last else 1000000.0
+            if age_h > max_h:
+                log.warning("stale backup tenant=%s age=%.0fh", t.slug, age_h)
+                alert_stale(t.name, age_h)

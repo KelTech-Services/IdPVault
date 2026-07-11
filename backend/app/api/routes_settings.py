@@ -27,6 +27,9 @@ class SettingsIn(BaseModel):
     default_retention_keep: int | None = None
     okta_rate_reserve_pct: int | None = None  # 0-90; headroom left on Okta limits
     mfa_trust_days: int | None = None  # 0 = always prompt for MFA; N = trust device N days
+    login_max_attempts: int | None = None    # failed logins before lockout (default 5)
+    login_lockout_minutes: int | None = None  # lockout duration (default 15)
+    stale_backup_hours: int | None = None     # alert if scheduled backup older than this (default 26)
 
 
 def _get(db, key: str) -> dict:
@@ -65,7 +68,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "stale_backup_hours"):
             v = getattr(body, k)
             if v is not None:
                 general[k] = v

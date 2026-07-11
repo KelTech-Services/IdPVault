@@ -140,7 +140,18 @@ authentication (TOTP)**: click *Set up MFA*, scan the QR code with an authentica
 to turn it on. After that, sign-in asks for a 6-digit code. Disable MFA the same way (requires
 a current code). MFA secrets are encrypted at rest with the master key. Admins can reset a user's MFA from the Users page (e.g. lost authenticator). By default MFA is prompted at every sign-in; set a **trusted-device lifetime** in Settings (days) to let a browser skip the code within that window.
 
-## 9. Alerts, audit, metrics
+## 9. Security
+
+- **Login lockout:** after a configurable number of failed attempts (default 5) an
+  account is temporarily locked (default 15 min). Tune both in Settings → Core.
+- **Cookies** are HttpOnly and become Secure automatically when you serve IdPVault
+  over HTTPS (recommended — put it behind a TLS reverse proxy in production).
+- **Headers:** IdPVault sends CSP, X-Frame-Options: DENY, and nosniff on all responses.
+- **Self-health:** a daily check alerts you if a scheduled tenant hasn't produced a
+  successful backup within the stale-backup window (Settings → Core, default 26h) —
+  so a silently failing scheduler or connection doesn't go unnoticed.
+
+## 10. Alerts, audit, metrics
 
 - **Alerts:** IdPVault can notify you on four event types — **configuration drift detected**,
   **backup failed**, **backup succeeded** (off by default, can be noisy), and **restore applied**.
