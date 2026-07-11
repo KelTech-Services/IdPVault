@@ -35,7 +35,12 @@ of missing users + memberships + assignments, with full natural-key ID remapping
 group name / app label) so recreated-object id changes don't break edges. Per-object report,
 throttled, admin-only, explicit confirm. Okta + Authentik.
 
-## v0.6 — next
+**v0.6.0** — zero-config first-run: browser setup wizard creates the admin on fresh install
+(no admin creds required in the stack YAML; env-var bootstrap still supported for headless).
+Self-service profile: change own password, enable/disable TOTP MFA (stdlib TOTP + QR
+enrollment, secrets encrypted at rest). MFA enforced at sign-in.
+
+## v0.7 — next
 
 - Restore apply for Okta and Auth0 **config** adapters
 - Optional profile-revert for existing users (identity restore currently create-only)

@@ -64,6 +64,8 @@ _COLUMN_MIGRATIONS = [
     ("tenants", "identity_enabled", "BOOLEAN DEFAULT FALSE"),
     ("tenants", "identity_schedule_cron", "VARCHAR(60)"),
     ("tenants", "identity_retention_keep", "INTEGER DEFAULT 14"),
+    ("users", "mfa_enabled", "BOOLEAN DEFAULT FALSE"),
+    ("users", "mfa_secret_enc", "VARCHAR(255)"),
 ]
 
 
@@ -94,6 +96,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(10), default="user")  # admin | user
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     invite_token: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_secret_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

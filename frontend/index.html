@@ -92,8 +92,18 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <h3>Sign in</h3>
     <div><span class="lbl">Username</span><input id="l_user" autocomplete="username"></div>
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
+    <div id="l_mfawrap" class="hidden"><span class="lbl">Authenticator code</span><input id="l_totp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
     <button class="primary" onclick="doLogin()">Sign in</button>
     <p id="l_err" class="muted" style="text-align:center;font-size:.8rem"></p>
+  </div>
+  <div class="logincard hidden" id="setupcard">
+    <img src="/IdPVault_light_logo.png" alt="IdPVault">
+    <h3>Welcome — create the admin account</h3>
+    <div><span class="lbl">Admin username</span><input id="su_user" autocomplete="username"></div>
+    <div><span class="lbl">Password (min 8 chars)</span><input id="su_pass" type="password" autocomplete="new-password"></div>
+    <div><span class="lbl">Confirm password</span><input id="su_pass2" type="password" autocomplete="new-password"></div>
+    <button class="primary" onclick="doSetup()">Create admin &amp; sign in</button>
+    <p id="su_err" class="muted" style="text-align:center;font-size:.8rem"></p>
   </div>
   <div class="logincard hidden" id="invitecard">
     <img src="/IdPVault_light_logo.png" alt="IdPVault">
@@ -108,7 +118,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.5.6</span>
+  <span class="ver">v0.6.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -119,6 +129,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
   <div id="userchip">
     <div id="healthdot" title="API health"></div>
     <span id="whoami"></span><span class="role" id="whoamirole"></span>
+    <button onclick="openProfile()">Profile</button>
     <button onclick="doLogout()">Log out</button>
   </div>
 </header>
@@ -192,6 +203,20 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     </table>
   </section>
 </main>
+<div id="profilemodal" class="modal hidden">
+  <div class="box" style="width:520px">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:6px">Your profile — <span id="pf_user"></span></h2>
+    <h3 style="font-size:.9rem;margin:14px 0 8px">Change password</h3>
+    <div class="formgrid" style="grid-template-columns:1fr 1fr">
+      <div><label>Current password</label><input id="pf_cur" type="password"></div>
+      <div><label>New password</label><input id="pf_new" type="password"></div>
+    </div>
+    <button class="primary" onclick="changePassword()">Update password</button>
+    <h3 style="font-size:.9rem;margin:20px 0 8px">Two-factor authentication (TOTP)</h3>
+    <div id="pf_mfa"></div>
+    <div style="margin-top:18px;text-align:right"><button onclick="document.getElementById('profilemodal').classList.add('hidden')">Close</button></div>
+  </div>
+</div>
 <div id="restoremodal" class="modal hidden">
   <div class="box">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore — <span id="r_tenant"></span></h2>
@@ -286,10 +311,77 @@ function toast(msg, err=false){
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 7000);
 }
 
+
+/* ---------- first-run setup ---------- */
+async function doSetup(){
+  document.getElementById('su_err').textContent='';
+  if(v('su_pass') !== v('su_pass2')) return document.getElementById('su_err').textContent='Passwords do not match';
+  try{
+    me = await api('/auth/setup', {method:'POST', body: JSON.stringify({username:v('su_user'), password:v('su_pass')})});
+    showApp();
+  }catch(e){ document.getElementById('su_err').textContent = e.message; }
+}
+function showSetup(){
+  document.getElementById('appview').classList.add('hidden');
+  document.getElementById('loginview').classList.remove('hidden');
+  document.getElementById('logincard').classList.add('hidden');
+  document.getElementById('invitecard').classList.add('hidden');
+  document.getElementById('setupcard').classList.remove('hidden');
+}
+
+/* ---------- profile: password + MFA ---------- */
+async function openProfile(){
+  document.getElementById('pf_user').textContent = me.username;
+  document.getElementById('pf_cur').value=''; document.getElementById('pf_new').value='';
+  document.getElementById('profilemodal').classList.remove('hidden');
+  renderMfa();
+}
+async function changePassword(){
+  if(!v('pf_cur')||!v('pf_new')) return toast('Fill both password fields', true);
+  try{ await api('/auth/change-password', {method:'POST', body: JSON.stringify({current_password:v('pf_cur'), new_password:v('pf_new')})});
+    toast('Password updated.'); document.getElementById('pf_cur').value=''; document.getElementById('pf_new').value='';
+  }catch(e){ toast(e.message, true); }
+}
+async function renderMfa(){
+  const box = document.getElementById('pf_mfa');
+  const enabled = me.mfa_enabled;
+  if(enabled){
+    box.innerHTML = `<p class="muted" style="font-size:.85rem">MFA is <b style="color:var(--green)">enabled</b> on your account.</p>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><input id="mfa_dis" inputmode="numeric" placeholder="current 6-digit code" style="width:200px"><button class="danger" onclick="mfaDisable()">Disable MFA</button></div>`;
+  } else {
+    box.innerHTML = `<p class="muted" style="font-size:.85rem">Add an authenticator app (Google Authenticator, Authy, 1Password) for a second sign-in factor.</p>
+      <button class="primary" style="margin-top:8px" onclick="mfaSetup()">Set up MFA</button><div id="mfa_enroll"></div>`;
+  }
+}
+async function mfaSetup(){
+  try{
+    const d = await api('/auth/mfa/setup', {method:'POST'});
+    document.getElementById('mfa_enroll').innerHTML = `
+      <div style="margin-top:12px;display:flex;gap:16px;align-items:center">
+        <div style="background:#fff;padding:8px;border-radius:8px;width:170px;height:170px">${d.qr_svg}</div>
+        <div style="font-size:.82rem">
+          <p>Scan with your authenticator app, or enter this key manually:</p>
+          <code style="display:inline-block;margin:6px 0;background:var(--bg);padding:4px 8px;border-radius:6px;word-break:break-all">${esc(d.secret)}</code>
+          <div style="margin-top:8px;display:flex;gap:8px"><input id="mfa_code" inputmode="numeric" placeholder="6-digit code" style="width:160px"><button class="primary" onclick="mfaEnable()">Verify &amp; enable</button></div>
+        </div></div>`;
+  }catch(e){ toast(e.message, true); }
+}
+async function mfaEnable(){
+  try{ await api('/auth/mfa/enable', {method:'POST', body: JSON.stringify({code:v('mfa_code')})});
+    me.mfa_enabled = true; toast('MFA enabled — you\'ll be asked for a code at next sign-in.'); renderMfa();
+  }catch(e){ toast(e.message, true); }
+}
+async function mfaDisable(){
+  try{ await api('/auth/mfa/disable', {method:'POST', body: JSON.stringify({code:v('mfa_dis')})});
+    me.mfa_enabled = false; toast('MFA disabled.'); renderMfa();
+  }catch(e){ toast(e.message, true); }
+}
+
 /* ---------- auth ---------- */
 async function boot(){
   const inviteTok = (location.hash.match(/invite=([\w-]+)/)||[])[1];
   if(inviteTok){ showInvite(); return; }
+  try { const st = await api('/auth/status'); if(st.needs_setup){ showSetup(); return; } } catch {}
   try { me = await api('/auth/me'); showApp(); }
   catch { showLogin(); }
 }
@@ -307,9 +399,17 @@ function showInvite(){
 }
 async function doLogin(){
   document.getElementById('l_err').textContent = '';
+  const body = {username: v('l_user'), password: v('l_pass')};
+  const totp = v('l_totp'); if(totp) body.totp = totp;
   try {
-    me = await api('/auth/login', {method:'POST', body: JSON.stringify({username: v('l_user'), password: v('l_pass')})});
-    showApp();
+    const r = await api('/auth/login', {method:'POST', body: JSON.stringify(body)});
+    if(r.mfa_required){
+      document.getElementById('l_mfawrap').classList.remove('hidden');
+      document.getElementById('l_totp').focus();
+      document.getElementById('l_err').textContent = 'Enter your authenticator code.';
+      return;
+    }
+    me = r; showApp();
   } catch(e){ document.getElementById('l_err').textContent = 'Sign-in failed: '+e.message; }
 }
 async function acceptInvite(){

@@ -25,7 +25,10 @@ keys wrapped by a master key that lives only on your host).
 
 1. Deploy the stack (see `docker/compose.example.yaml`). Generate the master key once:
    `head -c 32 /dev/urandom > secrets/master.key && chmod 400 secrets/master.key`.
-2. Log in with the bootstrap admin (stack env `IDPVAULT_ADMIN_USER` / `_PASSWORD`).
+2. **First-run wizard:** open the app — on a fresh install it prompts you to create the admin
+   account (username + password) right in the browser. No admin credentials in the YAML needed.
+   (Optional: set `IDPVAULT_ADMIN_USER` + `IDPVAULT_ADMIN_PASSWORD` for automated/headless
+   provisioning instead; if both are set the admin is created from them and the wizard is skipped.)
 3. **Add a tenant**: name, slug, provider, base URL, API token.
    - **Okta token**: Admin → Security → API → Tokens. Create it while signed in as a
      *read-only admin* for least privilege (backup needs read; restore needs write).
@@ -129,7 +132,15 @@ commit to anything.
 
 ---
 
-## 8. Alerts, audit, metrics
+## 8. Your profile — password & MFA
+
+Click **Profile** in the header. You can change your own password, and enable **two-factor
+authentication (TOTP)**: click *Set up MFA*, scan the QR code with an authenticator app
+(Google Authenticator, Authy, 1Password) or enter the shown key manually, then verify a code
+to turn it on. After that, sign-in asks for a 6-digit code. Disable MFA the same way (requires
+a current code). MFA secrets are encrypted at rest with the master key.
+
+## 9. Alerts, audit, metrics
 
 - **Alerts:** drift detected or a backup fails → webhook (ntfy / Slack) and/or email to admins.
   Configure in Settings.

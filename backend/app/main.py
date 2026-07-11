@@ -10,7 +10,8 @@ from app.config import get_settings
 from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
 
-PUBLIC_API = {"/api/v1/auth/login", "/api/v1/auth/accept-invite"}
+PUBLIC_API = {"/api/v1/auth/login", "/api/v1/auth/accept-invite",
+              "/api/v1/auth/status", "/api/v1/auth/setup"}
 
 
 def bootstrap_admin() -> None:
@@ -18,6 +19,8 @@ def bootstrap_admin() -> None:
     from app.core.security import hash_password
     from app.models.db import SessionLocal, User
     s = get_settings()
+    if not (s.admin_user and s.admin_password):
+        return  # no headless creds -> first-run setup wizard creates the admin
     with SessionLocal() as db:
         if db.query(User).count() == 0:
             db.add(User(username=s.admin_user, email="", role="admin", is_active=True,
@@ -38,7 +41,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.5.6", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.6.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -52,7 +55,7 @@ async def session_auth(request: Request, call_next):
         user = resolve_session(db, request.cookies.get("idpvault_session", ""))
     if user is None:
         return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    request.state.user = {"username": user.username, "role": user.role, "email": user.email}
+    request.state.user = {"id": user.id, "username": user.username, "role": user.role, "email": user.email}
     return await call_next(request)
 
 
