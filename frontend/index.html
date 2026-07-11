@@ -177,7 +177,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.4</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.5</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -561,7 +561,7 @@ async function loadTenants(){
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '—'}</td>
       <td class="muted">${t.retention_keep}</td>
-      <td>${isAdmin ? `
+      <td style="white-space:nowrap">${isAdmin ? `
         <button onclick="backupNow(${t.id}, this)">Backup now</button>
         <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
