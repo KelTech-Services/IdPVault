@@ -99,7 +99,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.4.2</span>
+  <span class="ver">v0.5.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -128,6 +128,9 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
         <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
         <div style="grid-column:span 2"><label>Full-DR Postgres URL (optional — self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik — leave blank to skip"></div>
+        <div><label>Identity backup (users & assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+        <div><label>Identity schedule (cron, UTC)</label><input id="f_identcron" placeholder="0 6 * * *"></div>
+        <div><label>Identity retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
       <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
@@ -143,6 +146,15 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
       <button onclick="hideSnaps()">Close</button></h2>
     <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
+  </section>
+  <section class="panel hidden" id="idpanel">
+    <h2>Identity — <span id="id_slug"></span><span class="spacer"></span>
+      <button class="mutating" onclick="identityBackupNow()">Back up identities now</button>
+      <button onclick="document.getElementById('idpanel').classList.add('hidden')">Close</button></h2>
+    <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
+    <table><thead><tr><th>Timestamp (UTC)</th><th>Users</th><th>Memberships</th><th>Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
+    <tbody id="id_snaps"></tbody></table>
+    <div id="id_preview" style="margin-top:12px"></div>
   </section>
   <section class="panel hidden" id="browsepanel">
     <h2>Browse — <span id="b_label"></span><span class="spacer"></span>
@@ -238,6 +250,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
       <div><label>Alert webhook URL (ntfy / Slack-compatible)</label><input id="s_webhook" placeholder="https://ntfy.example.com/idpvault"></div>
       <div><label>Default schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
       <div><label>Default retention</label><input id="s_defkeep" type="number" placeholder="30"></div>
+      <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
     </div>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
@@ -349,6 +362,7 @@ async function loadTenants(){
         <button onclick="backupNow(${t.id}, this)">Backup now</button>
         <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
+        ${isAdmin ? `<button onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>` : ''}
         ${isAdmin ? `<button class="danger" onclick="delTenant(${t.id}, '${esc(t.name)}')">Delete</button>` : ''}
       </td></tr>`).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
@@ -367,6 +381,9 @@ function editTenant(id){
   document.getElementById('f_cron').value = t.schedule_cron || '';
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
+  document.getElementById('f_ident').value = t.identity_enabled ? 'true' : 'false';
+  document.getElementById('f_identcron').value = t.identity_schedule_cron || '';
+  document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
   document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured — blank keeps it, a space clears it' : 'postgresql://… — optional, self-hosted only';
   document.getElementById('f_slug').disabled = true;
   document.getElementById('f_provider').disabled = true;
@@ -377,13 +394,17 @@ function resetForm(){
   document.getElementById('f_slug').disabled = false;
   document.getElementById('f_provider').disabled = false;
   document.getElementById('f_token').placeholder = 'paste token — encrypted at rest';
-  ['f_name','f_slug','f_url','f_token','f_cron','f_dburl'].forEach(i=>document.getElementById(i).value='');
+  ['f_name','f_slug','f_url','f_token','f_cron','f_dburl','f_identcron'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('f_ident').value='false';
+  document.getElementById('f_identkeep').value=14;
   document.getElementById('f_keep').value = 30;
 }
 async function saveTenant(){
   if(editingId){
     const body = { name: v('f_name'), base_url: v('f_url'),
-      schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30') };
+      schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
+      identity_enabled: v('f_ident')==='true', identity_schedule_cron: v('f_identcron') || null,
+      identity_retention_keep: parseInt(v('f_identkeep')||'14') };
     if(v('f_token')) body.api_token = v('f_token');
     const dbraw = document.getElementById('f_dburl').value;
     if(dbraw==='') {} else body.db_url = dbraw.trim();
@@ -398,7 +419,9 @@ async function saveTenant(){
     name: v('f_name'), slug: v('f_slug'), provider: v('f_provider'),
     base_url: v('f_url'), api_token: v('f_token'),
     schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
-    db_url: v('f_dburl') || null
+    db_url: v('f_dburl') || null,
+    identity_enabled: v('f_ident')==='true', identity_schedule_cron: v('f_identcron') || null,
+    identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and token are required', true);
   try {
@@ -519,6 +542,7 @@ async function loadSettings(){
     document.getElementById('s_webhook').value = s.alert_webhook_url || '';
     document.getElementById('s_defcron').value = s.default_schedule_cron || '';
     document.getElementById('s_defkeep').value = s.default_retention_keep || '';
+    document.getElementById('s_reserve').value = s.okta_rate_reserve_pct || '';
   } catch(e){ toast(e.message, true); }
 }
 async function saveSettings(){
@@ -527,7 +551,8 @@ async function saveSettings(){
             username: v('s_user'), from_addr: v('s_from') },
     alert_webhook_url: v('s_webhook'),
     default_schedule_cron: v('s_defcron'),
-    default_retention_keep: parseInt(v('s_defkeep')||'0') || null
+    default_retention_keep: parseInt(v('s_defkeep')||'0') || null,
+    okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null
   };
   if(v('s_pass')) body.smtp.password = v('s_pass');
   try { await api('/settings', {method:'PUT', body: JSON.stringify(body)}); toast('Settings saved.'); loadSettings(); }
@@ -693,6 +718,66 @@ async function viewObject(oid){
     document.getElementById('diffpanel').classList.remove('hidden');
     document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
   } catch(e){ toast(e.message, true); }
+}
+
+
+/* ---------- identity ---------- */
+let _idCtx = null;
+function openIdentity(id, slug){
+  _idCtx = {tenantId:id, slug};
+  document.getElementById('id_slug').textContent = slug;
+  document.getElementById('id_preview').innerHTML = '';
+  document.getElementById('idpanel').classList.remove('hidden');
+  document.getElementById('idpanel').scrollIntoView({behavior:'smooth'});
+  loadIdentityEstimate(); loadIdentitySnaps();
+}
+async function loadIdentityEstimate(){
+  try{
+    const e = await api(`/tenants/${_idCtx.tenantId}/identity/estimate`);
+    document.getElementById('id_estimate').innerHTML = e.last_duration_s!=null
+      ? `Last run: <b>${e.last_duration_s}s</b>, ${e.last_api_calls} API calls (${esc(e.basis)}). ${esc(e.recommendation)}`
+      : `No measured run yet. ${esc(e.recommendation)}`;
+  }catch(e){ document.getElementById('id_estimate').textContent=''; }
+}
+async function loadIdentitySnaps(){
+  const tb = document.getElementById('id_snaps');
+  tb.innerHTML = '<tr><td colspan="7" class="muted">Loading…</td></tr>';
+  try{
+    const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
+    if(!s.length){ tb.innerHTML='<tr><td colspan="7" class="muted">No identity snapshots yet. Enable identity backup on the tenant (Edit) and run one.</td></tr>'; return; }
+    tb.innerHTML = s.map(r=>{
+      const c = r.counts||{};
+      const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
+      return r.status==='failed'
+        ? `<tr><td>${fmtTs(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
+        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'—'}</td><td class="muted">${r.api_calls||'—'}</td><td><button onclick="identityPreview('${r.ts}')">Restore preview</button></td></tr>`;
+    }).join('');
+  }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function identityBackupNow(){
+  document.getElementById('id_estimate').textContent = 'Backing up identities… (throttled to respect Okta API limits — may take a while on large orgs)';
+  try{
+    const r = await api(`/tenants/${_idCtx.tenantId}/identity/backup`, {method:'POST'});
+    toast(`Identity backup done — ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
+    loadIdentityEstimate(); loadIdentitySnaps();
+  }catch(e){ toast('Identity backup failed: '+e.message, true); loadIdentityEstimate(); }
+}
+async function identityPreview(ts){
+  const box = document.getElementById('id_preview');
+  box.innerHTML = '<span class="muted">Running dry-run preview (read-only)…</span>';
+  try{
+    const p = await api(`/tenants/${_idCtx.tenantId}/identity/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:ts})});
+    const u = p.summary.users;
+    box.innerHTML = `<div class="panel" style="background:var(--panel2)">
+      <b>Restore preview — ${ts}</b> <span class="muted">(read-only dry-run; writing is a separate step)</span>
+      <div class="diffstat" style="margin-top:8px">
+        <span class="ev-add">${u.recreate} users recreate</span>
+        <span class="ev-update">${u.update} update</span>
+        <span class="muted">${u.identical} identical</span></div>
+      <div style="font-size:.85rem">+${p.summary.group_memberships_to_add} group memberships · +${p.summary.app_group_assignments_to_add} group→app · +${p.summary.app_user_assignments_direct_to_add} direct user→app</div>
+      ${p.manual_steps.length?`<div style="margin-top:8px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
+      <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p></div>`;
+  }catch(e){ box.innerHTML=`<span class="muted">Preview failed: ${esc(e.message)}</span>`; }
 }
 
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

@@ -23,6 +23,7 @@ class SettingsIn(BaseModel):
     alert_webhook_url: str | None = None
     default_schedule_cron: str | None = None
     default_retention_keep: int | None = None
+    okta_rate_reserve_pct: int | None = None  # 0-90; headroom left on Okta limits
 
 
 def _get(db, key: str) -> dict:
@@ -61,7 +62,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "default_schedule_cron", "default_retention_keep"):
+        for k in ("alert_webhook_url", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct"):
             v = getattr(body, k)
             if v is not None:
                 general[k] = v

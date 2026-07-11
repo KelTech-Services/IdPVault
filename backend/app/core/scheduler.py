@@ -15,16 +15,16 @@ def load_tenant_jobs() -> None:
     from app.models.db import SessionLocal, Tenant
 
     with SessionLocal() as db:
-        tenants = db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all()
-        for t in tenants:
-            scheduler.add_job(
-                run_backup,
-                CronTrigger.from_crontab(t.schedule_cron),
-                args=[t.id],
-                id=f"backup-{t.id}",
-                replace_existing=True,
-            )
-            log.info("scheduled tenant %s (%s) cron=%s", t.id, t.slug, t.schedule_cron)
+        for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
+            scheduler.add_job(run_backup, CronTrigger.from_crontab(t.schedule_cron),
+                              args=[t.id], id=f"backup-{t.id}", replace_existing=True)
+            log.info("scheduled config backup tenant=%s cron=%s", t.slug, t.schedule_cron)
+        from app.core.identity import run_identity_backup
+        for t in db.query(Tenant).filter(Tenant.identity_enabled == True,  # noqa: E712
+                                         Tenant.identity_schedule_cron.isnot(None)).all():
+            scheduler.add_job(run_identity_backup, CronTrigger.from_crontab(t.identity_schedule_cron),
+                              args=[t.id], id=f"identity-{t.id}", replace_existing=True)
+            log.info("scheduled identity backup tenant=%s cron=%s", t.slug, t.identity_schedule_cron)
 
 
 def run_backup(tenant_id: int) -> dict:

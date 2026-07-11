@@ -1,6 +1,7 @@
 """Okta adapter. Auth: SSWS API token. Paginated via Link: rel="next" headers."""
 import httpx
 
+from app.core.ratelimit import AdaptiveRateLimiter
 from app.providers.base import ProviderAdapter
 
 RESOURCES = {
@@ -24,6 +25,24 @@ RESOURCES = {
 class OktaAdapter(ProviderAdapter):
     name = "okta"
 
+    def __init__(self, base_url: str, credentials: str):
+        super().__init__(base_url, credentials)
+        self._rl = AdaptiveRateLimiter(reserve_pct=self._reserve_pct())
+
+    @staticmethod
+    def _reserve_pct() -> float:
+        try:
+            from app.models.db import SessionLocal, Setting
+            with SessionLocal() as db:
+                row = db.get(Setting, "general")
+                v = row.value.get("okta_rate_reserve_pct") if row else None
+                return float(v) / 100.0 if v is not None else 0.2
+        except Exception:
+            return 0.2
+
+    def _get(self, c, path, **kw):
+        return self._rl.request(lambda: c.get(path, **kw))
+
     def _client(self) -> httpx.Client:
         return httpx.Client(
             base_url=self.base_url,
@@ -33,17 +52,52 @@ class OktaAdapter(ProviderAdapter):
 
     def validate_credentials(self) -> bool:
         with self._client() as c:
-            return c.get("/api/v1/org").status_code == 200
+            return self._get(c, "/api/v1/org").status_code == 200
 
-    def _paged(self, c: httpx.Client, path: str) -> list[dict]:
-        out, url = [], path
+    def _paged(self, c: httpx.Client, path: str, params: dict | None = None) -> list[dict]:
+        out, url, first = [], path, True
         while url:
-            r = c.get(url)
+            r = self._get(c, url, params=params if first else None)
+            first = False
             r.raise_for_status()
             body = r.json()
             out.extend(body if isinstance(body, list) else [body])
             url = r.links.get("next", {}).get("url")
         return out
+
+    @staticmethod
+    def _slim_user(u: dict) -> dict:
+        return {"id": u.get("id"), "status": u.get("status"),
+                "type": u.get("type"), "profile": u.get("profile", {}),
+                "created": u.get("created")}
+
+    def export_identities(self) -> dict[str, list[dict]]:
+        with self._client() as c:
+            # all users incl. deprovisioned (search=status pr returns every status)
+            users = [self._slim_user(u) for u in
+                     self._paged(c, "/api/v1/users", params={"search": "status pr", "limit": 200})]
+            groups = self._paged(c, "/api/v1/groups", params={"limit": 200})
+            apps = self._paged(c, "/api/v1/apps", params={"limit": 200})
+
+            memberships = []
+            for g in groups:
+                gid = g.get("id")
+                for m in self._paged(c, f"/api/v1/groups/{gid}/users", params={"limit": 200}):
+                    memberships.append({"group_id": gid, "user_id": m.get("id")})
+
+            app_group, app_user_direct = [], []
+            for a in apps:
+                aid = a.get("id")
+                for ag in self._paged(c, f"/api/v1/apps/{aid}/groups", params={"limit": 200}):
+                    app_group.append({"app_id": aid, "group_id": ag.get("id")})
+                for au in self._paged(c, f"/api/v1/apps/{aid}/users", params={"limit": 200}):
+                    if au.get("scope") == "USER":  # DIRECT only; GROUP-inherited excluded
+                        app_user_direct.append({"app_id": aid, "user_id": au.get("id")})
+
+            return {"users": users, "group_memberships": memberships,
+                    "app_group_assignments": app_group,
+                    "app_user_assignments_direct": app_user_direct}
+
 
     APP_SCHEMA_CAP = 200  # safety cap for large orgs (per-app schema = 1 call each)
 
@@ -58,7 +112,7 @@ class OktaAdapter(ProviderAdapter):
                 if not href:
                     continue
                 path = href.replace(self.base_url, "")
-                r = c.get(path)
+                r = self._get(c, path)
                 if r.status_code == 200:
                     doc = r.json()
                     doc["_user_type"] = ut.get("id")
@@ -71,7 +125,7 @@ class OktaAdapter(ProviderAdapter):
                 aid = a.get("id")
                 if not aid:
                     continue
-                r = c.get(f"/api/v1/meta/schemas/apps/{aid}/default")
+                r = self._get(c, f"/api/v1/meta/schemas/apps/{aid}/default")
                 if r.status_code == 200:
                     doc = r.json()
                     doc["_app_id"] = aid

@@ -131,3 +131,21 @@ class AuthentikAdapter(ProviderAdapter):
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
             return ("created", str(r.json().get("pk", "")))
+
+    def export_identities(self) -> dict[str, list[dict]]:
+        with self._client() as c:
+            raw = self._paged(c, "/api/v3/core/users/")
+            users, memberships = [], []
+            for u in raw:
+                uid = u.get("pk")
+                users.append({"id": uid, "username": u.get("username"),
+                              "name": u.get("name"), "email": u.get("email"),
+                              "is_active": u.get("is_active"), "type": u.get("type"),
+                              "attributes": u.get("attributes", {}),
+                              "path": u.get("path")})
+                for gid in (u.get("groups") or []):
+                    memberships.append({"group_id": gid, "user_id": uid})
+            # Authentik app access is governed by policy bindings (captured in config),
+            # which already record group-vs-user provenance — so those buckets stay empty here.
+            return {"users": users, "group_memberships": memberships,
+                    "app_group_assignments": [], "app_user_assignments_direct": []}

@@ -31,3 +31,9 @@ class ProviderAdapter(ABC):
 
     def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
         raise NotImplementedError(f"{self.name}: restore (apply) not implemented yet")
+
+    def export_identities(self) -> dict[str, list[dict]]:
+        """Identity data: users, group memberships, and app assignments with
+        provenance (group-inherited vs direct). Buckets a provider doesn't use
+        stay empty. NOT part of the config export — separate cadence/storage."""
+        raise NotImplementedError(f"{self.name}: identity backup not implemented")

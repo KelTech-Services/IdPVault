@@ -18,6 +18,9 @@ class TenantIn(BaseModel):
     schedule_cron: str | None = None  # e.g. "0 3 * * *"
     retention_keep: int = 30
     db_url: str | None = None  # optional: full-DR pg_dump source (self-hosted only)
+    identity_enabled: bool = False
+    identity_schedule_cron: str | None = None
+    identity_retention_keep: int = 14
 
 
 @router.post("/tenants", dependencies=[Depends(require_admin)])
@@ -33,6 +36,9 @@ def create_tenant(body: TenantIn) -> dict:
             wrapped_data_key=crypto.wrap_data_key(data_key),
             schedule_cron=body.schedule_cron, retention_keep=body.retention_keep,
             enc_db_url=crypto.encrypt(body.db_url.encode(), data_key) if body.db_url else None,
+            identity_enabled=body.identity_enabled,
+            identity_schedule_cron=body.identity_schedule_cron,
+            identity_retention_keep=body.identity_retention_keep,
         )
         db.add(t)
         db.add(AuditLog(action="tenant.create", detail={"slug": body.slug}))
@@ -47,7 +53,10 @@ def list_tenants() -> list[dict]:
             {"id": t.id, "name": t.name, "slug": t.slug, "provider": t.provider,
              "base_url": t.base_url,
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep,
-             "db_dr": bool(t.enc_db_url)}
+             "db_dr": bool(t.enc_db_url),
+             "identity_enabled": t.identity_enabled,
+             "identity_schedule_cron": t.identity_schedule_cron,
+             "identity_retention_keep": t.identity_retention_keep}
             for t in db.query(Tenant).all()
         ]
 
@@ -78,6 +87,9 @@ class TenantUpdate(BaseModel):
     schedule_cron: str | None = None   # explicit null/empty clears the schedule
     retention_keep: int | None = None
     db_url: str | None = None          # set to configure full-DR; "" clears it
+    identity_enabled: bool | None = None
+    identity_schedule_cron: str | None = None
+    identity_retention_keep: int | None = None
 
 
 @router.patch("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
@@ -102,6 +114,24 @@ def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
         if "db_url" in fields:
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             t.enc_db_url = crypto.encrypt(fields["db_url"].encode(), data_key) if fields["db_url"] else None
+        if "identity_enabled" in fields:
+            t.identity_enabled = bool(fields["identity_enabled"])
+        if "identity_retention_keep" in fields and fields["identity_retention_keep"]:
+            t.identity_retention_keep = fields["identity_retention_keep"]
+        if "identity_schedule_cron" in fields:
+            from apscheduler.triggers.cron import CronTrigger
+            from app.core.scheduler import scheduler
+            from app.core.identity import run_identity_backup
+            t.identity_schedule_cron = fields["identity_schedule_cron"] or None
+            jid = f"identity-{t.id}"
+            if t.identity_enabled and t.identity_schedule_cron:
+                scheduler.add_job(run_identity_backup, CronTrigger.from_crontab(t.identity_schedule_cron),
+                                  args=[t.id], id=jid, replace_existing=True)
+            else:
+                try:
+                    scheduler.remove_job(jid)
+                except Exception:
+                    pass
         if "schedule_cron" in fields:
             t.schedule_cron = fields["schedule_cron"] or None
             if t.schedule_cron:

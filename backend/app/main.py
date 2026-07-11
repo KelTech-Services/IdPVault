@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_metrics, routes_restore, routes_settings, routes_tenants, routes_users
+from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_metrics, routes_restore, routes_settings, routes_tenants, routes_users
 from app.config import get_settings
 from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.4.2", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.5.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -64,6 +64,7 @@ app.include_router(routes_users.router, prefix="/api/v1")
 app.include_router(routes_dashboard.router, prefix="/api/v1")
 app.include_router(routes_restore.router, prefix="/api/v1")
 app.include_router(routes_audit.router, prefix="/api/v1")
+app.include_router(routes_identity.router, prefix="/api/v1")
 app.include_router(routes_metrics.router)
 app.include_router(routes_settings.router, prefix="/api/v1")
 app.mount("/", StaticFiles(directory="frontend", html=True), name="ui")

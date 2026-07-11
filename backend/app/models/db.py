@@ -23,6 +23,9 @@ class Tenant(Base):
     enc_db_url: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # full-DR pg_dump source
     schedule_cron: Mapped[str | None] = mapped_column(String(60), nullable=True)
     retention_keep: Mapped[int] = mapped_column(Integer, default=30)
+    identity_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    identity_schedule_cron: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    identity_retention_keep: Mapped[int] = mapped_column(Integer, default=14)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -58,6 +61,9 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 # (Real migration tooling — Alembic — is the v0.5+ plan; this covers additive-only.)
 _COLUMN_MIGRATIONS = [
     ("tenants", "enc_db_url", "BYTEA"),
+    ("tenants", "identity_enabled", "BOOLEAN DEFAULT FALSE"),
+    ("tenants", "identity_schedule_cron", "VARCHAR(60)"),
+    ("tenants", "identity_retention_keep", "INTEGER DEFAULT 14"),
 ]
 
 
@@ -126,6 +132,22 @@ class Event(Base):
     object_id: Mapped[str] = mapped_column(String(120), default="")
     object_name: Mapped[str] = mapped_column(String(255), default="")
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class IdentitySnapshot(Base):
+    __tablename__ = "identity_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    ts: Mapped[str] = mapped_column(String(20), index=True)
+    counts: Mapped[dict] = mapped_column(JSON, default=dict)      # users/memberships/etc
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    api_calls: Mapped[int] = mapped_column(Integer, default=0)    # measured, for estimates
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(10), default="ok")
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

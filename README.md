@@ -10,6 +10,8 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 
 - Scheduled + on-demand encrypted backups (AES-256-GCM, per-tenant envelope keys)
 - Providers: Authentik, Okta, Auth0 (pluggable adapter interface)
+- Identity backup (opt-in): users, group memberships, and provenance-aware app assignments
+- Adaptive Okta rate limiting (auto-learns limits; configurable reserve headroom)
 - Snapshot-to-snapshot diff, drift detection, and a per-object change events feed
 - Restore engine: dry-run preview, dependency-ordered apply (Authentik), per-object
   restore reports
@@ -34,7 +36,7 @@ See `docker/compose.example.yaml`. Single app image + Postgres, no other depende
 
 ## Status
 
-v0.4 shipped and deployed. See `docs/ROADMAP.md` for shipped versions and what's next.
+v0.5.0 shipped. See `docs/USER_GUIDE.md` for setup/usage and `docs/ROADMAP.md` for shipped versions and what's next.
 
 ## What a backup contains — and what it doesn't
 
