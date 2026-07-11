@@ -23,6 +23,8 @@ def _id(obj: dict) -> str:
 
 
 def _changed_fields(before: dict, after: dict) -> list[str]:
+    from app.core.diff import normalize
+    before, after = normalize(before), normalize(after)
     keys = set(before) | set(after)
     return sorted(k for k in keys
                   if json.dumps(before.get(k), sort_keys=True, default=str)

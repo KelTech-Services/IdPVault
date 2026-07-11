@@ -7,6 +7,7 @@ Okta/Auth0 adapters raise not-implemented and land in the report as unsupported)
 import json
 
 from app.core import crypto, storage
+from app.core.diff import normalize
 from app.core.events import _id as obj_id, _name as obj_name
 from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
 from app.providers import get_adapter
@@ -49,9 +50,10 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None) -> 
             if live is None:
                 action, fields = "create", []
             else:
-                fields = sorted(k for k in set(obj) | set(live)
-                                if json.dumps(obj.get(k), sort_keys=True, default=str)
-                                != json.dumps(live.get(k), sort_keys=True, default=str))
+                n_obj, n_live = normalize(obj), normalize(live)
+                fields = sorted(k for k in set(n_obj) | set(n_live)
+                                if json.dumps(n_obj.get(k), sort_keys=True, default=str)
+                                != json.dumps(n_live.get(k), sort_keys=True, default=str))
                 action = "update" if fields else "identical"
             items.append({"resource_type": rtype, "object_id": oid,
                           "object_name": obj_name(obj), "action": action,
