@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.8] — 2026-07-11
+### Fixed
+- Auth0 config restore writes now self-heal against Auth0's strict schema: when a
+  PATCH/POST is rejected with "Additional properties not allowed: <field>" (a
+  read-only/computed export field), that field is dropped and the write retried,
+  looping until Auth0 accepts the body. Only fields Auth0 explicitly rejects are
+  dropped, so real config is never lost. `callback_url_template` is pre-stripped.
+
 ## [0.7.7] — 2026-07-11
 ### Fixed
 - Restore/drift comparison no longer treats server-assigned identity and timestamp

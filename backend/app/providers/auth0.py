@@ -8,6 +8,7 @@ object or fixed list that rejects pagination params. A few are feature-gated
 are recorded empty rather than failing the whole backup.
 """
 import logging
+import re
 import time
 
 import httpx
@@ -45,7 +46,8 @@ class Auth0Adapter(ProviderAdapter):
                    "rules": "/api/v2/rules"}
     _ID_FIELD = {"clients": "client_id"}   # everything else keys on "id"
     _READONLY = {"id", "client_id", "tenant", "global", "signing_keys", "is_system",
-                 "created_at", "updated_at", "owners", "client_secret"}
+                 "created_at", "updated_at", "owners", "client_secret",
+                 "callback_url_template"}
     _NATURAL_KEY = {"clients": "client_id", "connections": "name",
                     "resource_servers": "identifier", "roles": "name", "rules": "name"}
 
@@ -140,10 +142,35 @@ class Auth0Adapter(ProviderAdapter):
                 out[rtype] = self._fetch(c, rtype, path, False)
         return out
 
+    def _write_with_strip(self, c, method, path, payload):
+        """Write to Auth0, auto-dropping any top-level fields it rejects as
+        'Additional properties not allowed' (read-only/computed export fields),
+        one error round at a time, until it accepts the body. Returns the response."""
+        payload = dict(payload)
+        r = None
+        for _ in range(12):
+            r = self._req(c, method, path, json=payload)
+            if r.status_code != 400:
+                return r
+            try:
+                msg = r.json().get("message", "")
+            except Exception:
+                msg = ""
+            m = re.search(r"Additional properties not allowed:\s*([^'\"]+)", msg)
+            if not m:
+                return r
+            bad = [f.strip() for f in m.group(1).split(",") if f.strip() in payload]
+            if not bad:                      # rejected field isn't a droppable top-level key
+                return r
+            for f in bad:
+                payload.pop(f, None)
+        return r
+
     def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
         """Create-or-update one config object. When the engine matched a live object
         (by natural key) it's passed as `live` and we PATCH that object's CURRENT id;
-        otherwise we POST a new one. Auth0 system objects are skipped."""
+        otherwise we POST a new one. Auth0 system objects are skipped. Auth0 rejects
+        read-only/computed fields one at a time, so writes auto-strip them and retry."""
         base = self._WRITE_PATH.get(resource_type)
         if not base:
             raise NotImplementedError(f"auth0: restore not supported for {resource_type}")
@@ -154,11 +181,11 @@ class Auth0Adapter(ProviderAdapter):
         with self._client() as c:
             if live is not None:
                 live_id = live.get(idf) or live.get("id")
-                r = self._req(c, "PATCH", f"{base}/{live_id}", json=payload)
+                r = self._write_with_strip(c, "PATCH", f"{base}/{live_id}", payload)
                 if r.status_code >= 400:
                     raise RuntimeError(f"PATCH {base}/{live_id} -> {r.status_code}: {r.text[:280]}")
                 return ("updated", str(live_id))
-            r = self._req(c, "POST", base, json=payload)
+            r = self._write_with_strip(c, "POST", base, payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {base} -> {r.status_code}: {r.text[:280]}")
             body = r.json()
