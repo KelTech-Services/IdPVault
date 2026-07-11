@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
-<link rel="icon" type="image/png" href="/IdPVault_logo.png">
+<link rel="icon" type="image/png" href="/IdPVault_light_logo.png">
 <style>
 :root{--bg:#0f1419;--panel:#171e26;--panel2:#1d2733;--border:#2a3644;--text:#dce3ea;--dim:#8494a6;
 --accent:#4da3ff;--green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;font-size:15px}
@@ -54,7 +54,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 .muted{color:var(--dim)}
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px;width:380px;display:grid;gap:14px}
-.logincard img{height:130px;width:auto;justify-self:center;margin-bottom:6px;max-width:100%;object-fit:contain}
+.logincard img{height:260px;width:auto;justify-self:center;margin-bottom:6px;max-width:100%;object-fit:contain}
 
 .logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
 </style>
@@ -63,7 +63,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 
 <div id="loginview" class="hidden">
   <div class="logincard" id="logincard">
-    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <img src="/IdPVault_light_logo.png" alt="IdPVault">
     <h3>Sign in</h3>
     <div><span class="lbl">Username</span><input id="l_user" autocomplete="username"></div>
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
@@ -71,7 +71,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <p id="l_err" class="muted" style="text-align:center;font-size:.8rem"></p>
   </div>
   <div class="logincard hidden" id="invitecard">
-    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <img src="/IdPVault_light_logo.png" alt="IdPVault">
     <h3>Welcome — set your password</h3>
     <div><span class="lbl">New password (min 8 chars)</span><input id="i_pass" type="password" autocomplete="new-password"></div>
     <div><span class="lbl">Confirm password</span><input id="i_pass2" type="password" autocomplete="new-password"></div>
@@ -82,7 +82,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 
 <div id="appview" class="hidden">
 <header>
-  <img src="/IdPVault_logo.png" alt="IdPVault" style="height:60px;width:auto">
+  <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:120px;width:auto">
   <span class="ver">v0.2.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
