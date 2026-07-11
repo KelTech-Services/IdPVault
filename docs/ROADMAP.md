@@ -1,33 +1,45 @@
 # IdPVault Roadmap
 
-## v0.2 — accounts, settings, real UI depth
+Goal: feature parity with commercial IdP backup/recovery products, self-hosted,
+single-image deploy, encryption-first. Providers: Authentik, Okta, Auth0.
+
+## v0.2 — multi-user app (next)
 
 **Authentication & accounts**
 - Real login page (session cookies, hashed passwords in Postgres) replacing HTTP Basic
-- First-run admin setup flow
-- User management: admins create accounts; roles: `admin` (full control) and
-  `user` (read-only: view tenants, snapshots, diffs, history — no mutations)
-- Invite flow: new account -> one-time emailed setup link where the invitee sets their password
+- First-run admin setup flow; profile menu + logout in header
+- Admin page: create/disable users; roles: `admin` (full control), `user` (read-only)
+- Invite flow: new account -> one-time emailed setup link to set password
 
-**Settings page**
-- SMTP configuration (host, port, TLS, credentials encrypted at rest, from-address, test-send button)
-- Alert webhook (ntfy / Slack-compatible) for drift and backup-failure notifications
+**Settings**
+- SMTP config (host/port/TLS/credentials encrypted at rest, from-address, test-send)
+- Alert webhook (ntfy / Slack-compatible)
 - Default schedule / retention for new tenants
 - Master key + app health status
 
-**Tenant experience**
-- Tenant detail view: backup history with status, per-snapshot object counts, drift badges,
-  last-run and next-scheduled times
-- Drift alerts actually delivered (webhook + SMTP)
+## v0.3 — recovery & visibility core
 
-**Backup & restore depth**
-- Restore with dry-run preview (object-level, dependency-aware ordering)
-- Authentik "full DR" mode: optional tenant field for its Postgres URL; take an encrypted
-  `pg_dump` alongside each config snapshot (bind mounts / SECRET_KEY remain host-backup scope)
-- Audit log viewer in UI
-- Prometheus metrics endpoint
+**Restore engine** (the headline feature)
+- Object-level and multi-object restore from any snapshot, dependency-aware ordering
+- Dry-run preview (what would change) before apply
+- Authentik first; Okta and Auth0 adapters after
+- Restore report: what was restored, what was skipped, secrets needing re-entry
+
+**Events & dashboard**
+- Events page: per-snapshot change feed (add/update/delete per object) from the diff engine
+- Dashboard cards: data coverage status, backup schedule + last run, unbacked changes
+  (poll IdP event/audit APIs since last snapshot)
+- Search + filters across snapshots/events (by object type, name, date)
+- Tenant detail view: history, status, counts, drift badges, next run
+
+## v0.4 — alerts & reach
+
+- Drift/failure alerts delivered: webhook + SMTP (Teams/Slack-compatible)
+- Applications browser (per-tenant object explorer)
+- Tenant cloning (full/partial) and cross-tenant config promotion
+- Audit log viewer; Prometheus metrics
+- Authentik "full DR" mode: optional encrypted pg_dump alongside config snapshots
 
 ## Later / SaaS-track
-- Cross-tenant config promotion (prod -> preview), tenant cloning
 - Terraform / blueprint export
-- Public website, subscription billing, move repo to branded org
+- Public website, subscription billing, branded org migration
