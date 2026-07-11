@@ -55,6 +55,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px;width:380px;display:grid;gap:14px}
 .logincard img{height:44px;width:auto;justify-self:center;margin-bottom:6px}
+.logochip{background:#eef1f5;padding:5px 12px;border-radius:9px}
 .logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
 </style>
 </head>
@@ -62,7 +63,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 
 <div id="loginview" class="hidden">
   <div class="logincard" id="logincard">
-    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <img src="/IdPVault_logo.png" alt="IdPVault" class="logochip">
     <h3>Sign in</h3>
     <div><span class="lbl">Username</span><input id="l_user" autocomplete="username"></div>
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
@@ -70,7 +71,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <p id="l_err" class="muted" style="text-align:center;font-size:.8rem"></p>
   </div>
   <div class="logincard hidden" id="invitecard">
-    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <img src="/IdPVault_logo.png" alt="IdPVault" class="logochip">
     <h3>Welcome — set your password</h3>
     <div><span class="lbl">New password (min 8 chars)</span><input id="i_pass" type="password" autocomplete="new-password"></div>
     <div><span class="lbl">Confirm password</span><input id="i_pass2" type="password" autocomplete="new-password"></div>
@@ -81,7 +82,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 
 <div id="appview" class="hidden">
 <header>
-  <img src="/IdPVault_logo.png" alt="IdPVault" style="height:32px;width:auto">
+  <img src="/IdPVault_logo.png" alt="IdPVault" class="logochip" style="height:34px;width:auto">
   <span class="ver">v0.2.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
