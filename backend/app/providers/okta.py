@@ -14,6 +14,8 @@ RESOURCES = {
     "idps": "/api/v1/idps",
     "network_zones": "/api/v1/zones",
     "user_schemas": "/api/v1/meta/schemas/user/default",
+    "user_types": "/api/v1/meta/types/user",
+    "profile_mappings": "/api/v1/mappings",
     "event_hooks": "/api/v1/eventHooks",
     "inline_hooks": "/api/v1/inlineHooks",
 }
@@ -43,9 +45,39 @@ class OktaAdapter(ProviderAdapter):
             url = r.links.get("next", {}).get("url")
         return out
 
+    APP_SCHEMA_CAP = 200  # safety cap for large orgs (per-app schema = 1 call each)
+
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
-            return {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+            out = {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+
+            # per-user-type schemas (default already captured; add non-default types)
+            type_schemas = []
+            for ut in out.get("user_types", []):
+                href = (ut.get("_links", {}).get("schema", {}) or {}).get("href", "")
+                if not href:
+                    continue
+                path = href.replace(self.base_url, "")
+                r = c.get(path)
+                if r.status_code == 200:
+                    doc = r.json()
+                    doc["_user_type"] = ut.get("id")
+                    type_schemas.append(doc)
+            out["user_type_schemas"] = type_schemas
+
+            # per-app user schemas (app-level custom attributes), capped
+            app_schemas = []
+            for a in out.get("apps", [])[:self.APP_SCHEMA_CAP]:
+                aid = a.get("id")
+                if not aid:
+                    continue
+                r = c.get(f"/api/v1/meta/schemas/apps/{aid}/default")
+                if r.status_code == 200:
+                    doc = r.json()
+                    doc["_app_id"] = aid
+                    app_schemas.append(doc)
+            out["app_user_schemas"] = app_schemas
+            return out
 
     def count_changes_since(self, iso_ts: str) -> int | None:
         with self._client() as c:
