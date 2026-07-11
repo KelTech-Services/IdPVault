@@ -49,14 +49,31 @@ class AuthentikAdapter(ProviderAdapter):
         with self._client() as c:
             return {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
 
+    CHANGE_ACTIONS = {"model_created", "model_updated", "model_deleted"}
+
     def count_changes_since(self, iso_ts: str) -> int | None:
+        """Filter params on the events API are unreliable across versions —
+        page newest-first and count client-side, capped at 500."""
+        count, page = 0, 1
         with self._client() as c:
-            r = c.get("/api/v3/events/events/", params={
-                "created__gte": iso_ts, "page_size": 1,
-                "action__in": "model_created,model_updated,model_deleted"})
-            if r.status_code != 200:
-                return None
-            return r.json().get("pagination", {}).get("count")
+            while page <= 5:
+                r = c.get("/api/v3/events/events/",
+                          params={"ordering": "-created", "page_size": 100, "page": page})
+                if r.status_code != 200:
+                    return None if page == 1 else count
+                results = r.json().get("results", [])
+                if not results:
+                    return count
+                for ev in results:
+                    created = str(ev.get("created", ""))[:19].replace(" ", "T")
+                    if created < iso_ts[:19]:
+                        return count
+                    if ev.get("action") in self.CHANGE_ACTIONS:
+                        count += 1
+                if not r.json().get("pagination", {}).get("next"):
+                    return count
+                page += 1
+        return count
 
     # ---- restore support ----
     READONLY_FIELDS = {"pk", "component", "verbose_name", "verbose_name_plural",

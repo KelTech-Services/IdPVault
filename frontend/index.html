@@ -285,6 +285,7 @@ function showApp(){
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
   health(); loadTenants(); loadDashboard(); setInterval(health, 30000);
+  setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);
 }
 function switchView(name){
   ['dashboard','events','users','settings'].forEach(x => {
@@ -382,6 +383,7 @@ async function backupNow(id, btn){
     const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
     toast(`Snapshot ${r.manifest.timestamp} complete — ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
     if(snapTenantId === id) showSnaps(id, document.getElementById('snaptenant').textContent);
+    loadDashboard();
   } catch(e){ toast('Backup failed: '+e.message, true); }
   btn.disabled = false; btn.textContent = 'Backup now';
 }
