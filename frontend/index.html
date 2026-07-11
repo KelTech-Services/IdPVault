@@ -99,10 +99,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.3.0</span>
+  <span class="ver">v0.4.0</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
+    <button data-view="audit" class="adminonly" onclick="switchView('audit')">Audit</button>
     <button data-view="users" class="adminonly" onclick="switchView('users')">Users</button>
     <button data-view="settings" class="adminonly" onclick="switchView('settings')">Settings</button>
   </nav>
@@ -142,6 +143,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
+  <section class="panel hidden" id="browsepanel">
+    <h2>Browse — <span id="b_label"></span><span class="spacer"></span>
+      <input id="b_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._bs); window._bs=setTimeout(browseObjects, 300)">
+      <button onclick="document.getElementById('browsepanel').classList.add('hidden')">Close</button></h2>
+    <div class="chk" id="b_types"></div>
+    <table><thead><tr><th>Object</th><th>ID</th><th style="width:90px"></th></tr></thead>
+    <tbody id="b_objects"></tbody></table>
+  </section>
   <section class="panel hidden" id="diffpanel">
     <h2>Diff <span id="difflabel" class="muted"></span><span class="spacer"></span><button onclick="document.getElementById('diffpanel').classList.add('hidden')">Close</button></h2>
     <div class="diffstat" id="diffstat"></div>
@@ -172,6 +181,18 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <div id="r_items" style="max-height:44vh;overflow:auto"></div>
   </div>
 </div>
+<main id="view-audit" class="hidden">
+  <section class="panel">
+    <h2>Audit log <span class="spacer"></span>
+      <select id="au_filter" onchange="loadAudit()" style="width:auto">
+        <option value="">All actions</option><option value="auth">Auth</option>
+        <option value="tenant">Tenants</option><option value="restore">Restores</option>
+        <option value="user">Users</option><option value="settings">Settings</option>
+      </select></h2>
+    <table><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead>
+    <tbody id="auditbody"></tbody></table>
+  </section>
+</main>
 <main id="view-users" class="hidden">
   <section class="panel">
     <h2>Users <span class="spacer"></span><button class="primary" onclick="document.getElementById('userform').classList.toggle('hidden')">+ Add user</button></h2>
@@ -288,12 +309,13 @@ function showApp(){
   setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);
 }
 function switchView(name){
-  ['dashboard','events','users','settings'].forEach(x => {
+  ['dashboard','events','audit','users','settings'].forEach(x => {
     document.getElementById('view-'+x).classList.toggle('hidden', x !== name);
     document.querySelector(`nav button[data-view=${x}]`).classList.toggle('active', x === name);
   });
   if(name === 'dashboard') loadDashboard();
   if(name === 'events') loadEventTenants();
+  if(name === 'audit') loadAudit();
   if(name === 'users') loadUsers();
   if(name === 'settings') loadSettings();
 }
@@ -409,7 +431,7 @@ async function showSnaps(id, slug){
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
       <td onclick="selSnap(this.parentElement)">${fmtTs(ts)} <span class="muted">(${ts})</span></td>
-      <td style="text-align:right">${admin?`<button onclick="openRestore('${ts}')">Restore…</button>`:''}</td></tr>`).join('');
+      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?`<button onclick="openRestore('${ts}')">Restore…</button>`:''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
@@ -598,6 +620,61 @@ async function restoreApply(){
     document.getElementById('r_applybtn').classList.add('hidden');
   } catch(e){ document.getElementById('r_summary').textContent = 'Apply failed: '+e.message; }
   document.getElementById('r_applybtn').disabled = false;
+}
+
+
+/* ---------- audit ---------- */
+async function loadAudit(){
+  const tb = document.getElementById('auditbody');
+  tb.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
+  try {
+    const f = document.getElementById('au_filter').value;
+    const d = await api(`/audit?limit=200${f?'&action='+f:''}`);
+    if(!d.entries.length){ tb.innerHTML='<tr><td colspan="4" class="muted">No entries.</td></tr>'; return; }
+    tb.innerHTML = d.entries.map(a=>`<tr>
+      <td class="muted">${new Date(a.at).toLocaleString()}</td>
+      <td>${esc(a.actor)}</td><td>${esc(a.action)}</td>
+      <td class="muted" style="font-size:.78rem">${esc(JSON.stringify(a.detail))}</td></tr>`).join('');
+  } catch(e){ tb.innerHTML=`<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
+}
+
+/* ---------- snapshot browser ---------- */
+let _browse = null;
+async function openBrowse(ts){
+  _browse = { tenantId: snapTenantId, snap: ts, type: null };
+  document.getElementById('b_label').textContent = `${window._snapSlug} @ ${fmtTs(ts)}`;
+  document.getElementById('b_search').value = '';
+  document.getElementById('b_objects').innerHTML = '';
+  document.getElementById('browsepanel').classList.remove('hidden');
+  try {
+    const d = await api(`/tenants/${_browse.tenantId}/snapshots/${ts}/objects`);
+    document.getElementById('b_types').innerHTML = d.types.map(t=>
+      `<label onclick="browseType('${t.resource_type}')"><input type="radio" name="btype"> ${t.resource_type} (${t.count})</label>`).join('');
+  } catch(e){ toast(e.message, true); }
+}
+function browseType(rt){ _browse.type = rt; browseObjects(); }
+async function browseObjects(){
+  if(!_browse || !_browse.type) return;
+  const q = document.getElementById('b_search').value.trim();
+  const tb = document.getElementById('b_objects');
+  tb.innerHTML = '<tr><td colspan="3" class="muted">Loading…</td></tr>';
+  try {
+    const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects?resource_type=${encodeURIComponent(_browse.type)}${q?'&q='+encodeURIComponent(q):''}`);
+    if(!d.objects.length){ tb.innerHTML='<tr><td colspan="3" class="muted">No matches.</td></tr>'; return; }
+    tb.innerHTML = d.objects.map(o=>`<tr>
+      <td>${esc(o.object_name||'—')}</td><td class="muted">${esc(o.object_id)}</td>
+      <td><button onclick="viewObject('${esc(o.object_id)}')">View</button></td></tr>`).join('');
+  } catch(e){ tb.innerHTML=`<tr><td colspan="3" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function viewObject(oid){
+  try {
+    const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects/${encodeURIComponent(_browse.type)}/${encodeURIComponent(oid)}`);
+    document.getElementById('difflabel').textContent = `${_browse.type} / ${oid}`;
+    document.getElementById('diffstat').innerHTML = '';
+    document.getElementById('diffout').textContent = JSON.stringify(d.object, null, 2);
+    document.getElementById('diffpanel').classList.remove('hidden');
+    document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
+  } catch(e){ toast(e.message, true); }
 }
 
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

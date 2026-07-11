@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     alert_webhook_url: str | None = None  # ntfy/Slack-compatible webhook
     admin_user: str = "admin"
     admin_password: str = "changeme"  # set IDPVAULT_ADMIN_PASSWORD in the stack
+    metrics_token: str | None = None  # set to enable /metrics for Prometheus
 
     model_config = {"env_prefix": "IDPVAULT_"}
 

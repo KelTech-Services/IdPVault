@@ -67,6 +67,9 @@ def run_backup(tenant_id: int) -> dict:
                 storage.prune(t.slug, t.retention_keep)
             db.commit()
             log.info("backup done tenant=%s ts=%s drift=%s", t.slug, manifest["timestamp"], bool(drift))
+            if drift:
+                from app.core.alerts import alert_drift
+                alert_drift(t.name, manifest["timestamp"], drift)
             return {"manifest": manifest, "drift": drift}
         except Exception as e:
             db.rollback()
@@ -76,4 +79,6 @@ def run_backup(tenant_id: int) -> dict:
                              duration_ms=int((time.monotonic() - started) * 1000)))
             db.commit()
             log.exception("backup failed tenant=%s", tenant_id)
+            from app.core.alerts import alert_failure
+            alert_failure(t.name, str(e)[:490])
             raise
