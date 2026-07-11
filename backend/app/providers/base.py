@@ -33,8 +33,17 @@ class ProviderAdapter(ABC):
         None = provider doesn't support it (yet)."""
         return None
 
-    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
+    def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
         raise NotImplementedError(f"{self.name}: restore (apply) not implemented yet")
+
+    def natural_key(self, resource_type: str, obj: dict) -> str:
+        """Stable identity to match snapshot objects to live objects on restore.
+        Server ids can change on recreate, so providers override with a natural key
+        (name / identifier / ...); default falls back to the object's id."""
+        for k in ("pk", "id", "client_id", "custom_domain_id", "slug", "brand_uuid"):
+            if obj.get(k) is not None:
+                return str(obj[k])
+        return ""
 
     def export_identities(self) -> dict[str, list[dict]]:
         """Identity data: users, group memberships, and app assignments with

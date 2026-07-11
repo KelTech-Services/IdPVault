@@ -46,6 +46,8 @@ class Auth0Adapter(ProviderAdapter):
     _ID_FIELD = {"clients": "client_id"}   # everything else keys on "id"
     _READONLY = {"id", "client_id", "tenant", "global", "signing_keys", "is_system",
                  "created_at", "updated_at", "owners", "client_secret"}
+    _NATURAL_KEY = {"clients": "client_id", "connections": "name",
+                    "resource_servers": "identifier", "roles": "name", "rules": "name"}
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
@@ -84,10 +86,27 @@ class Auth0Adapter(ProviderAdapter):
         except Exception:
             return False
 
+    def natural_key(self, resource_type: str, obj: dict) -> str:
+        field = self._NATURAL_KEY.get(resource_type)
+        if field and obj.get(field) is not None:
+            return str(obj[field])
+        return super().natural_key(resource_type, obj)
+
+    def _req(self, c: httpx.Client, method: str, path: str, **kw):
+        """Auth0 Management API call with retry on 429 (honours Retry-After)."""
+        r = None
+        for attempt in range(6):
+            r = c.request(method, path, **kw)
+            if r.status_code != 429:
+                return r
+            wait = r.headers.get("retry-after")
+            time.sleep(min(float(wait) if wait else 2 ** attempt, 10))
+        return r
+
     def _paged(self, c: httpx.Client, path: str) -> list[dict]:
         out, page = [], 0
         while True:
-            r = c.get(path, params={"page": page, "per_page": 100})
+            r = self._req(c, "GET", path, params={"page": page, "per_page": 100})
             r.raise_for_status()
             body = r.json()
             items = body if isinstance(body, list) else body.get("actions", [body])
@@ -97,7 +116,7 @@ class Auth0Adapter(ProviderAdapter):
             page += 1
 
     def _single(self, c: httpx.Client, path: str) -> list[dict]:
-        r = c.get(path)
+        r = self._req(c, "GET", path)
         r.raise_for_status()
         body = r.json()
         return body if isinstance(body, list) else [body]
@@ -121,27 +140,25 @@ class Auth0Adapter(ProviderAdapter):
                 out[rtype] = self._fetch(c, rtype, path, False)
         return out
 
-    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
-        """Create-or-update one config object from a snapshot. PATCH to update an
-        existing object, POST to create a missing one; Auth0 system objects are
-        skipped. Returns (action, live_id)."""
+    def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
+        """Create-or-update one config object. When the engine matched a live object
+        (by natural key) it's passed as `live` and we PATCH that object's CURRENT id;
+        otherwise we POST a new one. Auth0 system objects are skipped."""
         base = self._WRITE_PATH.get(resource_type)
         if not base:
             raise NotImplementedError(f"auth0: restore not supported for {resource_type}")
         if obj.get("is_system"):
             return ("skipped_system", str(obj.get("id", "")))
         idf = self._ID_FIELD.get(resource_type, "id")
-        oid = obj.get(idf)
         payload = {k: v for k, v in obj.items() if k not in self._READONLY}
         with self._client() as c:
-            if oid:
-                live = c.get(f"{base}/{oid}")
-                if live.status_code == 200:
-                    r = c.patch(f"{base}/{oid}", json=payload)
-                    if r.status_code >= 400:
-                        raise RuntimeError(f"PATCH {base}/{oid} -> {r.status_code}: {r.text[:280]}")
-                    return ("updated", str(oid))
-            r = c.post(base, json=payload)
+            if live is not None:
+                live_id = live.get(idf) or live.get("id")
+                r = self._req(c, "PATCH", f"{base}/{live_id}", json=payload)
+                if r.status_code >= 400:
+                    raise RuntimeError(f"PATCH {base}/{live_id} -> {r.status_code}: {r.text[:280]}")
+                return ("updated", str(live_id))
+            r = self._req(c, "POST", base, json=payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {base} -> {r.status_code}: {r.text[:280]}")
             body = r.json()

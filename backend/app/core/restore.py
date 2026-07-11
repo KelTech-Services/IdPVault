@@ -9,7 +9,7 @@ import json
 
 from app.core import crypto, storage
 from app.core.diff import normalize
-from app.core.events import _id as obj_id, _name as obj_name
+from app.core.events import _name as obj_name
 from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
 from app.providers import get_adapter
 
@@ -31,17 +31,17 @@ def _selected(selection: dict | None, rtype: str, oid: str) -> bool:
 
 
 def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
-               order: list, never: set) -> list[dict]:
+               adapter) -> list[dict]:
     items = []
-    for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, order)):
-        if rtype in never:
+    for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, adapter.restore_order)):
+        if rtype in adapter.never_restore:
             continue
-        live_idx = {obj_id(o): o for o in live_export.get(rtype, [])}
+        live_idx = {adapter.natural_key(rtype, o): o for o in live_export.get(rtype, [])}
         for obj in snap_export.get(rtype, []):
-            oid = obj_id(obj)
-            if not _selected(selection, rtype, oid):
+            key = adapter.natural_key(rtype, obj)
+            if not _selected(selection, rtype, key):
                 continue
-            live = live_idx.get(oid)
+            live = live_idx.get(key)
             if live is None:
                 action, fields = "create", []
             else:
@@ -50,11 +50,11 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
                                 if json.dumps(n_obj.get(k), sort_keys=True, default=str)
                                 != json.dumps(n_live.get(k), sort_keys=True, default=str))
                 action = "update" if fields else "identical"
-            items.append({"resource_type": rtype, "object_id": oid,
+            items.append({"resource_type": rtype, "object_id": key,
                           "object_name": obj_name(obj), "action": action,
                           "changed_fields": fields[:30],
                           "managed": bool(obj.get("managed")),
-                          "_obj": obj})
+                          "_obj": obj, "_live": live})
     return items
 
 
@@ -80,10 +80,11 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
 
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
-        plan = build_plan(snap, live, selection, adapter.restore_order, adapter.never_restore)
+        plan = build_plan(snap, live, selection, adapter)
 
         for item in plan:
             obj = item.pop("_obj")
+            live_obj = item.pop("_live")
             if mode == "dry_run":
                 item["status"] = "planned" if item["action"] != "identical" else "skipped"
                 continue
@@ -94,7 +95,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                 item["status"] = "skipped_managed"
                 continue
             try:
-                pushed, live_pk = adapter.push_object(item["resource_type"], obj)
+                pushed, live_pk = adapter.push_object(item["resource_type"], obj, live_obj)
                 item["status"] = pushed
                 item["live_pk"] = live_pk
             except NotImplementedError as e:

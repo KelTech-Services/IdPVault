@@ -3,6 +3,20 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.6] — 2026-07-11
+### Fixed
+- Config restore now matches snapshot objects to live objects by **natural key**
+  (name / identifier / client_id) instead of the server-assigned id, so an object
+  that was deleted and recreated (with a new id) is recognized as existing — no more
+  duplicate-create 409s — and updates PATCH the correct live object.
+- **Auth0 rate limiting**: Management API calls (export and restore) retry on HTTP
+  429 with backoff honouring `Retry-After`, so restores no longer fail when the
+  tenant's global Management API limit is hit.
+### Added
+- Per-item selection in the restore preview: actionable rows (create/update) get
+  checkboxes and a select-all, and Apply restores only the checked objects — the
+  config-restore analog of the identity tool's per-user selection.
+
 ## [0.7.5] — 2026-07-11
 ### Added
 - Config restore-apply for **Auth0** (`push_object`): create-or-update of clients,

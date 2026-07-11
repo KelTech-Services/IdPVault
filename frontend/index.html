@@ -102,7 +102,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .diffstat .add{color:var(--green)}.diffstat .rem{color:var(--red)}.diffstat .chg{color:var(--amber)}
 .ev-add{color:var(--green)}.ev-update{color:var(--amber)}.ev-delete{color:var(--red)}
 .evtype{font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.04em}
-.restore-item{display:grid;grid-template-columns:100px 1fr 170px;gap:10px;padding:8px 10px;border-bottom:1px solid var(--panel2);font-size:.84rem;align-items:center}
+.restore-item{display:grid;grid-template-columns:34px 100px 1fr 170px;gap:10px;padding:8px 10px;border-bottom:1px solid var(--panel2);font-size:.84rem;align-items:center}
 .act-create{color:var(--green)}.act-update{color:var(--amber)}.act-identical{color:var(--dim)}
 .st-created,.st-updated{color:var(--green)}.st-failed,.st-unsupported{color:var(--red)}.st-skipped,.st-skipped_managed{color:var(--dim)}.st-planned{color:var(--accent)}
 .modal{position:fixed;inset:0;background:rgba(4,7,11,.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:80}
@@ -920,6 +920,7 @@ async function loadEvents(){
 
 /* ---------- restore ---------- */
 let _restoreCtx = null;
+let _restoreItems = [];
 async function openRestore(ts){
   _restoreCtx = { tenantId: snapTenantId, snap: ts };
   document.getElementById('r_tenant').textContent = window._snapSlug || '';
@@ -936,17 +937,32 @@ async function openRestore(ts){
 function closeRestore(){ document.getElementById('restoremodal').classList.add('hidden'); _restoreCtx=null; }
 function renderRestore(res){
   const s = res.summary;
+  _restoreItems = res.items;
+  const isDry = s.mode==='dry_run';
   const acts = s.actions||{}, sts = s.statuses||{};
   document.getElementById('r_summary').innerHTML =
-    `<b>${s.mode==='dry_run'?'Preview':'Applied'}:</b> ${s.total} objects — ` +
+    `<b>${isDry?'Preview':'Applied'}:</b> ${s.total} objects — ` +
     Object.entries(acts).map(([k,v])=>`<span class="act-${k}">${v} ${k}</span>`).join(' · ') +
     (s.mode==='apply' ? ' — ' + Object.entries(sts).map(([k,v])=>`<span class="st-${k}">${v} ${k}</span>`).join(' · ') : '');
-  document.getElementById('r_items').innerHTML =
-    '<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>' +
-    res.items.map(it=>`<div class="restore-item">
+  const head = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div>${isDry?'<input type="checkbox" checked onchange="toggleAllRestore(this)" title="select all">':''}</div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
+  document.getElementById('r_items').innerHTML = head +
+    res.items.map((it,i)=>{
+      const actionable = it.action==='create'||it.action==='update';
+      const box = (isDry && actionable) ? `<input type="checkbox" class="r-sel" data-i="${i}" checked onchange="updateRestoreCount()">` : '';
+      return `<div class="restore-item">
+      <div>${box}</div>
       <div class="act-${it.action}">${it.action}</div>
       <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'—')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
-      <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`).join('');
+      <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`;
+    }).join('');
+}
+function toggleAllRestore(cb){ document.querySelectorAll('#r_items .r-sel').forEach(b=>b.checked=cb.checked); updateRestoreCount(); }
+function updateRestoreCount(){
+  const boxes=[...document.querySelectorAll('#r_items .r-sel')];
+  const n=boxes.filter(b=>b.checked).length;
+  const btn=document.getElementById('r_applybtn');
+  if(boxes.length>0){ btn.classList.remove('hidden'); btn.textContent=`Apply restore (${n} change${n===1?'':'s'})`; btn.disabled=(n===0); }
+  else btn.classList.add('hidden');
 }
 async function restorePreview(){
   document.getElementById('r_summary').textContent = 'Running preview…';
@@ -955,19 +971,25 @@ async function restorePreview(){
     const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
-    const changes = (res.summary.actions?.create||0)+(res.summary.actions?.update||0);
-    if(changes>0){ document.getElementById('r_applybtn').classList.remove('hidden'); document.getElementById('r_applybtn').textContent = `Apply restore (${changes} changes)`; }
+    updateRestoreCount();
   } catch(e){ document.getElementById('r_summary').textContent = 'Preview failed: '+e.message; }
 }
 async function restoreApply(){
   const tgt = parseInt(document.getElementById('r_target').value);
   const promoting = tgt!==_restoreCtx.tenantId;
-  if(!confirm(promoting ? 'PROMOTE: apply this snapshot into a DIFFERENT tenant? This writes objects into that target tenant.' : 'Apply this restore? It writes changed objects back into the live tenant. This cannot be auto-undone.')) return;
+  const boxes=[...document.querySelectorAll('#r_items .r-sel')];
+  const checked=boxes.filter(b=>b.checked);
+  if(boxes.length && checked.length===0){ toast('Select at least one item to restore', true); return; }
+  const partial = boxes.length && checked.length<boxes.length;
+  if(!confirm(promoting ? 'PROMOTE: apply this snapshot into a DIFFERENT tenant? This writes objects into that target tenant.' : `Apply this restore? It writes the ${partial?checked.length+' selected':'changed'} object(s) back into the live tenant. This cannot be auto-undone.`)) return;
   document.getElementById('r_summary').textContent = 'Applying…';
   document.getElementById('r_applybtn').disabled = true;
   try {
-    const tgt = parseInt(document.getElementById('r_target').value);
-    const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
+    const payload = {snapshot_ts:_restoreCtx.snap};
+    if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
+    if(partial){
+      payload.selection = {objects: checked.map(b=>{const it=_restoreItems[+b.dataset.i]; return {resource_type:it.resource_type, object_id:it.object_id};})};
+    }
     const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
     toast('Restore applied — see the report below.');

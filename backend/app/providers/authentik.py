@@ -114,7 +114,7 @@ class AuthentikAdapter(ProviderAdapter):
                 return seg + app.removeprefix(prefix).replace("_", "/") + "/"
         return None
 
-    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
+    def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
         """Create-or-update one object from a snapshot. Returns (action, live_pk)."""
         if obj.get("managed"):
             return ("skipped_managed", str(obj.get("pk", "")))
