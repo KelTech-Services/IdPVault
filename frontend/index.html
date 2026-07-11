@@ -177,7 +177,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.5</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.6</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -337,6 +337,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div><label>Default schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
       <div><label>Default retention</label><input id="s_defkeep" type="number" placeholder="30"></div>
       <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
+      <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
     </div>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
@@ -391,6 +392,11 @@ async function resetUserPw(id, name){
     toast(r.emailed ? `Reset link emailed to ${name}. Link (backup): ${link}` : `Reset link for ${name}: ${link}`);
     try{ await navigator.clipboard.writeText(link); }catch{}
   }catch(e){ toast(e.message, true); }
+}
+async function resetUserMfa(id, name){
+  if(!confirm(`Reset MFA for "${name}"? Their two-factor is removed and trusted devices are revoked — they can set it up again from their profile.`)) return;
+  try{ await api(`/users/${id}/reset-mfa`, {method:'POST'}); toast(`MFA reset for ${name}.`); loadUsers(); }
+  catch(e){ toast(e.message, true); }
 }
 async function saveProfileEmail(){
   try{ const r = await api('/auth/profile', {method:'POST', body: JSON.stringify({email:v('pf_email')})});
@@ -709,6 +715,7 @@ async function loadUsers(){
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
         <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
+        <button onclick="resetUserMfa(${u.id}, '${esc(u.username)}')">Reset MFA</button>
         <button class="del" onclick="delUser(${u.id}, '${esc(u.username)}')">Delete</button>`}
       </td></tr>`).join('');
   } catch(e){ ub.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
@@ -749,6 +756,7 @@ async function loadSettings(){
     document.getElementById('s_defcron').value = s.default_schedule_cron || '';
     document.getElementById('s_defkeep').value = s.default_retention_keep || '';
     document.getElementById('s_reserve').value = s.okta_rate_reserve_pct || '';
+    document.getElementById('s_mfadays').value = (s.mfa_trust_days!=null? s.mfa_trust_days : '');
   } catch(e){ toast(e.message, true); }
 }
 async function saveSettings(){
@@ -758,7 +766,8 @@ async function saveSettings(){
     alert_webhook_url: v('s_webhook'),
     default_schedule_cron: v('s_defcron'),
     default_retention_keep: parseInt(v('s_defkeep')||'0') || null,
-    okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null
+    okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null,
+    mfa_trust_days: parseInt(v('s_mfadays')||'0')
   };
   if(v('s_pass')) body.smtp.password = v('s_pass');
   try { await api('/settings', {method:'PUT', body: JSON.stringify(body)}); toast('Settings saved.'); loadSettings(); }

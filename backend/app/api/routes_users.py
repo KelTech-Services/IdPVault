@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.security import hash_password, require_admin
-from app.models.db import AuditLog, AuthSession, SessionLocal, User
+from app.models.db import AuditLog, AuthSession, MfaTrust, SessionLocal, User
 
 router = APIRouter(tags=["users"], dependencies=[Depends(require_admin)])
 
@@ -77,6 +77,21 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
                         detail={"username": u.username}))
         db.commit()
         return {"id": u.id}
+
+
+@router.post("/users/{user_id}/reset-mfa")
+def reset_mfa(user_id: int, request: Request) -> dict:
+    with SessionLocal() as db:
+        u = db.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        u.mfa_enabled = False
+        u.mfa_secret_enc = None
+        db.query(MfaTrust).filter(MfaTrust.user_id == u.id).delete()
+        db.add(AuditLog(actor=request.state.user["username"], action="user.reset_mfa",
+                        detail={"username": u.username}))
+        db.commit()
+    return {"ok": True}
 
 
 @router.post("/users/{user_id}/reset")

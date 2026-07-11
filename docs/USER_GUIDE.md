@@ -138,7 +138,7 @@ Click **Profile** in the header. You can change your own password, and enable **
 authentication (TOTP)**: click *Set up MFA*, scan the QR code with an authenticator app
 (Google Authenticator, Authy, 1Password) or enter the shown key manually, then verify a code
 to turn it on. After that, sign-in asks for a 6-digit code. Disable MFA the same way (requires
-a current code). MFA secrets are encrypted at rest with the master key.
+a current code). MFA secrets are encrypted at rest with the master key. Admins can reset a user's MFA from the Users page (e.g. lost authenticator). By default MFA is prompted at every sign-in; set a **trusted-device lifetime** in Settings (days) to let a browser skip the code within that window.
 
 ## 9. Alerts, audit, metrics
 

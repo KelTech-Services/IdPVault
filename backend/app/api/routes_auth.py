@@ -4,10 +4,11 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.core import crypto, security, totp
-from app.models.db import AuditLog, SessionLocal, User
+from app.models.db import AuditLog, MfaTrust, SessionLocal, Setting, User
 
 router = APIRouter(tags=["auth"])
 COOKIE = "idpvault_session"
+TRUST_COOKIE = "idpvault_mfa_trust"
 
 
 # ---------- first-run setup ----------
@@ -47,23 +48,52 @@ class LoginIn(BaseModel):
     totp: str | None = None
 
 
+def _trust_days(db) -> int:
+    row = db.get(Setting, "general")
+    try:
+        return int(row.value.get("mfa_trust_days") or 0) if row else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 @router.post("/auth/login")
-def login(body: LoginIn, response: Response) -> dict:
+def login(body: LoginIn, request: Request, response: Response) -> dict:
+    import secrets as pysecrets
+    from datetime import datetime, timedelta, timezone
+    new_trust = None
     with SessionLocal() as db:
         u = db.query(User).filter(User.username == body.username).first()
         if u is None or not u.is_active or not security.verify_password(body.password, u.password_hash):
             raise HTTPException(401, "invalid credentials")
         if u.mfa_enabled:
-            if not body.totp:
-                return {"mfa_required": True}
-            secret = crypto.decrypt(bytes.fromhex(u.mfa_secret_enc), crypto._master_key()).decode()
-            if not totp.verify(secret, body.totp):
-                raise HTTPException(401, "invalid MFA code")
+            # trusted-device check: skip the code if this browser has a valid trust token
+            trusted = False
+            tok = request.cookies.get(TRUST_COOKIE)
+            if tok:
+                tr = db.query(MfaTrust).filter(MfaTrust.token == tok,
+                                               MfaTrust.user_id == u.id).first()
+                if tr and tr.expires_at > datetime.now(timezone.utc):
+                    trusted = True
+            if not trusted:
+                if not body.totp:
+                    return {"mfa_required": True}
+                secret = crypto.decrypt(bytes.fromhex(u.mfa_secret_enc), crypto._master_key()).decode()
+                if not totp.verify(secret, body.totp):
+                    raise HTTPException(401, "invalid MFA code")
+                days = _trust_days(db)
+                if days > 0:
+                    t = pysecrets.token_urlsafe(32)
+                    db.add(MfaTrust(user_id=u.id, token=t,
+                                    expires_at=datetime.now(timezone.utc) + timedelta(days=days)))
+                    new_trust = (t, days)
         token = security.create_session(db, u.id)
         db.add(AuditLog(actor=u.username, action="auth.login", detail={}))
         db.commit()
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax",
                         max_age=security.SESSION_DAYS * 86400)
+    if new_trust:
+        response.set_cookie(TRUST_COOKIE, new_trust[0], httponly=True, samesite="lax",
+                            max_age=new_trust[1] * 86400)
     return {"username": u.username, "role": u.role, "mfa_enabled": u.mfa_enabled}
 
 
@@ -191,6 +221,7 @@ def mfa_disable(body: MfaCode, request: Request) -> dict:
                 raise HTTPException(401, "code did not verify")
         u.mfa_enabled = False
         u.mfa_secret_enc = None
+        db.query(MfaTrust).filter(MfaTrust.user_id == u.id).delete()
         db.add(AuditLog(actor=u.username, action="auth.mfa_disabled", detail={}))
         db.commit()
     return {"mfa_enabled": False}

@@ -24,6 +24,7 @@ class SettingsIn(BaseModel):
     default_schedule_cron: str | None = None
     default_retention_keep: int | None = None
     okta_rate_reserve_pct: int | None = None  # 0-90; headroom left on Okta limits
+    mfa_trust_days: int | None = None  # 0 = always prompt for MFA; N = trust device N days
 
 
 def _get(db, key: str) -> dict:
@@ -62,7 +63,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct"):
+        for k in ("alert_webhook_url", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days"):
             v = getattr(body, k)
             if v is not None:
                 general[k] = v
