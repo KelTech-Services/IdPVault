@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.7] — 2026-07-11
+### Fixed
+- Restore/drift comparison no longer treats server-assigned identity and timestamp
+  fields (`id`, `client_id`, `created_at`, `updated_at`) as configuration, so an
+  object that differs only by its internal id (e.g. an Auth0 role deleted and
+  recreated with a new id) correctly shows as identical instead of a phantom update.
+
 ## [0.7.6] — 2026-07-11
 ### Fixed
 - Config restore now matches snapshot objects to live objects by **natural key**

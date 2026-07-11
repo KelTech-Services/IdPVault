@@ -6,7 +6,8 @@ and denormalized *_obj expansions are stripped, so drift means CONFIG drift.
 import json
 
 # Runtime telemetry / server-managed noise — never config.
-VOLATILE_FIELDS = {"cache_count", "verbose_name", "verbose_name_plural"}
+VOLATILE_FIELDS = {"cache_count", "verbose_name", "verbose_name_plural",
+                   "id", "client_id", "created_at", "updated_at"}
 
 
 def normalize(obj: dict) -> dict:
