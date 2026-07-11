@@ -69,13 +69,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 .modal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px;width:820px;max-width:94vw;max-height:88vh;overflow:auto}
 .chk{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .chk label{display:flex;gap:6px;align-items:center;font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:5px 10px;border-radius:7px;cursor:pointer}
-.ulist{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:8px}
-.ulist label{display:flex;gap:10px;align-items:baseline;padding:7px 12px;border-bottom:1px solid var(--panel2);font-size:.83rem;cursor:pointer}
-.ulist label input{flex:0 0 auto;align-self:center}
-.ulist label .nm{flex:0 0 auto;font-weight:500}
-.ulist .em{flex:1 1 auto;text-align:left}
+.ulist{max-height:260px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:8px;margin-top:8px}
+.ulist label{display:flex;gap:10px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--panel2);font-size:.83rem;cursor:pointer}
 .ulist label:last-child{border-bottom:none}
 .ulist label:hover{background:var(--panel2)}
+.ulist .nm{font-weight:500}
 .ulist .em{color:var(--dim);font-size:.78rem}
 
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
@@ -109,7 +107,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.5.4</span>
+  <span class="ver">v0.5.5</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
