@@ -1,0 +1,96 @@
+"""User management — admin only (enforced via router dependency in main)."""
+import secrets as pysecrets
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from app.core.security import hash_password, require_admin
+from app.models.db import AuditLog, AuthSession, SessionLocal, User
+
+router = APIRouter(tags=["users"], dependencies=[Depends(require_admin)])
+
+
+@router.get("/users")
+def list_users() -> list[dict]:
+    with SessionLocal() as db:
+        return [{"id": u.id, "username": u.username, "email": u.email, "role": u.role,
+                 "is_active": u.is_active, "pending_invite": bool(u.invite_token)}
+                for u in db.query(User).order_by(User.id).all()]
+
+
+class UserIn(BaseModel):
+    username: str
+    email: str
+    role: str = "user"
+
+
+@router.post("/users")
+def create_user(body: UserIn, request: Request) -> dict:
+    if body.role not in ("admin", "user"):
+        raise HTTPException(422, "role must be admin or user")
+    invite = pysecrets.token_urlsafe(24)
+    with SessionLocal() as db:
+        if db.query(User).filter(User.username == body.username).first():
+            raise HTTPException(409, "username already exists")
+        u = User(username=body.username, email=body.email, role=body.role,
+                 is_active=False, invite_token=invite)
+        db.add(u)
+        db.add(AuditLog(actor=request.state.user["username"], action="user.create",
+                        detail={"username": body.username, "role": body.role}))
+        db.commit()
+        uid = u.id
+    invite_link = f"/#invite={invite}"
+    emailed = False
+    try:
+        from app.core.mailer import send_mail
+        base = str(request.base_url).rstrip("/")
+        send_mail(body.email, "You've been invited to IdPVault",
+                  f"An IdPVault account was created for you (username: {body.username}).\n\n"
+                  f"Set your password here: {base}/#invite={invite}\n\n"
+                  f"This link is single-use.")
+        emailed = True
+    except Exception:
+        pass
+    return {"id": uid, "invite_link": invite_link, "emailed": emailed}
+
+
+class UserPatch(BaseModel):
+    role: str | None = None
+    is_active: bool | None = None
+
+
+@router.patch("/users/{user_id}")
+def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
+    with SessionLocal() as db:
+        u = db.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        if u.username == request.state.user["username"]:
+            raise HTTPException(422, "cannot modify your own account here")
+        if body.role in ("admin", "user"):
+            u.role = body.role
+        if body.is_active is not None:
+            u.is_active = body.is_active
+            if not body.is_active:
+                db.query(AuthSession).filter(AuthSession.user_id == u.id).delete()
+        db.add(AuditLog(actor=request.state.user["username"], action="user.update",
+                        detail={"username": u.username}))
+        db.commit()
+        return {"id": u.id}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, request: Request) -> dict:
+    with SessionLocal() as db:
+        u = db.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        if u.username == request.state.user["username"]:
+            raise HTTPException(422, "cannot delete yourself")
+        name = u.username
+        db.query(AuthSession).filter(AuthSession.user_id == u.id).delete()
+        db.delete(u)
+        db.add(AuditLog(actor=request.state.user["username"], action="user.delete",
+                        detail={"username": name}))
+        db.commit()
+        return {"deleted": name}

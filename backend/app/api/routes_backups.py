@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.security import require_admin
 
 from app.core import crypto, storage
 from app.core.diff import diff_exports
@@ -8,7 +9,7 @@ from app.models.db import SessionLocal, Tenant
 router = APIRouter(tags=["backups"])
 
 
-@router.post("/tenants/{tenant_id}/backup")
+@router.post("/tenants/{tenant_id}/backup", dependencies=[Depends(require_admin)])
 def trigger_backup(tenant_id: int) -> dict:
     result = run_backup(tenant_id)
     return {"manifest": result["manifest"], "drift_detected": bool(result["drift"])}

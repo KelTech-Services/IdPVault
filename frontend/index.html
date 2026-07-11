@@ -10,12 +10,16 @@
 --accent:#4da3ff;--green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;font-size:15px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh}
-header{display:flex;align-items:center;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--border)}
-header h1{font-size:1.15rem;letter-spacing:.4px}
-header .logo{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#4da3ff,#3ecf8e);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0f1419;font-size:.85rem}
-#healthdot{width:10px;height:10px;border-radius:50%;background:var(--red);margin-left:auto}
+header{display:flex;align-items:center;gap:18px;padding:12px 24px;background:var(--panel);border-bottom:1px solid var(--border)}
+header .ver{color:var(--dim);font-size:.75rem}
+nav{display:flex;gap:4px;margin-left:12px}
+nav button{background:none;border:none;color:var(--dim);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.88rem}
+nav button:hover{color:var(--text);background:var(--panel2)}
+nav button.active{color:var(--accent);background:var(--panel2);font-weight:600}
+#userchip{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:.85rem}
+#userchip .role{color:var(--dim);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+#healthdot{width:10px;height:10px;border-radius:50%;background:var(--red)}
 #healthdot.ok{background:var(--green)}
-header .ver{color:var(--dim);font-size:.75rem;margin-left:8px}
 main{max-width:1200px;margin:0 auto;padding:24px;display:grid;gap:20px}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
 .panel h2{font-size:.95rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
@@ -26,6 +30,8 @@ td{padding:10px;border-bottom:1px solid var(--panel2)}
 tr:last-child td{border-bottom:none}
 .tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.4px}
 .tag.authentik{background:#2d1f3d;color:#c9a3ff}.tag.okta{background:#12283a;color:#4da3ff}.tag.auth0{background:#3a2412;color:#ffb454}
+.tag.admin{background:#12283a;color:#4da3ff}.tag.user{background:#1d2733;color:#8494a6}
+.tag.ok{background:#123227;color:#3ecf8e}.tag.off{background:#33191d;color:#ff6b6b}.tag.pending{background:#33270f;color:#ffb454}
 button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:.82rem;transition:all .15s}
 button:hover{border-color:var(--accent);color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#0d1720;font-weight:600}
@@ -34,10 +40,11 @@ button.danger:hover{border-color:var(--red);color:var(--red)}
 button:disabled{opacity:.45;cursor:wait}
 input,select{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 10px;font-size:.85rem;width:100%}
 input:focus,select:focus{outline:none;border-color:var(--accent)}
+input:disabled{opacity:.5}
 .formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
-.formgrid label{display:block;font-size:.72rem;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.formgrid label,.lbl{display:block;font-size:.72rem;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
 .hidden{display:none!important}
-#toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:4px solid var(--green);padding:13px 18px;border-radius:8px;font-size:.85rem;max-width:420px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:99}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:4px solid var(--green);padding:13px 18px;border-radius:8px;font-size:.85rem;max-width:460px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:99;word-break:break-all}
 #toast.err{border-left-color:var(--red)}
 .snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
 .snaprow.sel td{background:#12283a}
@@ -45,17 +52,51 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 .diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}
 .diffstat .add{color:var(--green)}.diffstat .rem{color:var(--red)}.diffstat .chg{color:var(--amber)}
 .muted{color:var(--dim)}
-.counts{font-size:.75rem;color:var(--dim)}
+#loginview{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.logincard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:36px;width:380px;display:grid;gap:14px}
+.logincard img{height:44px;width:auto;justify-self:center;margin-bottom:6px}
+.logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
 </style>
 </head>
 <body>
+
+<div id="loginview" class="hidden">
+  <div class="logincard" id="logincard">
+    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <h3>Sign in</h3>
+    <div><span class="lbl">Username</span><input id="l_user" autocomplete="username"></div>
+    <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
+    <button class="primary" onclick="doLogin()">Sign in</button>
+    <p id="l_err" class="muted" style="text-align:center;font-size:.8rem"></p>
+  </div>
+  <div class="logincard hidden" id="invitecard">
+    <img src="/IdPVault_logo.png" alt="IdPVault">
+    <h3>Welcome — set your password</h3>
+    <div><span class="lbl">New password (min 8 chars)</span><input id="i_pass" type="password" autocomplete="new-password"></div>
+    <div><span class="lbl">Confirm password</span><input id="i_pass2" type="password" autocomplete="new-password"></div>
+    <button class="primary" onclick="acceptInvite()">Set password</button>
+    <p id="i_err" class="muted" style="text-align:center;font-size:.8rem"></p>
+  </div>
+</div>
+
+<div id="appview" class="hidden">
 <header>
-  <img src="/IdPVault_logo.png" alt="IdPVault" style="height:32px;width:auto"><span class="ver">v0.1.0</span>
-  <div id="healthdot" title="API health"></div>
+  <img src="/IdPVault_logo.png" alt="IdPVault" style="height:32px;width:auto">
+  <span class="ver">v0.2.0</span>
+  <nav id="mainnav">
+    <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
+    <button data-view="users" class="adminonly" onclick="switchView('users')">Users</button>
+    <button data-view="settings" class="adminonly" onclick="switchView('settings')">Settings</button>
+  </nav>
+  <div id="userchip">
+    <div id="healthdot" title="API health"></div>
+    <span id="whoami"></span><span class="role" id="whoamirole"></span>
+    <button onclick="doLogout()">Log out</button>
+  </div>
 </header>
-<main>
+<main id="view-dashboard">
   <section class="panel">
-    <h2>Tenants <span class="spacer"></span><button class="primary" onclick="toggleAdd()">+ Add tenant</button></h2>
+    <h2>Tenants <span class="spacer"></span><button class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
       <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
@@ -70,7 +111,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
       <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
     </div>
-    <table id="tenanttable">
+    <table>
       <thead><tr><th>Name</th><th>Provider</th><th>Slug</th><th>Schedule</th><th>Keep</th><th style="width:340px">Actions</th></tr></thead>
       <tbody id="tenantbody"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
     </table>
@@ -88,31 +129,141 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <pre id="diffout"></pre>
   </section>
 </main>
+<main id="view-users" class="hidden">
+  <section class="panel">
+    <h2>Users <span class="spacer"></span><button class="primary" onclick="document.getElementById('userform').classList.toggle('hidden')">+ Add user</button></h2>
+    <div id="userform" class="hidden">
+      <div class="formgrid">
+        <div><label>Username</label><input id="u_name"></div>
+        <div><label>Email</label><input id="u_email" type="email"></div>
+        <div><label>Role</label><select id="u_role"><option value="user">User (read-only)</option><option value="admin">Admin</option></select></div>
+      </div>
+      <button class="primary" onclick="createUser()">Create &amp; invite</button>
+      <p class="muted" style="margin-top:8px;font-size:.78rem">If SMTP is configured the invite is emailed; either way you'll get a copyable invite link.</p>
+    </div>
+    <table>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th style="width:300px">Actions</th></tr></thead>
+      <tbody id="userbody"></tbody>
+    </table>
+  </section>
+</main>
+<main id="view-settings" class="hidden">
+  <section class="panel">
+    <h2>SMTP — invites &amp; email alerts</h2>
+    <div class="formgrid">
+      <div><label>Host</label><input id="s_host" placeholder="smtp.example.com"></div>
+      <div><label>Port</label><input id="s_port" type="number" value="587"></div>
+      <div><label>Encryption</label><select id="s_tls"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">None</option></select></div>
+      <div><label>Username</label><input id="s_user"></div>
+      <div><label>Password</label><input id="s_pass" type="password" placeholder="leave blank to keep current"></div>
+      <div><label>From address</label><input id="s_from" placeholder="idpvault@example.com"></div>
+    </div>
+    <button class="primary" onclick="saveSettings()">Save settings</button>
+    <span style="display:inline-flex;gap:8px;margin-left:16px;align-items:center">
+      <input id="s_testto" placeholder="you@example.com" style="width:220px">
+      <button onclick="testEmail()">Send test email</button>
+    </span>
+  </section>
+  <section class="panel">
+    <h2>Alerts &amp; defaults</h2>
+    <div class="formgrid">
+      <div><label>Alert webhook URL (ntfy / Slack-compatible)</label><input id="s_webhook" placeholder="https://ntfy.example.com/idpvault"></div>
+      <div><label>Default schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
+      <div><label>Default retention</label><input id="s_defkeep" type="number" placeholder="30"></div>
+    </div>
+    <button class="primary" onclick="saveSettings()">Save settings</button>
+  </section>
+</main>
+</div>
 <div id="toast" class="hidden"></div>
 <script>
 const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'application/json'},...opts})
-  .then(async r => { if(!r.ok){ const b = await r.json().catch(()=>({})); throw new Error(b.detail || r.status); } return r.json(); });
+  .then(async r => {
+    if(r.status === 401 && !p.startsWith('/auth/')){ showLogin(); throw new Error('session expired'); }
+    if(!r.ok){ const b = await r.json().catch(()=>({})); throw new Error(b.detail || r.status); }
+    return r.json();
+  });
 
-let selectedSnaps = [], snapTenantId = null;
+let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null;
 
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function v(id){ return document.getElementById(id).value.trim(); }
 function toast(msg, err=false){
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = err ? 'err' : '';
   t.classList.remove('hidden');
-  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 5000);
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 7000);
 }
 
+/* ---------- auth ---------- */
+async function boot(){
+  const inviteTok = (location.hash.match(/invite=([\w-]+)/)||[])[1];
+  if(inviteTok){ showInvite(); return; }
+  try { me = await api('/auth/me'); showApp(); }
+  catch { showLogin(); }
+}
+function showLogin(){
+  document.getElementById('appview').classList.add('hidden');
+  document.getElementById('loginview').classList.remove('hidden');
+  document.getElementById('invitecard').classList.add('hidden');
+  document.getElementById('logincard').classList.remove('hidden');
+}
+function showInvite(){
+  document.getElementById('appview').classList.add('hidden');
+  document.getElementById('loginview').classList.remove('hidden');
+  document.getElementById('logincard').classList.add('hidden');
+  document.getElementById('invitecard').classList.remove('hidden');
+}
+async function doLogin(){
+  document.getElementById('l_err').textContent = '';
+  try {
+    me = await api('/auth/login', {method:'POST', body: JSON.stringify({username: v('l_user'), password: v('l_pass')})});
+    showApp();
+  } catch(e){ document.getElementById('l_err').textContent = 'Sign-in failed: '+e.message; }
+}
+async function acceptInvite(){
+  const tok = (location.hash.match(/invite=([\w-]+)/)||[])[1];
+  if(v('i_pass') !== v('i_pass2')) return document.getElementById('i_err').textContent = 'Passwords do not match';
+  try {
+    const r = await api('/auth/accept-invite', {method:'POST', body: JSON.stringify({token: tok, password: v('i_pass')})});
+    location.hash = ''; showLogin();
+    document.getElementById('l_user').value = r.username;
+    toast('Password set — sign in to continue.');
+  } catch(e){ document.getElementById('i_err').textContent = e.message; }
+}
+async function doLogout(){ try{ await api('/auth/logout', {method:'POST'}); }catch{} location.reload(); }
+
+function showApp(){
+  document.getElementById('loginview').classList.add('hidden');
+  document.getElementById('appview').classList.remove('hidden');
+  document.getElementById('whoami').textContent = me.username;
+  document.getElementById('whoamirole').textContent = me.role;
+  const isAdmin = me.role === 'admin';
+  document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  health(); loadTenants(); setInterval(health, 30000);
+}
+function switchView(name){
+  ['dashboard','users','settings'].forEach(x => {
+    document.getElementById('view-'+x).classList.toggle('hidden', x !== name);
+    document.querySelector(`nav button[data-view=${x}]`).classList.toggle('active', x === name);
+  });
+  if(name === 'users') loadUsers();
+  if(name === 'settings') loadSettings();
+}
+
+/* ---------- health ---------- */
 async function health(){
   try { await fetch('/healthz').then(r=>r.json());
     document.getElementById('healthdot').classList.add('ok');
   } catch { document.getElementById('healthdot').classList.remove('ok'); }
 }
 
+/* ---------- tenants ---------- */
 function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
-
-let _tenants = [], editingId = null;
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
+  const isAdmin = me.role === 'admin';
   try {
     const ts = await api('/tenants'); _tenants = ts;
     if(!ts.length){ tb.innerHTML = '<tr><td colspan="6" class="muted">No tenants yet — add your first IdP above.</td></tr>'; return; }
@@ -122,17 +273,14 @@ async function loadTenants(){
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '—'}</td>
       <td class="muted">${t.retention_keep}</td>
-      <td>
+      <td>${isAdmin ? `
         <button onclick="backupNow(${t.id}, this)">Backup now</button>
-        <button onclick="editTenant(${t.id})">Edit</button>
+        <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        <button class="danger" onclick="delTenant(${t.id}, '${esc(t.name)}')">Delete</button>
+        ${isAdmin ? `<button class="danger" onclick="delTenant(${t.id}, '${esc(t.name)}')">Delete</button>` : ''}
       </td></tr>`).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
-
-function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 function editTenant(id){
   const t = _tenants.find(x=>x.id===id); if(!t) return;
   editingId = id;
@@ -149,7 +297,6 @@ function editTenant(id){
   document.getElementById('f_slug').disabled = true;
   document.getElementById('f_provider').disabled = true;
 }
-
 function resetForm(){
   editingId = null;
   document.getElementById('formtitle').textContent = '';
@@ -159,7 +306,6 @@ function resetForm(){
   ['f_name','f_slug','f_url','f_token','f_cron'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_keep').value = 30;
 }
-
 async function saveTenant(){
   if(editingId){
     const body = { name: v('f_name'), base_url: v('f_url'),
@@ -168,7 +314,7 @@ async function saveTenant(){
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
       toast('Tenant updated.' + (body.api_token ? ' API token rotated.' : ''));
-      toggleAdd(); resetForm(); loadTenants();
+      toggleAdd(); loadTenants();
     } catch(e){ toast('Update failed: '+e.message, true); }
     return;
   }
@@ -181,11 +327,9 @@ async function saveTenant(){
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
     toast(`Tenant "${body.name}" created — token encrypted and stored.`);
-    toggleAdd(); resetForm(); loadTenants();
+    toggleAdd(); loadTenants();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
-function v(id){ return document.getElementById(id).value.trim(); }
-
 async function backupNow(id, btn){
   btn.disabled = true; btn.textContent = 'Backing up…';
   try {
@@ -196,13 +340,13 @@ async function backupNow(id, btn){
   } catch(e){ toast('Backup failed: '+e.message, true); }
   btn.disabled = false; btn.textContent = 'Backup now';
 }
-
 async function delTenant(id, name){
   if(!confirm(`Delete tenant "${name}"? Snapshots on disk are kept.`)) return;
   try { await api(`/tenants/${id}`, {method:'DELETE'}); toast(`Tenant "${name}" deleted.`); loadTenants(); }
   catch(e){ toast('Delete failed: '+e.message, true); }
 }
 
+/* ---------- snapshots & diff ---------- */
 async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
   document.getElementById('snaptenant').textContent = slug;
@@ -219,14 +363,12 @@ async function showSnaps(id, slug){
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
 function fmtTs(ts){ return ts.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3 $4:$5:$6'); }
-
 function selSnap(row){
   const ts = row.dataset.ts, cb = row.querySelector('input');
   if(selectedSnaps.includes(ts)){ selectedSnaps = selectedSnaps.filter(x=>x!==ts); cb.checked=false; row.classList.remove('sel'); }
   else if(selectedSnaps.length < 2){ selectedSnaps.push(ts); cb.checked=true; row.classList.add('sel'); }
   document.getElementById('diffbtn').disabled = selectedSnaps.length !== 2;
 }
-
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
   document.getElementById('difflabel').textContent = `${a} → ${b}`;
@@ -243,7 +385,80 @@ async function runDiff(){
   } catch(e){ document.getElementById('diffout').textContent = 'Diff failed: '+e.message; }
 }
 
-health(); loadTenants(); setInterval(health, 30000);
+/* ---------- users admin ---------- */
+async function loadUsers(){
+  const ub = document.getElementById('userbody');
+  try {
+    const us = await api('/users');
+    ub.innerHTML = us.map(u => `<tr>
+      <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
+      <td class="muted">${esc(u.email||'—')}</td>
+      <td><span class="tag ${u.role}">${u.role}</span></td>
+      <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}</td>
+      <td>${u.username===me.username ? '<span class="muted">—</span>' : `
+        <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
+        <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
+        <button class="danger" onclick="delUser(${u.id}, '${esc(u.username)}')">Delete</button>`}
+      </td></tr>`).join('');
+  } catch(e){ ub.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function createUser(){
+  try {
+    const r = await api('/users', {method:'POST', body: JSON.stringify({username: v('u_name'), email: v('u_email'), role: v('u_role')})});
+    const link = location.origin + r.invite_link;
+    toast(r.emailed ? `Invite emailed. Link (backup): ${link}` : `User created. Invite link: ${link}`);
+    try { await navigator.clipboard.writeText(link); } catch {}
+    ['u_name','u_email'].forEach(i=>document.getElementById(i).value='');
+    loadUsers();
+  } catch(e){ toast('Create failed: '+e.message, true); }
+}
+async function patchUser(id, body){
+  try { await api(`/users/${id}`, {method:'PATCH', body: JSON.stringify(body)}); loadUsers(); }
+  catch(e){ toast(e.message, true); }
+}
+async function delUser(id, name){
+  if(!confirm(`Delete user "${name}"?`)) return;
+  try { await api(`/users/${id}`, {method:'DELETE'}); toast(`User "${name}" deleted.`); loadUsers(); }
+  catch(e){ toast(e.message, true); }
+}
+
+/* ---------- settings ---------- */
+async function loadSettings(){
+  try {
+    const s = await api('/settings');
+    const smtp = s.smtp || {};
+    document.getElementById('s_host').value = smtp.host || '';
+    document.getElementById('s_port').value = smtp.port || 587;
+    document.getElementById('s_tls').value = smtp.tls_mode || 'starttls';
+    document.getElementById('s_user').value = smtp.username || '';
+    document.getElementById('s_pass').value = '';
+    document.getElementById('s_pass').placeholder = smtp.password_set ? 'leave blank to keep current' : 'password';
+    document.getElementById('s_from').value = smtp.from_addr || '';
+    document.getElementById('s_webhook').value = s.alert_webhook_url || '';
+    document.getElementById('s_defcron').value = s.default_schedule_cron || '';
+    document.getElementById('s_defkeep').value = s.default_retention_keep || '';
+  } catch(e){ toast(e.message, true); }
+}
+async function saveSettings(){
+  const body = {
+    smtp: { host: v('s_host'), port: parseInt(v('s_port')||'587'), tls_mode: v('s_tls'),
+            username: v('s_user'), from_addr: v('s_from') },
+    alert_webhook_url: v('s_webhook'),
+    default_schedule_cron: v('s_defcron'),
+    default_retention_keep: parseInt(v('s_defkeep')||'0') || null
+  };
+  if(v('s_pass')) body.smtp.password = v('s_pass');
+  try { await api('/settings', {method:'PUT', body: JSON.stringify(body)}); toast('Settings saved.'); loadSettings(); }
+  catch(e){ toast('Save failed: '+e.message, true); }
+}
+async function testEmail(){
+  if(!v('s_testto')) return toast('Enter a recipient address first', true);
+  try { await api('/settings/test-email', {method:'POST', body: JSON.stringify({to: v('s_testto')})}); toast('Test email sent — check the inbox.'); }
+  catch(e){ toast(e.message, true); }
+}
+
+document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+boot();
 </script>
 </body>
 </html>

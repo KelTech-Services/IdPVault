@@ -1,8 +1,9 @@
 """Tenant CRUD. Credentials are encrypted immediately on ingest, never stored plain."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.core import crypto
+from app.core.security import require_admin
 from app.models.db import AuditLog, SessionLocal, Tenant
 
 router = APIRouter(tags=["tenants"])
@@ -18,7 +19,7 @@ class TenantIn(BaseModel):
     retention_keep: int = 30
 
 
-@router.post("/tenants")
+@router.post("/tenants", dependencies=[Depends(require_admin)])
 def create_tenant(body: TenantIn) -> dict:
     if body.provider not in ("authentik", "okta", "auth0"):
         raise HTTPException(422, "provider must be authentik, okta, or auth0")
@@ -48,7 +49,7 @@ def list_tenants() -> list[dict]:
         ]
 
 
-@router.delete("/tenants/{tenant_id}")
+@router.delete("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
 def delete_tenant(tenant_id: int) -> dict:
     """Remove a tenant record. Snapshots on disk are intentionally kept."""
     from app.core.scheduler import scheduler
@@ -75,7 +76,7 @@ class TenantUpdate(BaseModel):
     retention_keep: int | None = None
 
 
-@router.patch("/tenants/{tenant_id}")
+@router.patch("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
 def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
     from apscheduler.triggers.cron import CronTrigger
     from app.core.scheduler import scheduler, run_backup
