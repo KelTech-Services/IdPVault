@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.4] — 2026-07-11
+### Fixed
+- Auth0 backup aborting on a single endpoint: single-fetch endpoints (tenant
+  settings, custom domains, branding) are no longer sent pagination params
+  (Auth0 returned 400 for `/custom-domains`), and feature-gated/deprecated
+  endpoints (custom domains = paid, rules = deprecated) that return 4xx on a
+  tenant are skipped rather than failing the whole export. Core endpoints stay
+  strict.
+
 ## [0.7.3] — 2026-07-11
 ### Changed
 - Auth0 adapter now authenticates via OAuth2 **client-credentials**: the stored

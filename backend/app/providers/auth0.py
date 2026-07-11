@@ -1,25 +1,38 @@
 """Auth0 adapter. Auth: OAuth2 client-credentials — the stored credential is
 "client_id:client_secret"; the adapter mints a short-lived Management API token
 per run (cached for its lifetime) and calls the Management API with it.
-Paginated via page/per_page.
+
+Management API endpoints differ: some paginate (page/per_page), some are a single
+object or fixed list that rejects pagination params. A few are feature-gated
+(custom domains = paid) or deprecated (rules) and may be absent on a tenant; those
+are recorded empty rather than failing the whole backup.
 """
+import logging
 import time
 
 import httpx
 
 from app.providers.base import ProviderAdapter
 
-RESOURCES = {
+log = logging.getLogger(__name__)
+
+# Paginated list endpoints (page / per_page).
+PAGED = {
     "clients": "/api/v2/clients",
     "connections": "/api/v2/connections",
     "resource_servers": "/api/v2/resource-servers",
     "roles": "/api/v2/roles",
-    "actions": "/api/v2/actions/actions",
     "rules": "/api/v2/rules",
+    "actions": "/api/v2/actions/actions",
+}
+# Single-fetch endpoints — one object or a fixed list; NO pagination params.
+SINGLE = {
     "tenant_settings": "/api/v2/tenants/settings",
     "custom_domains": "/api/v2/custom-domains",
     "branding": "/api/v2/branding",
 }
+# Feature-gated / deprecated — may 4xx on a tenant that lacks them; skip, don't fail.
+OPTIONAL = {"rules", "custom_domains"}
 
 
 class Auth0Adapter(ProviderAdapter):
@@ -74,7 +87,27 @@ class Auth0Adapter(ProviderAdapter):
                 return out
             page += 1
 
+    def _single(self, c: httpx.Client, path: str) -> list[dict]:
+        r = c.get(path)
+        r.raise_for_status()
+        body = r.json()
+        return body if isinstance(body, list) else [body]
+
+    def _fetch(self, c, rtype, path, paged) -> list[dict]:
+        try:
+            return self._paged(c, path) if paged else self._single(c, path)
+        except httpx.HTTPStatusError as e:
+            if rtype in OPTIONAL and 400 <= e.response.status_code < 500:
+                log.warning("auth0 export: %s unavailable (HTTP %s) — skipping",
+                            rtype, e.response.status_code)
+                return []
+            raise
+
     def export(self) -> dict[str, list[dict]]:
+        out = {}
         with self._client() as c:
-            return {rtype: self._paged(c, path)
-                    for rtype, path in RESOURCES.items() if path}
+            for rtype, path in PAGED.items():
+                out[rtype] = self._fetch(c, rtype, path, True)
+            for rtype, path in SINGLE.items():
+                out[rtype] = self._fetch(c, rtype, path, False)
+        return out
