@@ -46,9 +46,13 @@ hardening (canonical Public URL, `X-Forwarded-Proto`, optional Host enforcement)
 switched to OAuth2 client-credentials (auto-minted Management API tokens); provider-driven
 Add-Tenant form (per-provider fields).
 
+**v0.7.4–0.7.5** — Auth0 hardening + restore: resilient Auth0 export (single-fetch
+endpoints, skip feature-gated/deprecated ones); **Auth0 config restore-apply** (clients,
+connections, resource servers, roles, rules); per-adapter restore ordering + never-restore.
+
 ## v0.7 — next
 
-- Restore apply for Okta and Auth0 **config** adapters
+- Restore apply for Okta **config** adapter (Auth0 shipped in v0.7.5)
 - Optional profile-revert for existing users (identity restore currently create-only)
 - Background job queue for long identity backups/restores (currently synchronous)
 - Identity events/diff lane

@@ -1,8 +1,9 @@
 """Restore engine: plan (dry-run) and apply, dependency-ordered, per-object reporting.
 
 Dry-run is provider-agnostic: it compares snapshot objects against a fresh live
-export. Apply pushes objects back through the provider adapter (Authentik today;
-Okta/Auth0 adapters raise not-implemented and land in the report as unsupported).
+export. Apply pushes objects back through the provider adapter. Restore ordering and
+the never-restore set come from the adapter; adapters without push_object land in the
+report as unsupported.
 """
 import json
 
@@ -12,15 +13,8 @@ from app.core.events import _id as obj_id, _name as obj_name
 from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
 from app.providers import get_adapter
 
-# Parents before children. Types not listed restore last, alphabetically.
-RESTORE_ORDER = ["certificates", "property_mappings", "flows", "stages", "policies",
-                 "groups", "providers", "applications", "flow_stage_bindings",
-                 "policy_bindings", "outposts", "brands"]
-NEVER_RESTORE = {"blueprints", "user_schemas"}
-
-
-def _order_key(rtype: str):
-    return (RESTORE_ORDER.index(rtype), "") if rtype in RESTORE_ORDER else (len(RESTORE_ORDER), rtype)
+def _order_key(rtype: str, order: list):
+    return (order.index(rtype), "") if rtype in order else (len(order), rtype)
 
 
 def _selected(selection: dict | None, rtype: str, oid: str) -> bool:
@@ -36,10 +30,11 @@ def _selected(selection: dict | None, rtype: str, oid: str) -> bool:
     return True
 
 
-def build_plan(snap_export: dict, live_export: dict, selection: dict | None) -> list[dict]:
+def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
+               order: list, never: set) -> list[dict]:
     items = []
-    for rtype in sorted(snap_export.keys(), key=_order_key):
-        if rtype in NEVER_RESTORE:
+    for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, order)):
+        if rtype in never:
             continue
         live_idx = {obj_id(o): o for o in live_export.get(rtype, [])}
         for obj in snap_export.get(rtype, []):
@@ -85,7 +80,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
 
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
-        plan = build_plan(snap, live, selection)
+        plan = build_plan(snap, live, selection, adapter.restore_order, adapter.never_restore)
 
         for item in plan:
             obj = item.pop("_obj")

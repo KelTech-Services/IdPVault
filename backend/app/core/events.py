@@ -16,7 +16,7 @@ def _name(obj: dict) -> str:
 
 
 def _id(obj: dict) -> str:
-    for k in ("pk", "id", "slug", "brand_uuid"):
+    for k in ("pk", "id", "client_id", "custom_domain_id", "slug", "brand_uuid"):
         if obj.get(k) is not None:
             return str(obj[k])[:110]
     return ""

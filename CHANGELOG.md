@@ -3,6 +3,20 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.5] — 2026-07-11
+### Added
+- Config restore-apply for **Auth0** (`push_object`): create-or-update of clients,
+  connections, resource servers, roles, and rules via the Management API (PATCH to
+  update, POST to create), with dry-run preview, per-object reporting, and the
+  existing confirm gate. Auth0 system objects and singletons (tenant settings,
+  branding, custom domains, actions) are excluded from restore.
+### Changed
+- Restore ordering and never-restore sets moved onto each provider adapter
+  (`restore_order` / `never_restore`) instead of being hardcoded to Authentik, so
+  each IdP restores in its own dependency order. Authentik behavior unchanged.
+- Object identity now recognizes Auth0 `client_id` (restore + diff matching) so
+  clients no longer collide on an empty id.
+
 ## [0.7.4] — 2026-07-11
 ### Fixed
 - Auth0 backup aborting on a single endpoint: single-fetch endpoints (tenant

@@ -37,6 +37,15 @@ OPTIONAL = {"rules", "custom_domains"}
 
 class Auth0Adapter(ProviderAdapter):
     name = "auth0"
+    restore_order = ["resource_servers", "connections", "roles", "clients", "rules"]
+    never_restore = {"tenant_settings", "branding", "custom_domains", "actions"}
+    # restore write paths + id field per type; actions/singletons excluded above.
+    _WRITE_PATH = {"clients": "/api/v2/clients", "connections": "/api/v2/connections",
+                   "resource_servers": "/api/v2/resource-servers", "roles": "/api/v2/roles",
+                   "rules": "/api/v2/rules"}
+    _ID_FIELD = {"clients": "client_id"}   # everything else keys on "id"
+    _READONLY = {"id", "client_id", "tenant", "global", "signing_keys", "is_system",
+                 "created_at", "updated_at", "owners", "client_secret"}
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
@@ -111,3 +120,29 @@ class Auth0Adapter(ProviderAdapter):
             for rtype, path in SINGLE.items():
                 out[rtype] = self._fetch(c, rtype, path, False)
         return out
+
+    def push_object(self, resource_type: str, obj: dict) -> tuple[str, str]:
+        """Create-or-update one config object from a snapshot. PATCH to update an
+        existing object, POST to create a missing one; Auth0 system objects are
+        skipped. Returns (action, live_id)."""
+        base = self._WRITE_PATH.get(resource_type)
+        if not base:
+            raise NotImplementedError(f"auth0: restore not supported for {resource_type}")
+        if obj.get("is_system"):
+            return ("skipped_system", str(obj.get("id", "")))
+        idf = self._ID_FIELD.get(resource_type, "id")
+        oid = obj.get(idf)
+        payload = {k: v for k, v in obj.items() if k not in self._READONLY}
+        with self._client() as c:
+            if oid:
+                live = c.get(f"{base}/{oid}")
+                if live.status_code == 200:
+                    r = c.patch(f"{base}/{oid}", json=payload)
+                    if r.status_code >= 400:
+                        raise RuntimeError(f"PATCH {base}/{oid} -> {r.status_code}: {r.text[:280]}")
+                    return ("updated", str(oid))
+            r = c.post(base, json=payload)
+            if r.status_code >= 400:
+                raise RuntimeError(f"POST {base} -> {r.status_code}: {r.text[:280]}")
+            body = r.json()
+            return ("created", str(body.get(idf) or body.get("id") or ""))

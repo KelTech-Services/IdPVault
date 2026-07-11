@@ -22,6 +22,10 @@ RESOURCES = {
 
 class AuthentikAdapter(ProviderAdapter):
     name = "authentik"
+    restore_order = ["certificates", "property_mappings", "flows", "stages", "policies",
+                     "groups", "providers", "applications", "flow_stage_bindings",
+                     "policy_bindings", "outposts", "brands"]
+    never_restore = {"blueprints", "user_schemas"}
 
     def _client(self) -> httpx.Client:
         return httpx.Client(

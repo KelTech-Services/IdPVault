@@ -21,7 +21,7 @@ def normalize(obj: dict) -> dict:
 def _index(objs: list[dict]) -> dict:
     out = {}
     for o in objs:
-        key = str(o.get("id") or o.get("pk") or o.get("slug") or json.dumps(o, sort_keys=True))
+        key = str(o.get("id") or o.get("pk") or o.get("client_id") or o.get("slug") or json.dumps(o, sort_keys=True))
         out[key] = o
     return out
 

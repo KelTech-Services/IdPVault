@@ -24,6 +24,12 @@ RESOURCES = {
 
 class OktaAdapter(ProviderAdapter):
     name = "okta"
+    # config restore-apply (push_object) not yet implemented — these define ordering /
+    # exclusions for when it lands; today Okta restore reports objects as "unsupported".
+    restore_order = ["groups", "network_zones", "policies_password", "policies_mfa",
+                     "policies_signon", "policies_access", "idps", "event_hooks", "inline_hooks"]
+    never_restore = {"apps", "authorization_servers", "user_schemas", "user_types",
+                     "user_type_schemas", "app_user_schemas", "profile_mappings"}
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)

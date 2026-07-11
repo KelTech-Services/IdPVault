@@ -8,6 +8,10 @@ from abc import ABC, abstractmethod
 
 class ProviderAdapter(ABC):
     name: str = "base"
+    # Config restore ordering: resource types in dependency order (parents first);
+    # types not listed restore last. never_restore = types never written back.
+    restore_order: list[str] = []
+    never_restore: set[str] = set()
 
     def __init__(self, base_url: str, credentials: str):
         self.base_url = base_url.rstrip("/")
