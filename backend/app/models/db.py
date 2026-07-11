@@ -67,6 +67,12 @@ _COLUMN_MIGRATIONS = [
 ]
 
 
+# Idempotent column-type widenings for columns that outgrew their original length.
+_TYPE_MIGRATIONS = [
+    ("restore_runs", "mode", "VARCHAR(20)"),
+]
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     from sqlalchemy import text
@@ -74,6 +80,8 @@ def init_db() -> None:
         for table, col, coltype in _COLUMN_MIGRATIONS:
             conn.execute(text(
                 f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {coltype}'))
+        for table, col, coltype in _TYPE_MIGRATIONS:
+            conn.execute(text(f'ALTER TABLE {table} ALTER COLUMN {col} TYPE {coltype}'))
 
 
 class User(Base):
@@ -158,7 +166,7 @@ class RestoreRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
     snapshot_ts: Mapped[str] = mapped_column(String(20))
-    mode: Mapped[str] = mapped_column(String(10))  # dry_run | apply
+    mode: Mapped[str] = mapped_column(String(20))  # dry_run | apply | identity_apply
     actor: Mapped[str] = mapped_column(String(120), default="system")
     summary: Mapped[dict] = mapped_column(JSON, default=dict)   # counts per action/status
     results: Mapped[dict] = mapped_column(JSON, default=dict)   # {"items": [...]} per-object detail
