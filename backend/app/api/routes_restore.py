@@ -18,6 +18,7 @@ class RestoreSelection(BaseModel):
 class RestoreIn(BaseModel):
     snapshot_ts: str
     selection: RestoreSelection | None = None
+    target_tenant_id: int | None = None  # set = clone/promote into another tenant
 
 
 @router.post("/tenants/{tenant_id}/restore/preview")
@@ -25,7 +26,8 @@ def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,
-                           "dry_run", request.state.user["username"])
+                           "dry_run", request.state.user["username"],
+                           body.target_tenant_id)
     except FileNotFoundError:
         raise HTTPException(404, "snapshot not found")
     except ValueError as e:
@@ -37,7 +39,8 @@ def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,
-                           "apply", request.state.user["username"])
+                           "apply", request.state.user["username"],
+                           body.target_tenant_id)
     except FileNotFoundError:
         raise HTTPException(404, "snapshot not found")
     except ValueError as e:

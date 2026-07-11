@@ -64,17 +64,26 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None) -> 
 
 
 def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
-                mode: str, actor: str) -> dict:
+                mode: str, actor: str, target_tenant_id: int | None = None) -> dict:
+    """Same-tenant restore, or clone/promote when target_tenant_id points at a
+    different tenant of the SAME provider: source snapshot -> target tenant."""
     assert mode in ("dry_run", "apply")
     with SessionLocal() as db:
-        t = db.get(Tenant, tenant_id)
-        if t is None:
+        src = db.get(Tenant, tenant_id)
+        if src is None:
             raise ValueError("tenant not found")
+        t = db.get(Tenant, target_tenant_id) if target_tenant_id else src
+        if t is None:
+            raise ValueError("target tenant not found")
+        if t.provider != src.provider:
+            raise ValueError(f"provider mismatch: {src.provider} snapshot cannot be "
+                             f"applied to a {t.provider} tenant")
+        src_key = crypto.unwrap_data_key(src.wrapped_data_key)
         data_key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
 
-        snap = storage.read_snapshot(t.slug, snapshot_ts, data_key)
+        snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
         plan = build_plan(snap, live, selection)
 
@@ -101,6 +110,8 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                 item["error"] = str(e)[:300]
 
         summary: dict = {"mode": mode, "total": len(plan)}
+        if t.id != src.id:
+            summary["promote"] = {"source": src.slug, "target": t.slug}
         for it in plan:
             for key in ("action", "status"):
                 summary.setdefault(key + "s", {})
@@ -110,7 +121,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                          summary=summary, results={"items": plan})
         db.add(run)
         db.add(AuditLog(actor=actor, action=f"restore.{mode}",
-                        detail={"tenant": t.slug, "snapshot": snapshot_ts,
-                                "total": len(plan)}))
+                        detail={"tenant": t.slug, "source": src.slug,
+                                "snapshot": snapshot_ts, "total": len(plan)}))
         db.commit()
         return {"restore_run_id": run.id, "summary": summary, "items": plan}

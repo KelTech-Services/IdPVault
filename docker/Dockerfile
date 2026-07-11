@@ -1,6 +1,8 @@
 FROM python:3.12-slim
 
-RUN useradd -r -u 10001 idpvault
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -u 10001 idpvault
 WORKDIR /srv/idpvault
 
 COPY backend/requirements.txt .

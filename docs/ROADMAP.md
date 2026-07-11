@@ -18,16 +18,18 @@ incl. failures, volatile-field normalization so drift = config drift only.
 
 **v0.4** — alerts & reach: drift + backup-failure alerts (webhook ntfy/Slack + email
 to admins), audit log viewer, snapshot object browser (browse/search/view any object
-in any snapshot), Prometheus metrics endpoint (token-guarded, IDPVAULT_METRICS_TOKEN).
+in any snapshot), Prometheus metrics endpoint (token-guarded, IDPVAULT_METRICS_TOKEN),
+tenant clone/promote (restore a snapshot into a different same-provider tenant),
+Authentik full-DR mode (optional per-tenant Postgres URL -> encrypted pg_dump beside
+each config snapshot; needs postgresql-client, in image). Additive column-migration
+guard added (ALTER ... ADD COLUMN IF NOT EXISTS) for post-table schema additions.
 
 ## v0.5 — next
 
-- Tenant cloning / cross-tenant promotion (restore engine applied to a different
-  target tenant; Authentik→Authentik first)
-- Authentik "full DR" mode: optional per-tenant Postgres URL; encrypted pg_dump
-  alongside config snapshots (requires postgres-client in image)
 - Restore apply for Okta and Auth0 adapters
 - Restore-run history viewer in UI
+- Automated pg_dump *restore* (currently dump is captured/downloadable, not auto-applied)
+- Alembic migrations (before any non-additive schema change)
 
 ## Later / SaaS-track
 - Alembic migrations (required before any column change to existing tables)

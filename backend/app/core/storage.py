@@ -58,3 +58,15 @@ def prune(tenant_slug: str, keep: int) -> list[str]:
     for ts in doomed:
         shutil.rmtree(snapshot_dir(tenant_slug, ts), ignore_errors=True)
     return doomed
+
+
+def write_dbdump(tenant_slug: str, ts: str, data_key: bytes, dump: bytes) -> int:
+    from app.core import crypto
+    blob = crypto.encrypt(dump, data_key)
+    with open(os.path.join(snapshot_dir(tenant_slug, ts), "pgdump.sql.enc"), "wb") as f:
+        f.write(blob)
+    return len(blob)
+
+
+def has_dbdump(tenant_slug: str, ts: str) -> bool:
+    return os.path.exists(os.path.join(snapshot_dir(tenant_slug, ts), "pgdump.sql.enc"))

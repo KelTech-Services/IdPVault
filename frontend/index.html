@@ -99,7 +99,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.4.0</span>
+  <span class="ver">v0.4.1</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -127,6 +127,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
         <div><label>API token</label><input id="f_token" type="password" placeholder="paste token — encrypted at rest"></div>
         <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
+        <div style="grid-column:span 2"><label>Full-DR Postgres URL (optional — self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik — leave blank to skip"></div>
       </div>
       <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
@@ -174,6 +175,9 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore — <span id="r_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="r_snap"></span>. Preview is read-only. Apply writes changed objects back to the live tenant.</p>
     <div id="r_scope" class="chk"></div>
+    <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
+      <select id="r_target" style="width:auto;margin-left:8px"></select>
+      <span class="muted" style="font-size:.76rem">— default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
     <div style="margin:10px 0"><button class="primary" onclick="restorePreview()">Run preview (dry-run)</button>
       <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
       <button onclick="closeRestore()">Close</button></div>
@@ -362,6 +366,8 @@ function editTenant(id){
   document.getElementById('f_token').placeholder = 'leave blank to keep current token';
   document.getElementById('f_cron').value = t.schedule_cron || '';
   document.getElementById('f_keep').value = t.retention_keep;
+  document.getElementById('f_dburl').value = '';
+  document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured — blank keeps it, a space clears it' : 'postgresql://… — optional, self-hosted only';
   document.getElementById('f_slug').disabled = true;
   document.getElementById('f_provider').disabled = true;
 }
@@ -371,7 +377,7 @@ function resetForm(){
   document.getElementById('f_slug').disabled = false;
   document.getElementById('f_provider').disabled = false;
   document.getElementById('f_token').placeholder = 'paste token — encrypted at rest';
-  ['f_name','f_slug','f_url','f_token','f_cron'].forEach(i=>document.getElementById(i).value='');
+  ['f_name','f_slug','f_url','f_token','f_cron','f_dburl'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_keep').value = 30;
 }
 async function saveTenant(){
@@ -379,6 +385,8 @@ async function saveTenant(){
     const body = { name: v('f_name'), base_url: v('f_url'),
       schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30') };
     if(v('f_token')) body.api_token = v('f_token');
+    const dbraw = document.getElementById('f_dburl').value;
+    if(dbraw==='') {} else body.db_url = dbraw.trim();
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
       toast('Tenant updated.' + (body.api_token ? ' API token rotated.' : ''));
@@ -389,7 +397,8 @@ async function saveTenant(){
   const body = {
     name: v('f_name'), slug: v('f_slug'), provider: v('f_provider'),
     base_url: v('f_url'), api_token: v('f_token'),
-    schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30')
+    schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
+    db_url: v('f_dburl') || null
   };
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and token are required', true);
   try {
@@ -583,6 +592,9 @@ async function openRestore(ts){
   document.getElementById('r_items').innerHTML = '';
   document.getElementById('r_applybtn').classList.add('hidden');
   document.getElementById('r_scope').innerHTML = '<label><input type="radio" name="rscope" value="all" checked> Everything in this snapshot</label>';
+  const src = _tenants.find(x=>x.id===snapTenantId);
+  const sameprov = _tenants.filter(x=>!src || x.provider===src.provider);
+  document.getElementById('r_target').innerHTML = sameprov.map(x=>`<option value="${x.id}"${x.id===snapTenantId?' selected':''}>${esc(x.name)}${x.id===snapTenantId?' (same tenant)':''}</option>`).join('');
   document.getElementById('restoremodal').classList.remove('hidden');
 }
 function closeRestore(){ document.getElementById('restoremodal').classList.add('hidden'); _restoreCtx=null; }
@@ -603,18 +615,24 @@ function renderRestore(res){
 async function restorePreview(){
   document.getElementById('r_summary').textContent = 'Running preview…';
   try {
-    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:_restoreCtx.snap})});
+    const tgt = parseInt(document.getElementById('r_target').value);
+    const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
+    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
     const changes = (res.summary.actions?.create||0)+(res.summary.actions?.update||0);
     if(changes>0){ document.getElementById('r_applybtn').classList.remove('hidden'); document.getElementById('r_applybtn').textContent = `Apply restore (${changes} changes)`; }
   } catch(e){ document.getElementById('r_summary').textContent = 'Preview failed: '+e.message; }
 }
 async function restoreApply(){
-  if(!confirm('Apply this restore? It writes changed objects back into the live tenant. This cannot be auto-undone.')) return;
+  const tgt = parseInt(document.getElementById('r_target').value);
+  const promoting = tgt!==_restoreCtx.tenantId;
+  if(!confirm(promoting ? 'PROMOTE: apply this snapshot into a DIFFERENT tenant? This writes objects into that target tenant.' : 'Apply this restore? It writes changed objects back into the live tenant. This cannot be auto-undone.')) return;
   document.getElementById('r_summary').textContent = 'Applying…';
   document.getElementById('r_applybtn').disabled = true;
   try {
-    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify({snapshot_ts:_restoreCtx.snap})});
+    const tgt = parseInt(document.getElementById('r_target').value);
+    const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
+    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
     toast('Restore applied — see the report below.');
     document.getElementById('r_applybtn').classList.add('hidden');

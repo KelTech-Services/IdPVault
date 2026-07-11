@@ -20,6 +20,7 @@ class Tenant(Base):
     base_url: Mapped[str] = mapped_column(String(255))
     enc_credentials: Mapped[bytes] = mapped_column(LargeBinary)   # AES-GCM w/ data key
     wrapped_data_key: Mapped[bytes] = mapped_column(LargeBinary)  # data key wrapped by master
+    enc_db_url: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # full-DR pg_dump source
     schedule_cron: Mapped[str | None] = mapped_column(String(60), nullable=True)
     retention_keep: Mapped[int] = mapped_column(Integer, default=30)
     created_at: Mapped[datetime] = mapped_column(
@@ -52,8 +53,21 @@ engine = create_engine(get_settings().database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
+# Lightweight additive migrations for columns added after a table already exists.
+# create_all() only creates missing tables; it never alters existing ones.
+# (Real migration tooling — Alembic — is the v0.5+ plan; this covers additive-only.)
+_COLUMN_MIGRATIONS = [
+    ("tenants", "enc_db_url", "BYTEA"),
+]
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        for table, col, coltype in _COLUMN_MIGRATIONS:
+            conn.execute(text(
+                f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {coltype}'))
 
 
 class User(Base):

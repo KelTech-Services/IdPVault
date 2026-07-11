@@ -17,6 +17,7 @@ class TenantIn(BaseModel):
     api_token: str
     schedule_cron: str | None = None  # e.g. "0 3 * * *"
     retention_keep: int = 30
+    db_url: str | None = None  # optional: full-DR pg_dump source (self-hosted only)
 
 
 @router.post("/tenants", dependencies=[Depends(require_admin)])
@@ -31,6 +32,7 @@ def create_tenant(body: TenantIn) -> dict:
             enc_credentials=crypto.encrypt(body.api_token.encode(), data_key),
             wrapped_data_key=crypto.wrap_data_key(data_key),
             schedule_cron=body.schedule_cron, retention_keep=body.retention_keep,
+            enc_db_url=crypto.encrypt(body.db_url.encode(), data_key) if body.db_url else None,
         )
         db.add(t)
         db.add(AuditLog(action="tenant.create", detail={"slug": body.slug}))
@@ -44,7 +46,8 @@ def list_tenants() -> list[dict]:
         return [
             {"id": t.id, "name": t.name, "slug": t.slug, "provider": t.provider,
              "base_url": t.base_url,
-             "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep}
+             "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep,
+             "db_dr": bool(t.enc_db_url)}
             for t in db.query(Tenant).all()
         ]
 
@@ -74,6 +77,7 @@ class TenantUpdate(BaseModel):
     api_token: str | None = None       # provide to rotate; omit to keep
     schedule_cron: str | None = None   # explicit null/empty clears the schedule
     retention_keep: int | None = None
+    db_url: str | None = None          # set to configure full-DR; "" clears it
 
 
 @router.patch("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
@@ -95,6 +99,9 @@ def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
         if fields.get("api_token"):
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             t.enc_credentials = crypto.encrypt(fields["api_token"].encode(), data_key)
+        if "db_url" in fields:
+            data_key = crypto.unwrap_data_key(t.wrapped_data_key)
+            t.enc_db_url = crypto.encrypt(fields["db_url"].encode(), data_key) if fields["db_url"] else None
         if "schedule_cron" in fields:
             t.schedule_cron = fields["schedule_cron"] or None
             if t.schedule_cron:

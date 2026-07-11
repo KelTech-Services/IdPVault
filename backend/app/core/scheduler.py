@@ -49,6 +49,17 @@ def run_backup(tenant_id: int) -> dict:
             export = adapter.export()
             manifest = storage.write_snapshot(t.slug, data_key, export)
 
+            manifest["db_dump"] = None
+            if t.enc_db_url:
+                try:
+                    from app.core.dbdump import pg_dump
+                    db_url = crypto.decrypt(t.enc_db_url, data_key).decode()
+                    size = storage.write_dbdump(t.slug, manifest["timestamp"], data_key, pg_dump(db_url))
+                    manifest["db_dump"] = {"status": "ok", "size_encrypted": size}
+                except Exception as de:
+                    manifest["db_dump"] = {"status": "failed", "error": str(de)[:300]}
+                    log.warning("pg_dump failed tenant=%s: %s", t.slug, de)
+
             prev = storage.list_snapshots(t.slug)
             drift = None
             if len(prev) >= 2:
