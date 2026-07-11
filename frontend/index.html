@@ -123,7 +123,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.6.2</span>
+  <span class="ver">v0.6.3</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -467,19 +467,33 @@ function showApp(){
   const isAdmin = me.role === 'admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
-  health(); loadTenants(); loadDashboard(); setInterval(health, 30000);
+  health(); loadTenants(); setInterval(health, 30000);
   setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);
+  switchView(currentRoute(), true);            // restore page from URL on load/refresh
+  window.addEventListener('hashchange', () => {
+    if(location.hash.startsWith('#/')) switchView(currentRoute(), true);   // back/forward nav
+  });
 }
-function switchView(name){
-  ['dashboard','events','audit','users','settings'].forEach(x => {
+const VIEWS = ['dashboard','events','audit','users','settings'];
+function switchView(name, skipHash){
+  if(!VIEWS.includes(name)) name = 'dashboard';
+  // read-only users can't reach admin-only pages
+  if(me && me.role !== 'admin' && ['audit','users','settings'].includes(name)) name = 'dashboard';
+  VIEWS.forEach(x => {
     document.getElementById('view-'+x).classList.toggle('hidden', x !== name);
-    document.querySelector(`nav button[data-view=${x}]`).classList.toggle('active', x === name);
+    const btn = document.querySelector(`nav button[data-view=${x}]`);
+    if(btn) btn.classList.toggle('active', x === name);
   });
   if(name === 'dashboard') loadDashboard();
   if(name === 'events') loadEventTenants();
   if(name === 'audit') loadAudit();
   if(name === 'users') loadUsers();
   if(name === 'settings') loadSettings();
+  if(!skipHash && location.hash !== '#/'+name) location.hash = '#/'+name;
+}
+function currentRoute(){
+  const m = location.hash.match(/^#\/([a-z]+)/);
+  return m ? m[1] : 'dashboard';
 }
 
 /* ---------- health ---------- */
