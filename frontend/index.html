@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
+<link rel="icon" type="image/png" href="/IdPVault_logo.png">
 <style>
 :root{--bg:#0f1419;--panel:#171e26;--panel2:#1d2733;--border:#2a3644;--text:#dce3ea;--dim:#8494a6;
 --accent:#4da3ff;--green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;font-size:15px}
@@ -49,13 +50,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 </head>
 <body>
 <header>
-  <div class="logo">IV</div><h1>IdPVault</h1><span class="ver">v0.1.0</span>
+  <img src="/IdPVault_logo.png" alt="IdPVault" style="width:28px;height:28px;border-radius:6px;object-fit:cover"><h1>IdPVault</h1><span class="ver">v0.1.0</span>
   <div id="healthdot" title="API health"></div>
 </header>
 <main>
   <section class="panel">
     <h2>Tenants <span class="spacer"></span><button class="primary" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
+      <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
         <div><label>Name</label><input id="f_name" placeholder="KelTech Authentik"></div>
         <div><label>Slug</label><input id="f_slug" placeholder="keltech-authentik"></div>
@@ -65,11 +67,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
         <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
       </div>
-      <button class="primary" onclick="createTenant()">Save tenant</button>
+      <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
     </div>
     <table id="tenanttable">
-      <thead><tr><th>Name</th><th>Provider</th><th>Slug</th><th>Schedule</th><th>Keep</th><th style="width:280px">Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Provider</th><th>Slug</th><th>Schedule</th><th>Keep</th><th style="width:340px">Actions</th></tr></thead>
       <tbody id="tenantbody"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
     </table>
   </section>
@@ -106,12 +108,13 @@ async function health(){
   } catch { document.getElementById('healthdot').classList.remove('ok'); }
 }
 
-function toggleAdd(){ document.getElementById('addform').classList.toggle('hidden'); }
+function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
 
+let _tenants = [], editingId = null;
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   try {
-    const ts = await api('/tenants');
+    const ts = await api('/tenants'); _tenants = ts;
     if(!ts.length){ tb.innerHTML = '<tr><td colspan="6" class="muted">No tenants yet — add your first IdP above.</td></tr>'; return; }
     tb.innerHTML = ts.map(t => `<tr>
       <td>${esc(t.name)}</td>
@@ -121,6 +124,7 @@ async function loadTenants(){
       <td class="muted">${t.retention_keep}</td>
       <td>
         <button onclick="backupNow(${t.id}, this)">Backup now</button>
+        <button onclick="editTenant(${t.id})">Edit</button>
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
         <button class="danger" onclick="delTenant(${t.id}, '${esc(t.name)}')">Delete</button>
       </td></tr>`).join('');
@@ -129,7 +133,45 @@ async function loadTenants(){
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-async function createTenant(){
+function editTenant(id){
+  const t = _tenants.find(x=>x.id===id); if(!t) return;
+  editingId = id;
+  document.getElementById('addform').classList.remove('hidden');
+  document.getElementById('formtitle').textContent = `Editing "${t.name}" — slug and provider are fixed; leave token blank to keep the current one.`;
+  document.getElementById('f_name').value = t.name;
+  document.getElementById('f_slug').value = t.slug;
+  document.getElementById('f_provider').value = t.provider;
+  document.getElementById('f_url').value = t.base_url || '';
+  document.getElementById('f_token').value = '';
+  document.getElementById('f_token').placeholder = 'leave blank to keep current token';
+  document.getElementById('f_cron').value = t.schedule_cron || '';
+  document.getElementById('f_keep').value = t.retention_keep;
+  document.getElementById('f_slug').disabled = true;
+  document.getElementById('f_provider').disabled = true;
+}
+
+function resetForm(){
+  editingId = null;
+  document.getElementById('formtitle').textContent = '';
+  document.getElementById('f_slug').disabled = false;
+  document.getElementById('f_provider').disabled = false;
+  document.getElementById('f_token').placeholder = 'paste token — encrypted at rest';
+  ['f_name','f_slug','f_url','f_token','f_cron'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('f_keep').value = 30;
+}
+
+async function saveTenant(){
+  if(editingId){
+    const body = { name: v('f_name'), base_url: v('f_url'),
+      schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30') };
+    if(v('f_token')) body.api_token = v('f_token');
+    try {
+      await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
+      toast('Tenant updated.' + (body.api_token ? ' API token rotated.' : ''));
+      toggleAdd(); resetForm(); loadTenants();
+    } catch(e){ toast('Update failed: '+e.message, true); }
+    return;
+  }
   const body = {
     name: v('f_name'), slug: v('f_slug'), provider: v('f_provider'),
     base_url: v('f_url'), api_token: v('f_token'),
@@ -139,8 +181,7 @@ async function createTenant(){
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
     toast(`Tenant "${body.name}" created — token encrypted and stored.`);
-    toggleAdd(); loadTenants();
-    ['f_name','f_slug','f_url','f_token','f_cron'].forEach(i=>document.getElementById(i).value='');
+    toggleAdd(); resetForm(); loadTenants();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
 function v(id){ return document.getElementById(id).value.trim(); }

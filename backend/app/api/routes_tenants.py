@@ -42,6 +42,7 @@ def list_tenants() -> list[dict]:
     with SessionLocal() as db:
         return [
             {"id": t.id, "name": t.name, "slug": t.slug, "provider": t.provider,
+             "base_url": t.base_url,
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep}
             for t in db.query(Tenant).all()
         ]
@@ -64,3 +65,47 @@ def delete_tenant(tenant_id: int) -> dict:
     except Exception:
         pass
     return {"deleted": tenant_id, "slug": slug}
+
+
+class TenantUpdate(BaseModel):
+    name: str | None = None
+    base_url: str | None = None
+    api_token: str | None = None       # provide to rotate; omit to keep
+    schedule_cron: str | None = None   # explicit null/empty clears the schedule
+    retention_keep: int | None = None
+
+
+@router.patch("/tenants/{tenant_id}")
+def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
+    from apscheduler.triggers.cron import CronTrigger
+    from app.core.scheduler import scheduler, run_backup
+
+    fields = body.model_dump(exclude_unset=True)
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        if "name" in fields and fields["name"]:
+            t.name = fields["name"]
+        if "base_url" in fields and fields["base_url"]:
+            t.base_url = fields["base_url"]
+        if "retention_keep" in fields and fields["retention_keep"]:
+            t.retention_keep = fields["retention_keep"]
+        if fields.get("api_token"):
+            data_key = crypto.unwrap_data_key(t.wrapped_data_key)
+            t.enc_credentials = crypto.encrypt(fields["api_token"].encode(), data_key)
+        if "schedule_cron" in fields:
+            t.schedule_cron = fields["schedule_cron"] or None
+            if t.schedule_cron:
+                scheduler.add_job(run_backup, CronTrigger.from_crontab(t.schedule_cron),
+                                  args=[t.id], id=f"backup-{t.id}", replace_existing=True)
+            else:
+                try:
+                    scheduler.remove_job(f"backup-{t.id}")
+                except Exception:
+                    pass
+        db.add(AuditLog(action="tenant.update",
+                        detail={"slug": t.slug, "fields": [k for k in fields if k != "api_token"],
+                                "token_rotated": bool(fields.get("api_token"))}))
+        db.commit()
+        return {"id": t.id, "slug": t.slug}
