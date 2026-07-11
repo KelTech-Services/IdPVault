@@ -1,0 +1,15 @@
+name: build
+on:
+  push:
+    branches: [main]
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t gitea.keltech.ai/keltech/idpvault:latest .
+      - name: Push to Gitea registry
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login gitea.keltech.ai -u KelTech --password-stdin
+          docker push gitea.keltech.ai/keltech/idpvault:latest

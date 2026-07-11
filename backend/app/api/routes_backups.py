@@ -1,0 +1,36 @@
+from fastapi import APIRouter, HTTPException
+
+from app.core import crypto, storage
+from app.core.diff import diff_exports
+from app.core.scheduler import run_backup
+from app.models.db import SessionLocal, Tenant
+
+router = APIRouter(tags=["backups"])
+
+
+@router.post("/tenants/{tenant_id}/backup")
+def trigger_backup(tenant_id: int) -> dict:
+    result = run_backup(tenant_id)
+    return {"manifest": result["manifest"], "drift_detected": bool(result["drift"])}
+
+
+@router.get("/tenants/{tenant_id}/snapshots")
+def snapshots(tenant_id: int) -> list[str]:
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        return storage.list_snapshots(t.slug)
+
+
+@router.get("/tenants/{tenant_id}/diff")
+def diff(tenant_id: int, old: str, new: str) -> dict:
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        key = crypto.unwrap_data_key(t.wrapped_data_key)
+        return diff_exports(
+            storage.read_snapshot(t.slug, old, key),
+            storage.read_snapshot(t.slug, new, key),
+        )

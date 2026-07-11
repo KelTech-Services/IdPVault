@@ -1,0 +1,39 @@
+# IdPVault — self-contained stack. Deployable as a Portainer stack or plain compose.
+# Prereqs on the host (one time):
+#   mkdir -p /volume1/docker/idpvault/{data,postgres,secrets}
+#   head -c 32 /dev/urandom > /volume1/docker/idpvault/secrets/master.key
+#   chmod 600 /volume1/docker/idpvault/secrets/master.key
+services:
+  idpvault:
+    image: gitea.keltech.ai/keltech/idpvault:latest
+    container_name: idpvault
+    restart: unless-stopped
+    ports:
+      - "8480:8080"
+    environment:
+      IDPVAULT_DATABASE_URL: postgresql+psycopg://idpvault:${POSTGRES_PASSWORD}@idpvault-db:5432/idpvault
+      IDPVAULT_DATA_DIR: /data
+      IDPVAULT_MASTER_KEY_FILE: /secrets/master.key
+      IDPVAULT_LOG_LEVEL: INFO
+    volumes:
+      - /volume1/docker/idpvault/data:/data
+      - /volume1/docker/idpvault/secrets:/secrets:ro
+    depends_on:
+      idpvault-db:
+        condition: service_healthy
+
+  idpvault-db:
+    image: postgres:16-alpine
+    container_name: idpvault-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idpvault
+      POSTGRES_USER: idpvault
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /volume1/docker/idpvault/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idpvault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
