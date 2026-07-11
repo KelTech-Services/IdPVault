@@ -182,7 +182,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.7.1</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.7.2</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -332,7 +332,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div style="grid-column:span 2"><label>Public URL (canonical — used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
       <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
     </div>
-    <p class="muted" style="font-size:.78rem;margin-top:-4px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works — otherwise you can lock yourself out.</p>
+    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works — otherwise you can lock yourself out.</p>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
   <section class="panel">
