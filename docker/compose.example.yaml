@@ -15,6 +15,8 @@ services:
       IDPVAULT_DATA_DIR: /data
       IDPVAULT_MASTER_KEY_FILE: /secrets/master.key
       IDPVAULT_LOG_LEVEL: INFO
+      IDPVAULT_ADMIN_USER: admin
+      IDPVAULT_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - /volume1/docker/idpvault/data:/data
       - /volume1/docker/idpvault/secrets:/secrets:ro

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdPVault</title>
+<style>
+:root{--bg:#0f1419;--panel:#171e26;--panel2:#1d2733;--border:#2a3644;--text:#dce3ea;--dim:#8494a6;
+--accent:#4da3ff;--green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;font-size:15px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+header{display:flex;align-items:center;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--border)}
+header h1{font-size:1.15rem;letter-spacing:.4px}
+header .logo{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#4da3ff,#3ecf8e);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0f1419;font-size:.85rem}
+#healthdot{width:10px;height:10px;border-radius:50%;background:var(--red);margin-left:auto}
+#healthdot.ok{background:var(--green)}
+header .ver{color:var(--dim);font-size:.75rem;margin-left:8px}
+main{max-width:1200px;margin:0 auto;padding:24px;display:grid;gap:20px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.panel h2{font-size:.95rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.panel h2 .spacer{flex:1}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{text-align:left;color:var(--dim);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);font-size:.78rem;text-transform:uppercase;letter-spacing:.5px}
+td{padding:10px;border-bottom:1px solid var(--panel2)}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600;letter-spacing:.4px}
+.tag.authentik{background:#2d1f3d;color:#c9a3ff}.tag.okta{background:#12283a;color:#4da3ff}.tag.auth0{background:#3a2412;color:#ffb454}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:.82rem;transition:all .15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#0d1720;font-weight:600}
+button.primary:hover{filter:brightness(1.12);color:#0d1720}
+button.danger:hover{border-color:var(--red);color:var(--red)}
+button:disabled{opacity:.45;cursor:wait}
+input,select{background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 10px;font-size:.85rem;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+.formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.formgrid label{display:block;font-size:.72rem;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.hidden{display:none!important}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:4px solid var(--green);padding:13px 18px;border-radius:8px;font-size:.85rem;max-width:420px;box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:99}
+#toast.err{border-left-color:var(--red)}
+.snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
+.snaprow.sel td{background:#12283a}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;overflow:auto;font-size:.78rem;max-height:480px;line-height:1.5}
+.diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}
+.diffstat .add{color:var(--green)}.diffstat .rem{color:var(--red)}.diffstat .chg{color:var(--amber)}
+.muted{color:var(--dim)}
+.counts{font-size:.75rem;color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">IV</div><h1>IdPVault</h1><span class="ver">v0.1.0</span>
+  <div id="healthdot" title="API health"></div>
+</header>
+<main>
+  <section class="panel">
+    <h2>Tenants <span class="spacer"></span><button class="primary" onclick="toggleAdd()">+ Add tenant</button></h2>
+    <div id="addform" class="hidden">
+      <div class="formgrid">
+        <div><label>Name</label><input id="f_name" placeholder="KelTech Authentik"></div>
+        <div><label>Slug</label><input id="f_slug" placeholder="keltech-authentik"></div>
+        <div><label>Provider</label><select id="f_provider"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
+        <div><label>Base URL</label><input id="f_url" placeholder="https://auth.example.com"></div>
+        <div><label>API token</label><input id="f_token" type="password" placeholder="paste token — encrypted at rest"></div>
+        <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
+        <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
+      </div>
+      <button class="primary" onclick="createTenant()">Save tenant</button>
+      <button onclick="toggleAdd()">Cancel</button>
+    </div>
+    <table id="tenanttable">
+      <thead><tr><th>Name</th><th>Provider</th><th>Slug</th><th>Schedule</th><th>Keep</th><th style="width:280px">Actions</th></tr></thead>
+      <tbody id="tenantbody"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+    </table>
+  </section>
+  <section class="panel hidden" id="snappanel">
+    <h2>Snapshots — <span id="snaptenant"></span><span class="spacer"></span>
+      <button id="diffbtn" disabled onclick="runDiff()">Diff selected (pick 2)</button>
+      <button onclick="hideSnaps()">Close</button></h2>
+    <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th></tr></thead>
+    <tbody id="snapbody"></tbody></table>
+  </section>
+  <section class="panel hidden" id="diffpanel">
+    <h2>Diff <span id="difflabel" class="muted"></span><span class="spacer"></span><button onclick="document.getElementById('diffpanel').classList.add('hidden')">Close</button></h2>
+    <div class="diffstat" id="diffstat"></div>
+    <pre id="diffout"></pre>
+  </section>
+</main>
+<div id="toast" class="hidden"></div>
+<script>
+const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'application/json'},...opts})
+  .then(async r => { if(!r.ok){ const b = await r.json().catch(()=>({})); throw new Error(b.detail || r.status); } return r.json(); });
+
+let selectedSnaps = [], snapTenantId = null;
+
+function toast(msg, err=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = err ? 'err' : '';
+  t.classList.remove('hidden');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 5000);
+}
+
+async function health(){
+  try { await fetch('/healthz').then(r=>r.json());
+    document.getElementById('healthdot').classList.add('ok');
+  } catch { document.getElementById('healthdot').classList.remove('ok'); }
+}
+
+function toggleAdd(){ document.getElementById('addform').classList.toggle('hidden'); }
+
+async function loadTenants(){
+  const tb = document.getElementById('tenantbody');
+  try {
+    const ts = await api('/tenants');
+    if(!ts.length){ tb.innerHTML = '<tr><td colspan="6" class="muted">No tenants yet — add your first IdP above.</td></tr>'; return; }
+    tb.innerHTML = ts.map(t => `<tr>
+      <td>${esc(t.name)}</td>
+      <td><span class="tag ${t.provider}">${t.provider}</span></td>
+      <td class="muted">${esc(t.slug)}</td>
+      <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '—'}</td>
+      <td class="muted">${t.retention_keep}</td>
+      <td>
+        <button onclick="backupNow(${t.id}, this)">Backup now</button>
+        <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
+        <button class="danger" onclick="delTenant(${t.id}, '${esc(t.name)}')">Delete</button>
+      </td></tr>`).join('');
+  } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function createTenant(){
+  const body = {
+    name: v('f_name'), slug: v('f_slug'), provider: v('f_provider'),
+    base_url: v('f_url'), api_token: v('f_token'),
+    schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30')
+  };
+  if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and token are required', true);
+  try {
+    await api('/tenants', {method:'POST', body: JSON.stringify(body)});
+    toast(`Tenant "${body.name}" created — token encrypted and stored.`);
+    toggleAdd(); loadTenants();
+    ['f_name','f_slug','f_url','f_token','f_cron'].forEach(i=>document.getElementById(i).value='');
+  } catch(e){ toast('Create failed: '+e.message, true); }
+}
+function v(id){ return document.getElementById(id).value.trim(); }
+
+async function backupNow(id, btn){
+  btn.disabled = true; btn.textContent = 'Backing up…';
+  try {
+    const r = await api(`/tenants/${id}/backup`, {method:'POST'});
+    const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
+    toast(`Snapshot ${r.manifest.timestamp} complete — ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
+    if(snapTenantId === id) showSnaps(id, document.getElementById('snaptenant').textContent);
+  } catch(e){ toast('Backup failed: '+e.message, true); }
+  btn.disabled = false; btn.textContent = 'Backup now';
+}
+
+async function delTenant(id, name){
+  if(!confirm(`Delete tenant "${name}"? Snapshots on disk are kept.`)) return;
+  try { await api(`/tenants/${id}`, {method:'DELETE'}); toast(`Tenant "${name}" deleted.`); loadTenants(); }
+  catch(e){ toast('Delete failed: '+e.message, true); }
+}
+
+async function showSnaps(id, slug){
+  snapTenantId = id; selectedSnaps = [];
+  document.getElementById('snaptenant').textContent = slug;
+  document.getElementById('snappanel').classList.remove('hidden');
+  document.getElementById('diffbtn').disabled = true;
+  const sb = document.getElementById('snapbody');
+  sb.innerHTML = '<tr><td colspan="2" class="muted">Loading…</td></tr>';
+  try {
+    const snaps = await api(`/tenants/${id}/snapshots`);
+    if(!snaps.length){ sb.innerHTML = '<tr><td colspan="2" class="muted">No snapshots yet.</td></tr>'; return; }
+    sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}" onclick="selSnap(this)">
+      <td><input type="checkbox" tabindex="-1"></td><td>${fmtTs(ts)} <span class="muted">(${ts})</span></td></tr>`).join('');
+  } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
+}
+function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
+function fmtTs(ts){ return ts.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3 $4:$5:$6'); }
+
+function selSnap(row){
+  const ts = row.dataset.ts, cb = row.querySelector('input');
+  if(selectedSnaps.includes(ts)){ selectedSnaps = selectedSnaps.filter(x=>x!==ts); cb.checked=false; row.classList.remove('sel'); }
+  else if(selectedSnaps.length < 2){ selectedSnaps.push(ts); cb.checked=true; row.classList.add('sel'); }
+  document.getElementById('diffbtn').disabled = selectedSnaps.length !== 2;
+}
+
+async function runDiff(){
+  const [a,b] = selectedSnaps.slice().sort();
+  document.getElementById('difflabel').textContent = `${a} → ${b}`;
+  document.getElementById('diffpanel').classList.remove('hidden');
+  document.getElementById('diffout').textContent = 'Computing…';
+  try {
+    const d = await api(`/tenants/${snapTenantId}/diff?old=${a}&new=${b}`);
+    let add=0, rem=0, chg=0;
+    Object.values(d).forEach(x=>{ add+=x.added.length; rem+=x.removed.length; chg+=x.changed.length; });
+    document.getElementById('diffstat').innerHTML = Object.keys(d).length
+      ? `<span class="add">+${add} added</span><span class="rem">−${rem} removed</span><span class="chg">~${chg} changed</span>`
+      : '<span class="muted">No differences — configs identical.</span>';
+    document.getElementById('diffout').textContent = Object.keys(d).length ? JSON.stringify(d, null, 2) : '';
+  } catch(e){ document.getElementById('diffout').textContent = 'Diff failed: '+e.message; }
+}
+
+health(); loadTenants(); setInterval(health, 30000);
+</script>
+</body>
+</html>

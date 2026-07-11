@@ -45,3 +45,22 @@ def list_tenants() -> list[dict]:
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep}
             for t in db.query(Tenant).all()
         ]
+
+
+@router.delete("/tenants/{tenant_id}")
+def delete_tenant(tenant_id: int) -> dict:
+    """Remove a tenant record. Snapshots on disk are intentionally kept."""
+    from app.core.scheduler import scheduler
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        slug = t.slug
+        db.delete(t)
+        db.add(AuditLog(action="tenant.delete", detail={"slug": slug}))
+        db.commit()
+    try:
+        scheduler.remove_job(f"backup-{tenant_id}")
+    except Exception:
+        pass
+    return {"deleted": tenant_id, "slug": slug}
