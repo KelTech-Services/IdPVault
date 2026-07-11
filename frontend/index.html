@@ -177,7 +177,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.6</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.6.7</span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -315,7 +315,17 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 </main>
 <main id="view-settings" class="hidden">
   <section class="panel">
-    <h2>SMTP — invites &amp; email alerts</h2>
+    <h2>Core — security &amp; operations</h2>
+    <div class="formgrid">
+      <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
+      <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
+      <div><label>Default backup schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
+      <div><label>Default retention (snapshots)</label><input id="s_defkeep" type="number" placeholder="30"></div>
+    </div>
+    <button class="primary" onclick="saveSettings()">Save settings</button>
+  </section>
+  <section class="panel">
+    <h2>SMTP — optional · invites &amp; email alerts</h2>
     <div class="formgrid">
       <div><label>Host</label><input id="s_host" placeholder="smtp.example.com"></div>
       <div><label>Port</label><input id="s_port" type="number" value="587"></div>
@@ -331,13 +341,9 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     </span>
   </section>
   <section class="panel">
-    <h2>Alerts &amp; defaults</h2>
+    <h2>Alerts — optional</h2>
     <div class="formgrid">
-      <div><label>Alert webhook URL (ntfy / Slack-compatible)</label><input id="s_webhook" placeholder="https://ntfy.example.com/idpvault"></div>
-      <div><label>Default schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
-      <div><label>Default retention</label><input id="s_defkeep" type="number" placeholder="30"></div>
-      <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
-      <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
+      <div style="grid-column:span 2"><label>Alert webhook URL (ntfy / Slack-compatible)</label><input id="s_webhook" placeholder="https://ntfy.example.com/idpvault"></div>
     </div>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
