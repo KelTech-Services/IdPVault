@@ -79,6 +79,36 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
         return {"id": u.id}
 
 
+@router.post("/users/{user_id}/reset")
+def reset_password(user_id: int, request: Request) -> dict:
+    import secrets as pysecrets
+    with SessionLocal() as db:
+        u = db.get(User, user_id)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        token = pysecrets.token_urlsafe(24)
+        u.invite_token = token
+        u.is_active = True
+        email = u.email
+        db.add(AuditLog(actor=request.state.user["username"], action="user.password_reset",
+                        detail={"username": u.username}))
+        db.commit()
+    link = f"/#invite={token}"
+    emailed = False
+    if email:
+        try:
+            from app.core.mailer import send_mail
+            base = str(request.base_url).rstrip("/")
+            send_mail(email, "IdPVault password reset",
+                      f"A password reset was requested for your IdPVault account "
+                      f"(username: {u.username}).\n\nSet a new password:\n{base}/#invite={token}\n\n"
+                      f"If you did not expect this, contact your administrator.")
+            emailed = True
+        except Exception:
+            pass
+    return {"reset_link": link, "emailed": emailed}
+
+
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, request: Request) -> dict:
     with SessionLocal() as db:

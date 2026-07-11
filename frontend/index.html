@@ -94,6 +94,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
     <div id="l_mfawrap" class="hidden"><span class="lbl">Authenticator code</span><input id="l_totp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
     <button class="primary" onclick="doLogin()">Sign in</button>
+    <button onclick="showForgot()" style="background:none;border:none;color:var(--accent);font-size:.8rem;cursor:pointer;padding:0">Forgot password?</button>
+    <div id="forgotwrap" class="hidden" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <span class="lbl">Username or email</span><input id="fg_id" placeholder="enter your username or email">
+      <button class="primary" style="margin-top:8px" onclick="doForgot()">Send reset link</button>
+    </div>
     <p id="l_err" class="muted" style="text-align:center;font-size:.8rem"></p>
   </div>
   <div class="logincard hidden" id="setupcard">
@@ -118,7 +123,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.6.0</span>
+  <span class="ver">v0.6.1</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -206,7 +211,12 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="profilemodal" class="modal hidden">
   <div class="box" style="width:520px">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:6px">Your profile — <span id="pf_user"></span></h2>
-    <h3 style="font-size:.9rem;margin:14px 0 8px">Change password</h3>
+    <h3 style="font-size:.9rem;margin:12px 0 8px">Account</h3>
+    <div class="formgrid" style="grid-template-columns:1fr auto;align-items:end">
+      <div><label>Email (used for password resets)</label><input id="pf_email" type="email" placeholder="you@example.com"></div>
+      <div><button class="primary" onclick="saveProfileEmail()">Save email</button></div>
+    </div>
+    <h3 style="font-size:.9rem;margin:18px 0 8px">Change password</h3>
     <div class="formgrid" style="grid-template-columns:1fr 1fr">
       <div><label>Current password</label><input id="pf_cur" type="password"></div>
       <div><label>New password</label><input id="pf_new" type="password"></div>
@@ -330,8 +340,33 @@ function showSetup(){
 }
 
 /* ---------- profile: password + MFA ---------- */
+
+async function resetUserPw(id, name){
+  if(!confirm(`Send a password reset for "${name}"? A one-time reset link is generated (emailed if the user has an email + SMTP is configured).`)) return;
+  try{
+    const r = await api(`/users/${id}/reset`, {method:'POST'});
+    const link = location.origin + r.reset_link;
+    toast(r.emailed ? `Reset link emailed to ${name}. Link (backup): ${link}` : `Reset link for ${name}: ${link}`);
+    try{ await navigator.clipboard.writeText(link); }catch{}
+  }catch(e){ toast(e.message, true); }
+}
+async function saveProfileEmail(){
+  try{ const r = await api('/auth/profile', {method:'POST', body: JSON.stringify({email:v('pf_email')})});
+    me.email = r.email; toast('Email saved.');
+  }catch(e){ toast(e.message, true); }
+}
+function showForgot(){ document.getElementById('forgotwrap').classList.toggle('hidden'); const f=document.getElementById('fg_id'); if(!document.getElementById('forgotwrap').classList.contains('hidden')) f.focus(); }
+async function doForgot(){
+  if(!v('fg_id')) return toast('Enter your username or email', true);
+  try{ await api('/auth/forgot', {method:'POST', body: JSON.stringify({identifier:v('fg_id')})});
+    document.getElementById('forgotwrap').classList.add('hidden');
+    document.getElementById('l_err').textContent = 'If that account exists, a reset link has been sent to its email.';
+  }catch(e){ toast(e.message, true); }
+}
+
 async function openProfile(){
   document.getElementById('pf_user').textContent = me.username;
+  document.getElementById('pf_email').value = me.email || '';
   document.getElementById('pf_cur').value=''; document.getElementById('pf_new').value='';
   document.getElementById('profilemodal').classList.remove('hidden');
   renderMfa();
@@ -615,6 +650,7 @@ async function loadUsers(){
       <td>${u.username===me.username ? '<span class="muted">—</span>' : `
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
+        <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
         <button class="danger" onclick="delUser(${u.id}, '${esc(u.username)}')">Delete</button>`}
       </td></tr>`).join('');
   } catch(e){ ub.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }

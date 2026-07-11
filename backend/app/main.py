@@ -11,7 +11,7 @@ from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
 
 PUBLIC_API = {"/api/v1/auth/login", "/api/v1/auth/accept-invite",
-              "/api/v1/auth/status", "/api/v1/auth/setup"}
+              "/api/v1/auth/status", "/api/v1/auth/setup", "/api/v1/auth/forgot"}
 
 
 def bootstrap_admin() -> None:
@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.6.1", lifespan=lifespan)
 
 
 @app.middleware("http")

@@ -103,6 +103,52 @@ def change_password(body: ChangePw, request: Request) -> dict:
     return {"ok": True}
 
 
+# ---------- self-service profile ----------
+class ProfileIn(BaseModel):
+    email: str | None = None
+
+
+@router.post("/auth/profile")
+def update_profile(body: ProfileIn, request: Request) -> dict:
+    with SessionLocal() as db:
+        u = db.get(User, request.state.user["id"])
+        if body.email is not None:
+            u.email = body.email.strip()
+        db.add(AuditLog(actor=u.username, action="auth.profile_update", detail={}))
+        db.commit()
+        return {"email": u.email}
+
+
+# ---------- forgot password (public) ----------
+class ForgotIn(BaseModel):
+    identifier: str  # username or email
+
+
+@router.post("/auth/forgot")
+def forgot(body: ForgotIn, request: Request) -> dict:
+    import secrets as pysecrets
+    ident = (body.identifier or "").strip()
+    if ident:
+        with SessionLocal() as db:
+            u = db.query(User).filter(
+                (User.username == ident) | (User.email == ident)).first()
+            if u and u.email:
+                token = pysecrets.token_urlsafe(24)
+                u.invite_token = token
+                db.add(AuditLog(actor=u.username, action="auth.forgot_password", detail={}))
+                db.commit()
+                try:
+                    from app.core.mailer import send_mail
+                    base = str(request.base_url).rstrip("/")
+                    send_mail(u.email, "IdPVault password reset",
+                              f"A password reset was requested for your IdPVault account "
+                              f"(username: {u.username}).\n\nSet a new password:\n"
+                              f"{base}/#invite={token}\n\nIf you did not request this, ignore this email.")
+                except Exception:
+                    pass
+    return {"ok": True}  # always 200 — never reveal whether an account exists
+
+
 # ---------- self-service MFA (TOTP) ----------
 @router.post("/auth/mfa/setup")
 def mfa_setup(request: Request) -> dict:
