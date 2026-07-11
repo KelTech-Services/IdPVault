@@ -101,7 +101,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;paddin
 <div id="appview" class="hidden">
 <header>
   <img src="/IdPVault_light_logo.png" alt="IdPVault" style="height:64px;width:auto">
-  <span class="ver">v0.5.0</span>
+  <span class="ver">v0.5.1</span>
   <nav id="mainnav">
     <button data-view="dashboard" class="active" onclick="switchView('dashboard')">Dashboard</button>
     <button data-view="events" onclick="switchView('events')">Events</button>
@@ -779,10 +779,38 @@ async function identityPreview(ts){
         <span class="ev-add">${u.recreate} users recreate</span>
         <span class="ev-update">${u.update} update</span>
         <span class="muted">${u.identical} identical</span></div>
+      ${u.update>0?`<div class="muted" style="font-size:.8rem;margin-top:4px">Note: ${u.update} existing user(s) differ from this snapshot, but identity restore is <b>create-only</b> — it recreates deleted users and does not modify existing ones.</div>`:''}
       <div style="font-size:.85rem">+${p.summary.group_memberships_to_add} group memberships · +${p.summary.app_group_assignments_to_add} group→app · +${p.summary.app_user_assignments_direct_to_add} direct user→app</div>
       ${p.manual_steps.length?`<div style="margin-top:8px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
-      <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p></div>`;
+      <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>
+      <div style="margin-top:10px">${_idApplyable(p)?`<button class="danger" onclick="identityApply('${ts}')">Apply identity restore</button> <span class="muted" style="font-size:.78rem">writes to the live tenant</span>`:'<span class="muted" style="font-size:.82rem">Nothing to apply — live already matches this snapshot.</span>'}</div></div>`;
   }catch(e){ box.innerHTML=`<span class="muted">Preview failed: ${esc(e.message)}</span>`; }
+}
+
+
+function _idApplyable(p){
+  const u = p.summary.users;
+  return (u.recreate||0) + (p.summary.group_memberships_to_add||0)
+       + (p.summary.app_group_assignments_to_add||0) + (p.summary.app_user_assignments_direct_to_add||0) > 0;
+}
+async function identityApply(ts){
+  if(!confirm('APPLY identity restore? This WRITES to the live tenant — recreates missing users and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?')) return;
+  const box = document.getElementById('id_preview');
+  box.innerHTML = '<span class="muted">Applying identity restore… (throttled; may take a while)</span>';
+  try{
+    const r = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify({snapshot_ts:ts, confirm:true})});
+    const rep = r.summary;
+    const line = (cat) => { const c=rep[cat]||{}; return `${cat.replace(/_/g,' ')}: ${c.created!=null?c.created+' created, ':''}${c.added!=null?c.added+' added, ':''}${c.existing!=null?c.existing+' existing, ':''}${c.skipped!=null?c.skipped+' skipped, ':''}${c.failed?('<span class=\'st-failed\'>'+c.failed+' failed</span>'):'0 failed'}`; };
+    box.innerHTML = `<div class="panel" style="background:var(--panel2)">
+      <b>Restore applied — ${ts}</b>
+      <div style="font-size:.85rem;margin-top:8px;line-height:1.7">
+        ${['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(line).join('<br>')}
+      </div>
+      ${r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
+    </div>`;
+    toast('Identity restore applied — see report + manual steps.');
+    loadIdentitySnaps();
+  }catch(e){ box.innerHTML = `<span class="muted">Apply failed: ${esc(e.message)}</span>`; }
 }
 
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

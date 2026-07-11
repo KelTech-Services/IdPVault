@@ -30,11 +30,17 @@ direct), header-driven adaptive Okta rate limiting with configurable reserve hea
 measured duration estimate + cadence recommendation, dry-run identity restore preview.
 Okta config coverage completed (profile mappings, user types, per-app schemas).
 
-## v0.5.1 — next
+**v0.5.1** — identity restore APPLY (write path): create-only, additive, idempotent restore
+of missing users + memberships + assignments, with full natural-key ID remapping (login /
+group name / app label) so recreated-object id changes don't break edges. Per-object report,
+throttled, admin-only, explicit confirm. Okta + Authentik.
 
-- **Identity restore APPLY** (the write path — recreate users, re-add memberships/assignments;
-  dedicated, heavily-tested build since it writes users into a live tenant)
-- Restore apply for Okta and Auth0 config adapters
+## v0.6 — next
+
+- Restore apply for Okta and Auth0 **config** adapters
+- Optional profile-revert for existing users (identity restore currently create-only)
+- Background job queue for long identity backups/restores (currently synchronous)
+- Identity events/diff lane
 - Restore-run history viewer in UI
 - Automated pg_dump *restore* (currently dump is captured/downloadable, not auto-applied)
 - Alembic migrations (before any non-additive schema change)

@@ -94,9 +94,13 @@ class OktaAdapter(ProviderAdapter):
                     if au.get("scope") == "USER":  # DIRECT only; GROUP-inherited excluded
                         app_user_direct.append({"app_id": aid, "user_id": au.get("id")})
 
+            group_ref = [{"id": g.get("id"), "name": (g.get("profile") or {}).get("name")}
+                         for g in groups]
+            app_ref = [{"id": a.get("id"), "label": a.get("label")} for a in apps]
             return {"users": users, "group_memberships": memberships,
                     "app_group_assignments": app_group,
-                    "app_user_assignments_direct": app_user_direct}
+                    "app_user_assignments_direct": app_user_direct,
+                    "group_ref": group_ref, "app_ref": app_ref}
 
 
     APP_SCHEMA_CAP = 200  # safety cap for large orgs (per-app schema = 1 call each)
@@ -140,3 +144,118 @@ class OktaAdapter(ProviderAdapter):
             if r.status_code != 200:
                 return None
             return len(r.json())
+
+    # ---- identity restore (apply / write) ----
+    def _write(self, c, method, path, **kw):
+        r = self._rl.request(lambda: c.request(method, path, **kw))
+        if r.status_code >= 400 and r.status_code not in (409,):
+            raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
+        return r
+
+    def apply_identities(self, snap: dict) -> dict:
+        """Additive restore: recreate missing users (by login), then re-add missing
+        memberships / group->app / direct user->app edges. Everything resolved by
+        NATURAL KEY (login / group name / app label) so recreated-object id changes
+        don't break edges. Idempotent: existing users/edges are skipped."""
+        rep = {"users": {"created": 0, "existing": 0, "failed": []},
+               "group_memberships": {"added": 0, "skipped": 0, "failed": []},
+               "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
+               "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
+        with self._client() as c:
+            live = self.export_identities()
+            live_user = {(u.get("profile") or {}).get("login"): u.get("id")
+                         for u in live.get("users", []) if (u.get("profile") or {}).get("login")}
+            live_group = {g["name"]: g["id"] for g in live.get("group_ref", []) if g.get("name")}
+            live_group_ids = {g["id"] for g in live.get("group_ref", [])}
+            live_app = {a["label"]: a["id"] for a in live.get("app_ref", []) if a.get("label")}
+            live_app_ids = {a["id"] for a in live.get("app_ref", [])}
+
+            snap_user_login = {u.get("id"): (u.get("profile") or {}).get("login") for u in snap.get("users", [])}
+            snap_group_name = {g["id"]: g["name"] for g in snap.get("group_ref", [])}
+            snap_app_label = {a["id"]: a["label"] for a in snap.get("app_ref", [])}
+
+            def r_user(uid):
+                return live_user.get(snap_user_login.get(uid))
+
+            def r_group(gid):
+                name = snap_group_name.get(gid)
+                if name and name in live_group:
+                    return live_group[name]
+                return gid if gid in live_group_ids else None  # fallback: stable id
+
+            def r_app(aid):
+                label = snap_app_label.get(aid)
+                if label and label in live_app:
+                    return live_app[label]
+                return aid if aid in live_app_ids else None
+
+            # 1) users — create the ones missing live (matched by login)
+            for u in snap.get("users", []):
+                login = (u.get("profile") or {}).get("login")
+                if not login:
+                    rep["users"]["failed"].append({"user": u.get("id"), "error": "user has no login"})
+                    continue
+                if login in live_user:
+                    rep["users"]["existing"] += 1
+                    continue
+                try:
+                    r = self._write(c, "POST", "/api/v1/users", params={"activate": "false"},
+                                    json={"profile": u.get("profile", {})})
+                    if r.status_code == 409:
+                        rep["users"]["existing"] += 1
+                    else:
+                        live_user[login] = r.json().get("id")
+                        rep["users"]["created"] += 1
+                except Exception as e:
+                    rep["users"]["failed"].append({"user": login, "error": str(e)[:200]})
+
+            live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
+            live_ag = {(e["app_id"], e["group_id"]) for e in live.get("app_group_assignments", [])}
+            live_au = {(e["app_id"], e["user_id"]) for e in live.get("app_user_assignments_direct", [])}
+
+            # 2) group memberships
+            for e in snap.get("group_memberships", []):
+                lg, lu = r_group(e["group_id"]), r_user(e["user_id"])
+                if not lg or not lu:
+                    rep["group_memberships"]["skipped"] += 1
+                    continue
+                if (lg, lu) in live_mem:
+                    rep["group_memberships"]["skipped"] += 1
+                    continue
+                try:
+                    self._write(c, "PUT", f"/api/v1/groups/{lg}/users/{lu}")
+                    rep["group_memberships"]["added"] += 1
+                except Exception as ex:
+                    rep["group_memberships"]["failed"].append({"edge": f"{lg}/{lu}", "error": str(ex)[:150]})
+
+            # 3) group->app assignments
+            for e in snap.get("app_group_assignments", []):
+                la, lg = r_app(e["app_id"]), r_group(e["group_id"])
+                if not la or not lg:
+                    rep["app_group_assignments"]["skipped"] += 1
+                    continue
+                if (la, lg) in live_ag:
+                    rep["app_group_assignments"]["skipped"] += 1
+                    continue
+                try:
+                    self._write(c, "PUT", f"/api/v1/apps/{la}/groups/{lg}")
+                    rep["app_group_assignments"]["added"] += 1
+                except Exception as ex:
+                    rep["app_group_assignments"]["failed"].append({"edge": f"{la}/{lg}", "error": str(ex)[:150]})
+
+            # 4) direct user->app assignments (scope USER only — provenance preserved)
+            for e in snap.get("app_user_assignments_direct", []):
+                la, lu = r_app(e["app_id"]), r_user(e["user_id"])
+                if not la or not lu:
+                    rep["app_user_assignments_direct"]["skipped"] += 1
+                    continue
+                if (la, lu) in live_au:
+                    rep["app_user_assignments_direct"]["skipped"] += 1
+                    continue
+                try:
+                    self._write(c, "POST", f"/api/v1/apps/{la}/users",
+                                json={"id": lu, "scope": "USER"})
+                    rep["app_user_assignments_direct"]["added"] += 1
+                except Exception as ex:
+                    rep["app_user_assignments_direct"]["failed"].append({"edge": f"{la}/{lu}", "error": str(ex)[:150]})
+        return rep

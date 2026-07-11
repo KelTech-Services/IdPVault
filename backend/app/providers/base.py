@@ -37,3 +37,6 @@ class ProviderAdapter(ABC):
         provenance (group-inherited vs direct). Buckets a provider doesn't use
         stay empty. NOT part of the config export — separate cadence/storage."""
         raise NotImplementedError(f"{self.name}: identity backup not implemented")
+
+    def apply_identities(self, snap: dict) -> dict:
+        raise NotImplementedError(f"{self.name}: identity restore apply not implemented")

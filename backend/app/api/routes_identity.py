@@ -3,7 +3,8 @@ Backup/preview are admin-only (they read decrypted user data)."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from app.core.identity import estimate_next, plan_identity_restore, run_identity_backup
+from app.core.identity import (apply_identity_restore, estimate_next,
+                                plan_identity_restore, run_identity_backup)
 from app.core.security import require_admin
 from app.models.db import IdentitySnapshot, SessionLocal, Tenant
 
@@ -46,6 +47,25 @@ class IdRestoreIn(BaseModel):
 def restore_preview(tenant_id: int, body: IdRestoreIn, request: Request) -> dict:
     try:
         return plan_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
+    except FileNotFoundError:
+        raise HTTPException(404, "identity snapshot not found")
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+class IdApplyIn(BaseModel):
+    snapshot_ts: str
+    confirm: bool = False  # must be true — guards against accidental writes
+
+
+@router.post("/tenants/{tenant_id}/identity/restore/apply")
+def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
+    if not body.confirm:
+        raise HTTPException(422, "confirm must be true to apply an identity restore")
+    try:
+        return apply_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
+    except NotImplementedError as e:
+        raise HTTPException(501, str(e))
     except FileNotFoundError:
         raise HTTPException(404, "identity snapshot not found")
     except ValueError as e:

@@ -122,6 +122,44 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                         "assignments are recreated as direct. Apply (write) is a separate step."}
 
 
+def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
+    """Write path: recreate missing users + re-add missing edges. Additive,
+    idempotent, per-object reporting. Persists a RestoreRun report."""
+    from app.core import crypto, storage
+    from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
+    from app.providers import get_adapter
+
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise ValueError("tenant not found")
+        data_key = crypto.unwrap_data_key(t.wrapped_data_key)
+        creds = crypto.decrypt(t.enc_credentials, data_key).decode()
+        adapter = get_adapter(t.provider, t.base_url, creds)
+        snap = storage.read_identities(t.slug, snapshot_ts, data_key)
+        report = adapter.apply_identities(snap)  # may raise NotImplementedError
+
+        summary = {}
+        for cat, r in report.items():
+            summary[cat] = {k: (len(v) if isinstance(v, list) else v) for k, v in r.items()}
+        created = report["users"]["created"]
+        manual = []
+        if created:
+            manual.append(f"{created} user(s) recreated — send PASSWORD RESET / activation "
+                          f"(credentials are not restorable via API).")
+            manual.append(f"{created} recreated user(s) must RE-ENROLL MFA.")
+
+        run = RestoreRun(tenant_id=t.id, snapshot_ts=snapshot_ts, mode="identity_apply",
+                         actor=actor, summary=summary,
+                         results={"report": report, "manual_steps": manual})
+        db.add(run)
+        db.add(AuditLog(actor=actor, action="identity.restore.apply",
+                        detail={"tenant": t.slug, "snapshot": snapshot_ts,
+                                "users_created": created}))
+        db.commit()
+        return {"restore_run_id": run.id, "summary": summary, "manual_steps": manual}
+
+
 def estimate_next(tenant_id: int) -> dict:
     """Duration estimate for the next identity backup + a cadence recommendation."""
     from app.core.security import require_admin  # noqa (import guard parity)

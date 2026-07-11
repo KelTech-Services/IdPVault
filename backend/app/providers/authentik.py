@@ -147,5 +147,72 @@ class AuthentikAdapter(ProviderAdapter):
                     memberships.append({"group_id": gid, "user_id": uid})
             # Authentik app access is governed by policy bindings (captured in config),
             # which already record group-vs-user provenance — so those buckets stay empty here.
+            groups = self._paged(c, "/api/v3/core/groups/")
+            group_ref = [{"id": g.get("pk"), "name": g.get("name")} for g in groups]
             return {"users": users, "group_memberships": memberships,
-                    "app_group_assignments": [], "app_user_assignments_direct": []}
+                    "app_group_assignments": [], "app_user_assignments_direct": [],
+                    "group_ref": group_ref, "app_ref": []}
+
+    def _write(self, c, method, path, **kw):
+        r = c.request(method, path, **kw)
+        if r.status_code >= 400 and r.status_code not in (409,):
+            raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
+        return r
+
+    def apply_identities(self, snap: dict) -> dict:
+        """Additive restore: create missing users (by username), re-add group
+        memberships. App access is governed by config policy bindings (restore config
+        for that). Resolved by natural key so recreated-object ids don't break edges."""
+        rep = {"users": {"created": 0, "existing": 0, "failed": []},
+               "group_memberships": {"added": 0, "skipped": 0, "failed": []},
+               "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
+               "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
+        with self._client() as c:
+            live = self.export_identities()
+            live_user = {u.get("username"): u.get("id") for u in live.get("users", []) if u.get("username")}
+            live_group = {g["name"]: g["id"] for g in live.get("group_ref", []) if g.get("name")}
+            live_group_ids = {g["id"] for g in live.get("group_ref", [])}
+            snap_user_name = {u.get("id"): u.get("username") for u in snap.get("users", [])}
+            snap_group_name = {g["id"]: g["name"] for g in snap.get("group_ref", [])}
+
+            def r_group(gid):
+                name = snap_group_name.get(gid)
+                if name and name in live_group:
+                    return live_group[name]
+                return gid if gid in live_group_ids else None
+
+            for u in snap.get("users", []):
+                uname = u.get("username")
+                if not uname:
+                    rep["users"]["failed"].append({"user": u.get("id"), "error": "no username"})
+                    continue
+                if uname in live_user:
+                    rep["users"]["existing"] += 1
+                    continue
+                try:
+                    body = {"username": uname, "name": u.get("name") or uname,
+                            "email": u.get("email") or "", "is_active": bool(u.get("is_active", True)),
+                            "type": u.get("type") or "internal", "path": u.get("path") or "users",
+                            "attributes": u.get("attributes") or {}}
+                    r = self._write(c, "POST", "/api/v3/core/users/", json=body)
+                    live_user[uname] = r.json().get("pk")
+                    rep["users"]["created"] += 1
+                except Exception as e:
+                    rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})
+
+            live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
+            for e in snap.get("group_memberships", []):
+                lg = r_group(e["group_id"])
+                lu = live_user.get(snap_user_name.get(e["user_id"]))
+                if not lg or not lu:
+                    rep["group_memberships"]["skipped"] += 1
+                    continue
+                if (lg, lu) in live_mem:
+                    rep["group_memberships"]["skipped"] += 1
+                    continue
+                try:
+                    self._write(c, "POST", f"/api/v3/core/groups/{lg}/add_user/", json={"pk": lu})
+                    rep["group_memberships"]["added"] += 1
+                except Exception as ex:
+                    rep["group_memberships"]["failed"].append({"edge": f"{lg}/{lu}", "error": str(ex)[:150]})
+        return rep

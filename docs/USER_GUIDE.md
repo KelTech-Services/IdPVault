@@ -102,8 +102,15 @@ being re-added to the group — they are **not** converted into direct assignmen
 
 ## 7. What's automatic vs. MANUAL after an identity restore
 
-**Automatic:** users recreated (profile + status), group memberships re-added, group→app and
-direct user→app assignments re-created.
+**How identity restore works:** open the tenant's Identity panel → a snapshot → **Restore
+preview** (read-only). If anything is missing, **Apply identity restore** writes it back.
+Restore is **create-only and additive**: it recreates users that are missing (matched by
+login/username), re-adds missing group memberships and assignments, and resolves everything
+by natural key so recreated-object ID changes don't break the wiring. It does **not** modify
+existing users or delete anything. Idempotent — re-running does nothing if live already matches.
+
+**Automatic:** missing users recreated (profile + status, created STAGED), group memberships
+re-added, group→app and direct user→app assignments re-created.
 
 **Manual — you must do these after a restore, because the IdP API makes them impossible to
 back up:**
