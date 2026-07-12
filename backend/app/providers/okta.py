@@ -24,12 +24,19 @@ RESOURCES = {
 
 class OktaAdapter(ProviderAdapter):
     name = "okta"
-    # config restore-apply (push_object) not yet implemented — these define ordering /
-    # exclusions for when it lands; today Okta restore reports objects as "unsupported".
     restore_order = ["groups", "network_zones", "policies_password", "policies_mfa",
                      "policies_signon", "policies_access", "idps", "event_hooks", "inline_hooks"]
+    # Apps and schema-shaped types are deliberately not auto-restored (server-generated
+    # structure / lifecycle endpoints); they stay backed up and browsable.
     never_restore = {"apps", "authorization_servers", "user_schemas", "user_types",
                      "user_type_schemas", "app_user_schemas", "profile_mappings"}
+    _WRITE_PATH = {"groups": "/api/v1/groups", "network_zones": "/api/v1/zones",
+                   "policies_signon": "/api/v1/policies", "policies_password": "/api/v1/policies",
+                   "policies_mfa": "/api/v1/policies", "policies_access": "/api/v1/policies",
+                   "idps": "/api/v1/idps", "event_hooks": "/api/v1/eventHooks",
+                   "inline_hooks": "/api/v1/inlineHooks"}
+    _READONLY = {"id", "created", "lastUpdated", "lastMembershipUpdated",
+                 "_links", "_embedded", "system"}
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
@@ -150,6 +157,35 @@ class OktaAdapter(ProviderAdapter):
             if r.status_code != 200:
                 return None
             return len(r.json())
+
+    # ---- config restore (apply / write) ----
+    def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
+        """Create-or-update one config object. When the engine matched a live object
+        it's passed as `live` and we PUT (full replace) at its CURRENT id; otherwise
+        POST a new one. Okta system objects (system policies/zones, built-in and
+        app-sourced groups) are skipped — they can't be user-written."""
+        base = self._WRITE_PATH.get(resource_type)
+        if not base:
+            raise NotImplementedError(f"okta: restore not supported for {resource_type}")
+        if obj.get("system"):
+            return ("skipped_system", str(obj.get("id", "")))
+        if resource_type == "groups":
+            if obj.get("type") and obj["type"] != "OKTA_GROUP":
+                return ("skipped_system", str(obj.get("id", "")))  # BUILT_IN / APP_GROUP
+            payload = {"profile": obj.get("profile", {})}          # only profile is writable
+        else:
+            payload = {k: v for k, v in obj.items() if k not in self._READONLY}
+        with self._client() as c:
+            if live is not None:
+                live_id = live.get("id")
+                r = self._rl.request(lambda: c.put(f"{base}/{live_id}", json=payload))
+                if r.status_code >= 400:
+                    raise RuntimeError(f"PUT {base}/{live_id} -> {r.status_code}: {r.text[:280]}")
+                return ("updated", str(live_id))
+            r = self._rl.request(lambda: c.post(base, json=payload))
+            if r.status_code >= 400:
+                raise RuntimeError(f"POST {base} -> {r.status_code}: {r.text[:280]}")
+            return ("created", str(r.json().get("id", "")))
 
     # ---- identity restore (apply / write) ----
     def _write(self, c, method, path, **kw):

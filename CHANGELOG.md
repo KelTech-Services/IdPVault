@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.11] — 2026-07-12
+### Added
+- Config restore-apply for **Okta** (`push_object`): create-or-update of groups,
+  network zones, all four policy types, identity providers, and event/inline hooks
+  via the Okta API (PUT full-replace to update, POST to create), through the
+  adaptive rate limiter, with dry-run preview, per-object reporting, and the
+  existing confirm gate. System objects (system policies/zones, BUILT_IN and
+  app-sourced groups) are skipped; apps, authorization servers, schemas, and
+  profile mappings are deliberately excluded from auto-restore (backed up and
+  browsable, restore is roadmap).
+### Changed
+- Okta server-managed fields (`created`, `lastUpdated`, `lastMembershipUpdated`,
+  `_links`, `_embedded`) no longer count as config in drift/restore comparison —
+  plans and events show only real changes.
+
 ## [0.7.10] — 2026-07-11
 ### Fixed
 - Drift detection silently broken for any tenant with identity backup enabled: the
