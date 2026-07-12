@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.3] — 2026-07-12
+### Added
+- Smoke-test suite (22 tests: crypto envelope + tamper rejection, license
+  verification/forgery/grace/gating, restore plan matching incl. rename vs
+  recreate and binding remapping, password hashing, alert formatting) and CI
+  now **runs the tests before building** — a failing test blocks the image
+  from ever reaching the registry.
+
 ## [0.8.2] — 2026-07-12
 ### Added
 - **In-app Docs.** New "Docs" item in the sidebar (visible to all users) with
