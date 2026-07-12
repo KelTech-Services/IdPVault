@@ -54,7 +54,8 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
             if live is None:
                 action, fields = "create", []
             else:
-                n_obj, n_live = normalize(obj), normalize(live)
+                n_obj = normalize(adapter.compare_form(rtype, obj))
+                n_live = normalize(adapter.compare_form(rtype, live))
                 fields = sorted(k for k in set(n_obj) | set(n_live)
                                 if json.dumps(n_obj.get(k), sort_keys=True, default=str)
                                 != json.dumps(n_live.get(k), sort_keys=True, default=str))

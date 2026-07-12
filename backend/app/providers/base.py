@@ -21,6 +21,12 @@ class ProviderAdapter(ABC):
         """Hook called once before a restore plan is executed — adapters may build
         remap state (e.g. old-id -> live-id by natural key). Default: no-op."""
 
+    def compare_form(self, resource_type: str, obj: dict) -> dict:
+        """Canonical form used for snapshot-vs-live comparison. Adapters override to
+        remap internal cross-references (old ids -> live ids) so an object whose
+        referenced target was recreated compares as identical. Default: unchanged."""
+        return obj
+
     def __init__(self, base_url: str, credentials: str):
         self.base_url = base_url.rstrip("/")
         self.credentials = credentials

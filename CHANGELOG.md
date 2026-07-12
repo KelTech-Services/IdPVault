@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.19] — 2026-07-12
+### Fixed
+- Restore comparison is now **remap-aware**: snapshot objects have their internal
+  cross-references translated to current live ids before diffing (Authentik), so a
+  binding referencing a recreated app compares as identical instead of showing a
+  perpetual phantom "update" on every restore run. Restores now fully converge.
+
 ## [0.7.18] — 2026-07-12
 ### Fixed
 - Authentik policy/flow-stage **bindings no longer duplicate on re-restore**:

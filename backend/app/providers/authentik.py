@@ -72,6 +72,11 @@ class AuthentikAdapter(ProviderAdapter):
                 if key is not None and old is not None and new is not None and new != old:
                     self._pk_remap[str(old)] = new
 
+    def compare_form(self, resource_type: str, obj: dict) -> dict:
+        # Compare with references remapped, so a binding pointing at a recreated
+        # app's OLD id is identical to the live binding pointing at the NEW id.
+        return self._remap_refs(dict(obj))
+
     def _remap_refs(self, payload: dict) -> dict:
         if not self._pk_remap:
             return payload
