@@ -1,8 +1,17 @@
-# IdPVault — self-contained stack. Deployable as a Portainer stack or plain compose.
-# Prereqs on the host (one time):
-#   mkdir -p /volume1/docker/idpvault/{data,postgres,secrets}
-#   head -c 32 /dev/urandom > /volume1/docker/idpvault/secrets/master.key
-#   chmod 600 /volume1/docker/idpvault/secrets/master.key
+# IdPVault - self-contained stack. Deploy as a Portainer stack or plain compose.
+#
+# ZERO CONFIG: `docker compose up -d` is all it takes. No pre-created folders,
+# no pre-seeded files. On first boot the app generates its master encryption
+# key inside the idpvault_secrets volume - BACK IT UP afterwards (Docs ->
+# Deployment & proxy); without it, encrypted snapshots are unrecoverable.
+#
+# Recommended (not required): set POSTGRES_PASSWORD in the stack environment.
+# The database is only reachable inside this stack's private network, but a
+# unique password is good hygiene: e.g.  openssl rand -hex 24
+#
+# Prefer host bind mounts over named volumes? Replace the three volume names
+# below with host paths (e.g. /volume1/docker/idpvault/data:/data) - the app
+# fixes ownership itself on boot. Nothing else changes.
 services:
   idpvault:
     image: gitea.keltech.ai/keltech/idpvault:latest
@@ -11,17 +20,19 @@ services:
     ports:
       - "8480:8080"
     environment:
-      IDPVAULT_DATABASE_URL: postgresql+psycopg://idpvault:${POSTGRES_PASSWORD}@idpvault-db:5432/idpvault
+      IDPVAULT_DATABASE_URL: postgresql+psycopg://idpvault:${POSTGRES_PASSWORD:-idpvault-internal}@idpvault-db:5432/idpvault
       IDPVAULT_DATA_DIR: /data
       IDPVAULT_MASTER_KEY_FILE: /secrets/master.key
       IDPVAULT_LOG_LEVEL: INFO
-      # First run shows a browser setup wizard to create the admin — no creds needed here.
+      # Backups run one at a time by default (safe for modest hosts).
+      # IDPVAULT_BACKUP_WORKERS: "4"
+      # First run shows a browser setup wizard to create the admin - no creds needed here.
       # For headless/automated provisioning instead, uncomment and set both:
       # IDPVAULT_ADMIN_USER: admin
       # IDPVAULT_ADMIN_PASSWORD: change-me
     volumes:
-      - /volume1/docker/idpvault/data:/data
-      - /volume1/docker/idpvault/secrets:/secrets:ro
+      - idpvault_data:/data
+      - idpvault_secrets:/secrets
     depends_on:
       idpvault-db:
         condition: service_healthy
@@ -33,11 +44,16 @@ services:
     environment:
       POSTGRES_DB: idpvault
       POSTGRES_USER: idpvault
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-idpvault-internal}
     volumes:
-      - /volume1/docker/idpvault/postgres:/var/lib/postgresql/data
+      - idpvault_postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U idpvault"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  idpvault_data:
+  idpvault_secrets:
+  idpvault_postgres:

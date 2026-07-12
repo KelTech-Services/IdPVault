@@ -27,19 +27,74 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 
 ## Quick deploy (Docker Compose / Portainer stack)
 
-See `docker/compose.example.yaml`. Single app image + Postgres, no other dependencies.
+See `docker/compose.example.yaml`. Single app image + Postgres, no other
+dependencies — and **zero configuration**: `docker compose up -d` is the whole
+install. On first boot the app generates its master encryption key inside the
+`idpvault_secrets` volume, fixes volume ownership, and drops to a non-root
+user. **Back the key up right after first boot**
+(`docker cp idpvault:/secrets/master.key ./master.key.backup`) — without it,
+encrypted snapshots are unrecoverable, and there is no escrow or phone-home.
+The app refuses to boot into either dangerous state (key missing with data
+present, or a wrong key against an existing database) rather than corrupt
+anything.
+
+Named volumes are the default; to use host bind mounts instead, swap the
+volume names for host paths in the stack — the app handles ownership itself.
+Setting `POSTGRES_PASSWORD` in the stack environment is recommended (the DB is
+only reachable inside the stack's private network).
+
+```yaml
+services:
+  idpvault:
+    image: gitea.keltech.ai/keltech/idpvault:latest
+    container_name: idpvault
+    restart: unless-stopped
+    ports:
+      - "8480:8080"
+    environment:
+      IDPVAULT_DATABASE_URL: postgresql+psycopg://idpvault:${POSTGRES_PASSWORD:-idpvault-internal}@idpvault-db:5432/idpvault
+      IDPVAULT_DATA_DIR: /data
+      IDPVAULT_MASTER_KEY_FILE: /secrets/master.key
+    volumes:
+      - idpvault_data:/data
+      - idpvault_secrets:/secrets
+    depends_on:
+      idpvault-db:
+        condition: service_healthy
+
+  idpvault-db:
+    image: postgres:16-alpine
+    container_name: idpvault-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idpvault
+      POSTGRES_USER: idpvault
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-idpvault-internal}
+    volumes:
+      - idpvault_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idpvault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  idpvault_data:
+  idpvault_secrets:
+  idpvault_postgres:
+```
 
 ## Repo layout
 
 - `backend/` — FastAPI application
-- `frontend/` — web UI (planned)
+- `frontend/` — web UI (single-file SPA) + in-app docs
 - `docker/` — Dockerfile, example compose stack, env template
 - `docs/` — architecture and operations notes
 - `.gitea/workflows/` — CI: build image, push to registry
 
 ## Status
 
-v0.5.0 shipped. See `docs/USER_GUIDE.md` for setup/usage and `docs/ROADMAP.md` for shipped versions and what's next.
+Active development toward v1.0. See `CHANGELOG.md` for the full version history and `docs/ROADMAP.md` for shipped versions and what's next.
 
 ## What a backup contains — and what it doesn't
 

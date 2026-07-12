@@ -34,6 +34,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
     init_db()
+    from app.core.crypto import verify_master_key_matches_db
+    verify_master_key_matches_db()   # never boot with a key that can't decrypt existing data
     bootstrap_admin()
     scheduler.start()
     load_tenant_jobs()
@@ -41,7 +43,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.8.7", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.8.8", lifespan=lifespan)
 
 
 @app.middleware("http")

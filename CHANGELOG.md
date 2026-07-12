@@ -3,6 +3,23 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.8] - 2026-07-12
+### Added
+- Zero-config deployment: `docker compose up -d` is the entire install. A new
+  entrypoint generates the master encryption key on a truly fresh first boot,
+  fixes volume ownership, then drops root -> uid 10001. Compose example (and
+  README) rewritten around named volumes with zero prerequisites; bind-mount
+  swap documented.
+- Never-regenerate protection, two layers: the container refuses to start if
+  the key file is missing while data exists, and the app refuses to boot if
+  the mounted key cannot decrypt the existing database. No path silently
+  regenerates a key over encrypted data.
+- Setup wizard and deployment doc now tell you to back the key up immediately,
+  with the exact `docker cp` command.
+### Changed
+- README refreshed: copy-pasteable compose stack, updated status/layout, serial
+  queue + org-timezone noted in features.
+
 ## [0.8.7] - 2026-07-12
 ### Added
 - Friendly scheduling: Daily/Weekly/Monthly + time dropdowns (with a custom-cron

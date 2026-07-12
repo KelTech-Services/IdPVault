@@ -1,7 +1,9 @@
+<h3>Install: compose up, done</h3>
+<p>Deploy the example compose stack and start it - that's the whole install. No folders to pre-create, no files to seed. On first boot IdPVault generates its master encryption key inside the secrets volume, fixes volume ownership itself, then drops to a non-root user (uid 10001) to run. Named volumes are the default; prefer host bind mounts? Swap the volume names for host paths in the stack - nothing else changes.</p>
 <h3>Architecture</h3>
-<p>Two containers: the IdPVault app (runs as a non-root user) and a Postgres database. Persistent data lives in three volumes: <code>/data</code> (encrypted snapshots), <code>/secrets</code> (the master encryption key), and the Postgres volume.</p>
+<p>Two containers: the IdPVault app (runs as a non-root user) and a Postgres database. Persistent data lives in three volumes: <code>/data</code> (encrypted snapshots), <code>/secrets</code> (the master encryption key), and the Postgres volume. The database is only reachable inside the stack's private network; setting a unique <code>POSTGRES_PASSWORD</code> in the stack environment is recommended.</p>
 <h3>The master key</h3>
-<p>The master key is the root of all envelope encryption: tenant credentials, snapshots, and the SMTP password are all encrypted under keys wrapped by it. <b>Back it up.</b> If the key is lost, existing snapshots are unrecoverable by design (there is no escrow and no phone-home). Never regenerate it while encrypted data exists.</p>
+<p>The master key is the root of all envelope encryption: tenant credentials, snapshots, and the SMTP password are all encrypted under keys wrapped by it. <b>Back it up right after first boot:</b> <code>docker cp idpvault:/secrets/master.key ./master.key.backup</code> - store it somewhere safe and separate from the host. If the key is lost, existing snapshots are unrecoverable by design (there is no escrow and no phone-home). IdPVault protects you from the two dangerous states: if the key file is missing but data exists, the container refuses to start rather than generate a fresh key; if a wrong key is mounted against an existing database, the app refuses to boot.</p>
 <h3>Reverse proxy &amp; HTTPS</h3>
 <ol>
 <li>Put IdPVault behind your reverse proxy with a real hostname and TLS.</li>
