@@ -1,18 +1,18 @@
 <h3>How restore works</h3>
 <p>Restore compares a snapshot against the <b>live</b> tenant and builds a plan: each object is <i>create</i> (missing live), <i>update</i> (differs), or <i>identical</i>. You always run a read-only <b>preview</b> first; nothing is written until you click Apply and confirm.</p>
 <ul>
-<li><b>Pick and choose</b> — every actionable row has a checkbox; restore all changes or just the ones you select.</li>
-<li><b>Additive by design</b> — restore creates and updates objects; it never deletes anything from the live tenant.</li>
-<li><b>Smart matching</b> — objects are matched by internal id first (so renames are updates), then by natural key (slug/name/label), so an object that was deleted and recreated is recognized instead of duplicated. References follow: a restored policy binding points at the recreated app's new id automatically.</li>
-<li><b>Converges</b> — run the same restore twice and the second pass reports "identical, nothing to do".</li>
+<li><b>Pick and choose</b> - every actionable row has a checkbox; restore all changes or just the ones you select.</li>
+<li><b>Additive by design</b> - restore creates and updates objects; it never deletes anything from the live tenant.</li>
+<li><b>Smart matching</b> - objects are matched by internal id first (so renames are updates), then by natural key (slug/name/label), so an object that was deleted and recreated is recognized instead of duplicated. References follow: a restored policy binding points at the recreated app's new id automatically.</li>
+<li><b>Converges</b> - run the same restore twice and the second pass reports "identical, nothing to do".</li>
 </ul>
 <h3>Per-provider coverage</h3>
 <table><tr><th>Provider</th><th>Restorable</th><th>Not auto-restored (visible in plan)</th></tr>
 <tr><td>Authentik</td><td>Applications, providers, flows, stages, policies, bindings, groups, mappings, certificates, brands</td><td>Blueprints, managed objects (Authentik-owned)</td></tr>
 <tr><td>Okta</td><td><b>Apps</b>, groups, network zones, all policy types, identity providers, event/inline hooks</td><td>Authorization servers, schemas (user/app), profile mappings (auto-regenerated with the app)</td></tr>
 <tr><td>Auth0</td><td>Clients, connections, resource servers, roles, rules</td><td>Tenant settings, branding, custom domains, actions</td></tr></table>
-<p>Objects that can't be auto-restored still show in the plan when they differ — marked <i>unsupported</i> — so a deletion is never invisible.</p>
+<p>Objects that can't be auto-restored still show in the plan when they differ, marked <i>unsupported</i>, so a deletion is never invisible.</p>
 <h3>Credentials on recreated apps</h3>
 <p>IdPs never export secret material, so a recreated app comes back with a <b>new</b> client secret / signing certificate. The report marks these <code>created_new_credentials</code>: update the integration on the far end.</p>
 <h3>Clone / promote</h3>
-<p>The "Restore into" selector can target a different tenant of the same provider — restoring a snapshot into another tenant to clone or promote configuration between environments.</p>
+<p>The "Restore into" selector can target a different tenant of the same provider, restoring a snapshot into another tenant to clone or promote configuration between environments.</p>

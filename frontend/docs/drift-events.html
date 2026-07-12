@@ -1,8 +1,8 @@
 <h3>How drift detection works</h3>
-<p>Every backup is compared to the previous snapshot, object by object. Runtime noise (timestamps, internal ids, server-managed fields) is excluded, so a detected change means <b>real configuration changed</b> — not API churn.</p>
+<p>Every backup is compared to the previous snapshot, object by object. Runtime noise (timestamps, internal ids, server-managed fields) is excluded, so a detected change means <b>real configuration changed</b>, not API churn.</p>
 <h3>Events</h3>
-<p>Each detected change becomes an event: add, update, or delete, with the object type, its name, and (for updates) which fields changed. The Events page is the change history of your IdP — filterable per tenant and change type. Events appear from the second backup onward, because a diff needs two snapshots.</p>
+<p>Each detected change becomes an event: add, update, or delete, with the object type, its name, and (for updates) which fields changed. The Events page is the change history of your IdP, filterable per tenant and change type. Events appear from the second backup onward, because a diff needs two snapshots.</p>
 <h3>Unbacked changes</h3>
-<p>Between backups, IdPVault polls each provider's own event log to count configuration changes that have happened since your last snapshot — that's the <b>Unbacked changes</b> card on the dashboard. It's a count (the detail comes from the next backup's diff), and it's your cue to run a backup if something unexpected is moving.</p>
+<p>Between backups, IdPVault polls each provider's own event log to count configuration changes that have happened since your last snapshot; that's the <b>Unbacked changes</b> card on the dashboard. It's a count (the detail comes from the next backup's diff), and it's your cue to run a backup if something unexpected is moving.</p>
 <h3>Why this matters</h3>
-<p>The drift lane is your unauthorized-change detector: if an admin (or an attacker) modifies a policy, removes an app, or weakens MFA rules, the next backup catches it, the event records it, and the alert tells you — with the change list in the message.</p>
+<p>The drift lane is your unauthorized-change detector: if an admin (or an attacker) modifies a policy, removes an app, or weakens MFA rules, the next backup catches it, the event records it, and the alert tells you, with the change list in the message.</p>

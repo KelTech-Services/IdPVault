@@ -6,10 +6,10 @@
 <ul>
 <li>Passwords are hashed with <b>scrypt</b>; sessions are server-side (revocable), with Secure/HttpOnly cookies behind HTTPS.</li>
 <li>Every user can enable <b>TOTP two-factor</b> from their profile (QR enrollment); MFA is enforced at sign-in.</li>
-<li>Admins can reset a user's password or <b>reset MFA</b> (lost authenticator) — resets also revoke trusted devices.</li>
+<li>Admins can reset a user's password or <b>reset MFA</b> (lost authenticator); resets also revoke trusted devices.</li>
 <li>Optional trusted-device window: after a successful code, skip the MFA prompt on that browser for N days (0 = always prompt, the default).</li>
 </ul>
 <h3>Brute-force protection</h3>
-<p>Failed logins lock the account after a configurable number of attempts (default 5) for a configurable duration (default 15 minutes) — tracked per account and audit-logged.</p>
+<p>Failed logins lock the account after a configurable number of attempts (default 5) for a configurable duration (default 15 minutes), tracked per account and audit-logged.</p>
 <h3>Audit log</h3>
-<p>Every mutating action — logins, tenant changes, restores, settings, license and user changes — is recorded with actor and detail in the Audit page.</p>
+<p>Every mutating action (logins, tenant changes, restores, settings, license and user changes) is recorded with actor and detail in the Audit page.</p>

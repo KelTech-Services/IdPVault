@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.4] - 2026-07-12
+### Changed
+- Docs and UI copy style pass: em-dashes removed from all user-facing text
+  (9 in-app doc pages, headings, tooltips, placeholders, toasts, empty-cell
+  markers); licensing table "not included" cell now says so explicitly.
+- Events table column header now reads "Snapshot (UTC)".
+
 ## [0.8.3] — 2026-07-12
 ### Added
 - Smoke-test suite (22 tests: crypto envelope + tamper rejection, license

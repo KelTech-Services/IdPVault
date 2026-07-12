@@ -152,7 +152,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
   </div>
   <div class="logincard hidden" id="setupcard">
     <img src="/IdPVault_light_logo.png" alt="IdPVault">
-    <h3>Welcome — create the admin account</h3>
+    <h3>Welcome - create the admin account</h3>
     <div><span class="lbl">Admin username</span><input id="su_user" autocomplete="username"></div>
     <div><span class="lbl">Password (min 8 chars)</span><input id="su_pass" type="password" autocomplete="new-password"></div>
     <div><span class="lbl">Confirm password</span><input id="su_pass2" type="password" autocomplete="new-password"></div>
@@ -161,7 +161,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
   </div>
   <div class="logincard hidden" id="invitecard">
     <img src="/IdPVault_light_logo.png" alt="IdPVault">
-    <h3>Welcome — set your password</h3>
+    <h3>Welcome - set your password</h3>
     <div><span class="lbl">New password (min 8 chars)</span><input id="i_pass" type="password" autocomplete="new-password"></div>
     <div><span class="lbl">Confirm password</span><input id="i_pass2" type="password" autocomplete="new-password"></div>
     <button class="primary" onclick="acceptInvite()">Set password</button>
@@ -206,12 +206,12 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
         <div><label>Name</label><input id="f_name" placeholder="KelTech Authentik"></div>
         <div><label>Slug</label><input id="f_slug" placeholder="keltech-authentik"></div>
         <div><label>Base URL</label><input id="f_url" placeholder="https://auth.example.com"></div>
-        <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token — encrypted at rest"></div>
+        <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
         <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
         <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
-        <div><label>Schedule (cron, UTC — optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
+        <div><label>Schedule (cron, UTC - optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
-        <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional — self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik — leave blank to skip"></div>
+        <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
         <div id="fd_ident"><label>Identity backup (users & assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
         <div id="fd_identcron"><label>Identity schedule (cron, UTC)</label><input id="f_identcron" placeholder="0 6 * * *"></div>
         <div id="fd_identkeep"><label>Identity retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
@@ -226,14 +226,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     </table>
   </section>
   <section class="panel hidden" id="snappanel">
-    <h2>Snapshots — <span id="snaptenant"></span><span class="spacer"></span>
+    <h2>Snapshots - <span id="snaptenant"></span><span class="spacer"></span>
       <button id="diffbtn" disabled onclick="runDiff()">Diff selected (pick 2)</button>
       <button onclick="hideSnaps()">Close</button></h2>
     <table><thead><tr><th style="width:30px"></th><th>Timestamp (UTC)</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="idpanel">
-    <h2>Identity — <span id="id_slug"></span><span class="spacer"></span>
+    <h2>Identity - <span id="id_slug"></span><span class="spacer"></span>
       <button class="mutating" onclick="identityBackupNow()">Back up identities now</button>
       <button onclick="document.getElementById('idpanel').classList.add('hidden')">Close</button></h2>
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
@@ -242,7 +242,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div id="id_preview" style="margin-top:12px"></div>
   </section>
   <section class="panel hidden" id="browsepanel">
-    <h2>Browse — <span id="b_label"></span><span class="spacer"></span>
+    <h2>Browse - <span id="b_label"></span><span class="spacer"></span>
       <input id="b_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._bs); window._bs=setTimeout(browseObjects, 300)">
       <button onclick="document.getElementById('browsepanel').classList.add('hidden')">Close</button></h2>
     <div class="chk" id="b_types"></div>
@@ -262,14 +262,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <select id="ev_type" onchange="loadEvents()" style="width:auto"><option value="">All changes</option><option value="add">Added</option><option value="update">Updated</option><option value="delete">Deleted</option></select>
     </h2>
     <table>
-      <thead><tr><th>When</th><th>Change</th><th>Type</th><th>Object</th><th>Snapshot</th></tr></thead>
+      <thead><tr><th>When</th><th>Change</th><th>Type</th><th>Object</th><th>Snapshot (UTC)</th></tr></thead>
       <tbody id="eventbody"><tr><td colspan="5" class="muted">Select a tenant…</td></tr></tbody>
     </table>
   </section>
 </main>
 <div id="profilemodal" class="modal hidden">
   <div class="box" style="width:520px">
-    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:6px">Your profile — <span id="pf_user"></span></h2>
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:6px">Your profile - <span id="pf_user"></span></h2>
     <h3 style="font-size:.9rem;margin:12px 0 8px">Account</h3>
     <div class="formgrid" style="grid-template-columns:1fr auto;align-items:end">
       <div><label>Email (used for password resets)</label><input id="pf_email" type="email" placeholder="you@example.com"></div>
@@ -288,11 +288,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 </div>
 <div id="restoremodal" class="modal hidden">
   <div class="box">
-    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore — <span id="r_tenant"></span></h2>
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore - <span id="r_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="r_snap"></span>. Preview is read-only. Apply writes changed objects back to the live tenant.</p>
     <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
       <select id="r_target" style="width:auto;margin-left:8px"></select>
-      <span class="muted" style="font-size:.76rem">— default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
+      <span class="muted" style="font-size:.76rem">- default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
     <div style="margin:10px 0"><button class="primary" onclick="restorePreview()">Run preview (dry-run)</button>
       <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
       <button onclick="closeRestore()">Close</button></div>
@@ -342,13 +342,13 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <h2>License</h2>
     <div id="lic_status" class="muted" style="font-size:.85rem;margin-bottom:14px">Loading…</div>
     <div class="formgrid">
-      <div style="grid-column:span 2"><label>License key</label><input id="lic_key" type="password" placeholder="paste your license key — issued when you purchase at idpvault.com"></div>
+      <div style="grid-column:span 2"><label>License key</label><input id="lic_key" type="password" placeholder="paste your license key - issued when you purchase at idpvault.com"></div>
     </div>
     <button class="primary" onclick="installLicense()">Install license</button>
     <button id="lic_clear" class="hidden" onclick="clearLicense()">Remove license</button>
   </section>
   <section class="panel">
-    <h2>Core — security &amp; operations</h2>
+    <h2>Core - security &amp; operations</h2>
     <div class="formgrid">
       <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
       <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
@@ -357,14 +357,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
-      <div style="grid-column:span 2"><label>Public URL (canonical — used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
+      <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
       <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
     </div>
-    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works — otherwise you can lock yourself out.</p>
+    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works - otherwise you can lock yourself out.</p>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
   <section class="panel">
-    <h2>SMTP — optional · invites &amp; email alerts</h2>
+    <h2>SMTP - optional · invites &amp; email alerts</h2>
     <div class="formgrid">
       <div><label>Host</label><input id="s_host" placeholder="smtp.example.com"></div>
       <div><label>Port</label><input id="s_port" type="number" value="587"></div>
@@ -380,7 +380,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     </span>
   </section>
   <section class="panel">
-    <h2>Alerts — optional</h2>
+    <h2>Alerts - optional</h2>
     <p class="muted" style="font-size:.82rem;margin:-6px 0 14px">Alerts fire automatically on <b>configuration drift detected</b> and <b>backup failures</b>. They post to this webhook (Slack, Mattermost, Discord, or ntfy) and, if SMTP is configured, also email all admins.</p>
     <div class="formgrid">
       <div style="grid-column:span 2"><label>Alert webhook URL</label><input id="s_webhook" placeholder="https://mattermost.example.com/hooks/… or https://ntfy.example.com/idpvault"></div>
@@ -464,7 +464,7 @@ async function resetUserPw(id, name){
   }catch(e){ toast(e.message, true); }
 }
 async function resetUserMfa(id, name){
-  if(!confirm(`Reset MFA for "${name}"? Their two-factor is removed and trusted devices are revoked — they can set it up again from their profile.`)) return;
+  if(!confirm(`Reset MFA for "${name}"? Their two-factor is removed and trusted devices are revoked - they can set it up again from their profile.`)) return;
   try{ await api(`/users/${id}/reset-mfa`, {method:'POST'}); toast(`MFA reset for ${name}.`); loadUsers(); }
   catch(e){ toast(e.message, true); }
 }
@@ -521,7 +521,7 @@ async function mfaSetup(){
 }
 async function mfaEnable(){
   try{ await api('/auth/mfa/enable', {method:'POST', body: JSON.stringify({code:v('mfa_code')})});
-    me.mfa_enabled = true; toast('MFA enabled — you\'ll be asked for a code at next sign-in.'); renderMfa();
+    me.mfa_enabled = true; toast('MFA enabled - you\'ll be asked for a code at next sign-in.'); renderMfa();
   }catch(e){ toast(e.message, true); }
 }
 async function mfaDisable(){
@@ -572,7 +572,7 @@ async function acceptInvite(){
     const r = await api('/auth/accept-invite', {method:'POST', body: JSON.stringify({token: tok, password: v('i_pass')})});
     location.hash = ''; showLogin();
     document.getElementById('l_user').value = r.username;
-    toast('Password set — sign in to continue.');
+    toast('Password set - sign in to continue.');
   } catch(e){ document.getElementById('i_err').textContent = e.message; }
 }
 async function doLogout(){ try{ await api('/auth/logout', {method:'POST'}); }catch{} location.reload(); }
@@ -627,8 +627,8 @@ async function health(){
 
 /* ---------- tenants ---------- */
 function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
-const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit — backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
-const LIC_TIP_IDENTITY = 'Identity backup &amp; restore requires a paid license — add one in Settings &gt; License';
+const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
+const LIC_TIP_IDENTITY = 'Identity backup &amp; restore requires a paid license - add one in Settings &gt; License';
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   const isAdmin = me.role === 'admin';
@@ -639,7 +639,7 @@ async function loadTenants(){
     const atLimit = _license && _license.max_tenants != null && ts.length >= _license.max_tenants;
     const addBtn = document.getElementById('addtenantbtn');
     if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
-      addBtn.title = atLimit ? 'Tenant limit reached for your license — upgrade in Settings > License' : ''; }
+      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Settings > License' : ''; }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
     const identOk = !_license || (_license.features||[]).includes('identity');
     tb.innerHTML = ts.map(t => {
@@ -651,7 +651,7 @@ async function loadTenants(){
       <td>${esc(t.name)}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
-      <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '—'}</td>
+      <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '-'}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${isAdmin ? `
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
@@ -665,7 +665,7 @@ function editTenant(id){
   const t = _tenants.find(x=>x.id===id); if(!t) return;
   editingId = id;
   document.getElementById('addform').classList.remove('hidden');
-  document.getElementById('formtitle').textContent = `Editing "${t.name}" — slug and provider are fixed; leave token blank to keep the current one.`;
+  document.getElementById('formtitle').textContent = `Editing "${t.name}" - slug and provider are fixed; leave token blank to keep the current one.`;
   document.getElementById('f_name').value = t.name;
   document.getElementById('f_slug').value = t.slug;
   document.getElementById('f_provider').value = t.provider;
@@ -682,7 +682,7 @@ function editTenant(id){
   document.getElementById('f_ident').value = t.identity_enabled ? 'true' : 'false';
   document.getElementById('f_identcron').value = t.identity_schedule_cron || '';
   document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
-  document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured — blank keeps it, a space clears it' : 'postgresql://… — optional, self-hosted only';
+  document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured - blank keeps it, a space clears it' : 'postgresql://… - optional, self-hosted only';
   document.getElementById('f_slug').disabled = true;
   document.getElementById('f_provider').disabled = true;
   document.getElementById('f_delete').classList.remove('hidden');
@@ -695,14 +695,14 @@ function onProviderChange(){
   show('fd_dburl', p==='authentik');
   show('fd_ident', hasIdentity); show('fd_identcron', hasIdentity); show('fd_identkeep', hasIdentity);
   document.getElementById('f_url').placeholder = isAuth0 ? 'https://your-tenant.us.auth0.com' : p==='okta' ? 'https://your-org.okta.com' : 'https://auth.example.com';
-  if(!editingId) document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token — encrypted at rest' : 'paste token — encrypted at rest';
+  if(!editingId) document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token - encrypted at rest' : 'paste token - encrypted at rest';
 }
 function resetForm(){
   editingId = null;
   document.getElementById('formtitle').textContent = '';
   document.getElementById('f_slug').disabled = false;
   document.getElementById('f_provider').disabled = false;
-  document.getElementById('f_token').placeholder = 'paste token — encrypted at rest';
+  document.getElementById('f_token').placeholder = 'paste token - encrypted at rest';
   ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_cron','f_dburl','f_identcron'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_provider').value='authentik';
   document.getElementById('f_ident').value='false';
@@ -741,7 +741,7 @@ async function saveTenant(){
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and credentials are required', true);
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
-    toast(`Tenant "${body.name}" created — credentials encrypted and stored.`);
+    toast(`Tenant "${body.name}" created - credentials encrypted and stored.`);
     toggleAdd(); loadTenants();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
@@ -750,7 +750,7 @@ async function backupNow(id, btn){
   try {
     const r = await api(`/tenants/${id}/backup`, {method:'POST'});
     const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
-    toast(`Snapshot ${r.manifest.timestamp} complete — ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
+    toast(`Snapshot ${r.manifest.timestamp} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
     if(snapTenantId === id) showSnaps(id, document.getElementById('snaptenant').textContent);
     loadDashboard();
   } catch(e){ toast('Backup failed: '+e.message, true); }
@@ -774,7 +774,7 @@ async function showSnaps(id, slug){
   sb.innerHTML = skelRows(3);
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
-    if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet — run a backup to create one.'); return; }
+    if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
     const admin = me.role==='admin';
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
@@ -801,7 +801,7 @@ async function runDiff(){
     Object.values(d).forEach(x=>{ add+=x.added.length; rem+=x.removed.length; chg+=x.changed.length; });
     document.getElementById('diffstat').innerHTML = Object.keys(d).length
       ? `<span class="add">+${add} added</span><span class="rem">−${rem} removed</span><span class="chg">~${chg} changed</span>`
-      : '<span class="muted">No differences — configs identical.</span>';
+      : '<span class="muted">No differences - configs identical.</span>';
     document.getElementById('diffout').textContent = Object.keys(d).length ? JSON.stringify(d, null, 2) : '';
   } catch(e){ document.getElementById('diffout').textContent = 'Diff failed: '+e.message; }
 }
@@ -816,14 +816,14 @@ async function loadUsers(){
     const atUserCap = _license && _license.max_users != null && us.length >= _license.max_users;
     const ab = document.getElementById('adduserbtn');
     if(ab){ ab.disabled = !!atUserCap;
-      ab.title = atUserCap ? 'User limit reached for your license — the free Community tier includes a single admin account. Add a license in Settings > License' : '';
+      ab.title = atUserCap ? 'User limit reached for your license - the free Community tier includes a single admin account. Add a license in Settings > License' : '';
       if(atUserCap) document.getElementById('userform').classList.add('hidden'); }
     ub.innerHTML = us.map(u => `<tr>
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
-      <td class="muted">${esc(u.email||'—')}</td>
+      <td class="muted">${esc(u.email||'-')}</td>
       <td><span class="tag ${u.role}">${u.role}</span></td>
       <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}</td>
-      <td style="white-space:nowrap">${u.username===me.username ? '<span class="muted">—</span>' : `
+      <td style="white-space:nowrap">${u.username===me.username ? '<span class="muted">-</span>' : `
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
         <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
@@ -870,19 +870,19 @@ async function loadLicense(){
   const l = _license;
   document.getElementById('lic_clear').classList.toggle('hidden', !(l.valid || l.invalid_present));
   if(!l.valid){
-    const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired — paid features are paused.</span><br>' : '';
-    box.innerHTML = bad + `<b>Community tier</b> (free) — ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. `
+    const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired - paid features are paused.</span><br>' : '';
+    box.innerHTML = bad + `<b>Community tier</b> (free) - ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. `
       + `A paid license unlocks more tenants, more users, and identity backup &amp; restore.`;
     return;
   }
   const expDate = l.expires ? new Date(l.expires*1000).toISOString().slice(0,10) : 'never';
   const daysToExp = l.expires ? Math.max(0, Math.floor((l.expires*1000 - Date.now())/86400000)) : null;
   const grace = l.status==='grace'
-    ? ` <span class="st-failed">— EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
-  box.innerHTML = `<b>${esc(l.tier)}</b> license — ${esc(l.customer||'')} · expires <b>${expDate}</b>`
+    ? ` <span class="st-failed">- EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
+  box.innerHTML = `<b>${esc(l.tier)}</b> license - ${esc(l.customer||'')} · expires <b>${expDate}</b>`
     + (daysToExp!=null && l.status==='active' ? ` <span class="muted">(${daysToExp} days from now)</span>` : '') + grace
-    + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Users: ${l.user_count} / ${l.max_users==null?'unlimited':l.max_users} · Features: ${esc((l.features||[]).join(', ')||'—')}`
-    + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry — the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
+    + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Users: ${l.user_count} / ${l.max_users==null?'unlimited':l.max_users} · Features: ${esc((l.features||[]).join(', ')||'-')}`
+    + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry - the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
 }
 async function installLicense(){
   const key = v('lic_key');
@@ -890,15 +890,15 @@ async function installLicense(){
   try {
     await api('/license', {method:'PUT', body: JSON.stringify({token:key})});
     document.getElementById('lic_key').value = '';
-    toast('License installed — paid features unlocked.');
+    toast('License installed - paid features unlocked.');
     _license = null; loadLicense(); loadTenants();
   } catch(e){ toast('Install failed: ' + e.message, true); }
 }
 async function clearLicense(){
-  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no identity backup). Nothing is deleted — paid actions pause until a license is installed again.')) return;
+  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no identity backup). Nothing is deleted - paid actions pause until a license is installed again.')) return;
   try {
     await api('/license', {method:'DELETE'});
-    toast('License removed — running in Community tier.');
+    toast('License removed - running in Community tier.');
     _license = null; loadLicense(); loadTenants();
   } catch(e){ toast('Remove failed: ' + e.message, true); }
 }
@@ -991,7 +991,7 @@ async function testAlert(btn){
 }
 async function testEmail(){
   if(!v('s_testto')) return toast('Enter a recipient address first', true);
-  try { await api('/settings/test-email', {method:'POST', body: JSON.stringify({to: v('s_testto')})}); toast('Test email sent — check the inbox.'); }
+  try { await api('/settings/test-email', {method:'POST', body: JSON.stringify({to: v('s_testto')})}); toast('Test email sent - check the inbox.'); }
   catch(e){ toast(e.message, true); }
 }
 
@@ -1006,7 +1006,7 @@ async function loadDashboard(){
     const covClass = cov.total===0?'':pct===100?'good':pct>=50?'warn':'bad';
     const unbacked = d.tenants.reduce((a,t)=> a + (t.unbacked_changes||0), 0);
     el.innerHTML = `
-      <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '—'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
+      <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '-'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
       <div class="card"><div class="lbl2">Tenants</div><div class="big">${d.tenants.length}</div><div class="sub">${d.tenants.map(t=>t.provider).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||'none'}</div></div>
       <div class="card ${unbacked>0?'warn':''}"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">across tenants since last backup</div></div>
       <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
@@ -1028,12 +1028,12 @@ async function loadEvents(){
   tb.innerHTML=skelRows(5);
   try {
     const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}`);
-    if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, 'No change events yet — these appear from the second backup onward.'); return; }
+    if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, 'No change events yet - these appear from the second backup onward.'); return; }
     tb.innerHTML = d.events.map(e=>`<tr>
       <td class="muted">${new Date(e.at).toLocaleString()}</td>
       <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>
       <td>${esc(e.resource_type)}</td>
-      <td>${esc(e.object_name||e.object_id||'—')}${e.detail&&e.detail.fields&&e.detail.fields.length?` <span class="muted">(${e.detail.fields.slice(0,6).join(', ')})</span>`:''}</td>
+      <td>${esc(e.object_name||e.object_id||'-')}${e.detail&&e.detail.fields&&e.detail.fields.length?` <span class="muted">(${e.detail.fields.slice(0,6).join(', ')})</span>`:''}</td>
       <td class="muted">${fmtTs(e.snapshot_ts)}</td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -1060,9 +1060,9 @@ function renderRestore(res){
   const isDry = s.mode==='dry_run';
   const acts = s.actions||{}, sts = s.statuses||{};
   document.getElementById('r_summary').innerHTML =
-    `<b>${isDry?'Preview':'Applied'}:</b> ${s.total} objects — ` +
+    `<b>${isDry?'Preview':'Applied'}:</b> ${s.total} objects - ` +
     Object.entries(acts).map(([k,v])=>`<span class="act-${k}">${v} ${k}</span>`).join(' · ') +
-    (s.mode==='apply' ? ' — ' + Object.entries(sts).map(([k,v])=>`<span class="st-${k}">${v} ${k}</span>`).join(' · ') : '');
+    (s.mode==='apply' ? ' - ' + Object.entries(sts).map(([k,v])=>`<span class="st-${k}">${v} ${k}</span>`).join(' · ') : '');
   const hasActionable = res.items.some(it=>(it.action==='create'||it.action==='update') && it.restorable!==false);
   const selbar = (isDry && hasActionable)
     ? `<div style="margin:8px 0 4px"><button onclick="setAllRestore(true)">Select all</button> <button onclick="setAllRestore(false)">Unselect all</button></div>` : '';
@@ -1074,7 +1074,7 @@ function renderRestore(res){
       return `<div class="restore-item">
       <div>${box}</div>
       <div class="act-${it.action}">${it.action}</div>
-      <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'—')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
+      <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
       <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`;
     }).join('');
 }
@@ -1114,7 +1114,7 @@ async function restoreApply(){
     }
     const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
-    toast('Restore applied — see the report below.');
+    toast('Restore applied - see the report below.');
     document.getElementById('r_applybtn').classList.add('hidden');
   } catch(e){ document.getElementById('r_summary').textContent = 'Apply failed: '+e.message; }
   document.getElementById('r_applybtn').disabled = false;
@@ -1160,7 +1160,7 @@ async function browseObjects(){
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects?resource_type=${encodeURIComponent(_browse.type)}${q?'&q='+encodeURIComponent(q):''}`);
     if(!d.objects.length){ tb.innerHTML=emptyRow(3, EI.search, 'No matching objects.'); return; }
     tb.innerHTML = d.objects.map(o=>`<tr>
-      <td>${esc(o.object_name||'—')}</td><td class="muted">${esc(o.object_id)}</td>
+      <td>${esc(o.object_name||'-')}</td><td class="muted">${esc(o.object_id)}</td>
       <td><button onclick="viewObject('${esc(o.object_id)}')">View</button></td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="3" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -1199,21 +1199,21 @@ async function loadIdentitySnaps(){
   tb.innerHTML = skelRows(7);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No identity snapshots yet — enable identity backup on the tenant (Edit) and run one.'); return; }
+    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No identity snapshots yet - enable identity backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
       const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
         ? `<tr><td>${fmtTs(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'—'}</td><td class="muted">${r.api_calls||'—'}</td><td><button onclick="identityPreview('${r.ts}')">Restore preview</button></td></tr>`;
+        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="identityPreview('${r.ts}')">Restore preview</button></td></tr>`;
     }).join('');
   }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function identityBackupNow(){
-  document.getElementById('id_estimate').textContent = 'Backing up identities… (throttled to respect Okta API limits — may take a while on large orgs)';
+  document.getElementById('id_estimate').textContent = 'Backing up identities… (throttled to respect Okta API limits - may take a while on large orgs)';
   try{
     const r = await api(`/tenants/${_idCtx.tenantId}/identity/backup`, {method:'POST'});
-    toast(`Identity backup done — ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
+    toast(`Identity backup done - ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
     loadIdentityEstimate(); loadIdentitySnaps();
   }catch(e){ toast('Identity backup failed: '+e.message, true); loadIdentityEstimate(); }
 }
@@ -1224,17 +1224,17 @@ async function identityPreview(ts){
     const p = await api(`/tenants/${_idCtx.tenantId}/identity/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:ts})});
     const u = p.summary.users;
     box.innerHTML = `<div class="panel" style="background:var(--panel2)">
-      <b>Restore preview — ${ts}</b> <span class="muted">(read-only dry-run; writing is a separate step)</span>
+      <b>Restore preview - ${ts}</b> <span class="muted">(read-only dry-run; writing is a separate step)</span>
       <div class="diffstat" style="margin-top:8px">
         <span class="ev-add">${u.recreate} users recreate</span>
         <span class="ev-update">${u.update} update</span>
         <span class="muted">${u.identical} identical</span></div>
-      ${u.update>0?`<div class="muted" style="font-size:.8rem;margin-top:4px">Note: ${u.update} existing user(s) differ from this snapshot, but identity restore is <b>create-only</b> — it recreates deleted users and does not modify existing ones.</div>`:''}
+      ${u.update>0?`<div class="muted" style="font-size:.8rem;margin-top:4px">Note: ${u.update} existing user(s) differ from this snapshot, but identity restore is <b>create-only</b> - it recreates deleted users and does not modify existing ones.</div>`:''}
       <div style="font-size:.85rem">+${p.summary.group_memberships_to_add} group memberships · +${p.summary.app_group_assignments_to_add} group→app · +${p.summary.app_user_assignments_direct_to_add} direct user→app</div>
       ${p.manual_steps.length?`<div style="margin-top:8px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
       <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>
       ${_renderRecreateList(p)}
-      <div style="margin-top:10px">${_idApplyable(p)?`<button class="danger" onclick="identityApply('${ts}')">Apply identity restore</button> <span class="muted" style="font-size:.78rem">writes to the live tenant</span>`:'<span class="muted" style="font-size:.82rem">Nothing to apply — live already matches this snapshot.</span>'}</div></div>`;
+      <div style="margin-top:10px">${_idApplyable(p)?`<button class="danger" onclick="identityApply('${ts}')">Apply identity restore</button> <span class="muted" style="font-size:.78rem">writes to the live tenant</span>`:'<span class="muted" style="font-size:.82rem">Nothing to apply - live already matches this snapshot.</span>'}</div></div>`;
   }catch(e){ box.innerHTML=`<span class="muted">Preview failed: ${esc(e.message)}</span>`; }
 }
 
@@ -1245,10 +1245,10 @@ function _renderRecreateList(p){
   const list = p.recreate_users || [];
   if(!list.length) return '';
   if(list.length > RECREATE_SELECT_MAX || p.recreate_truncated){
-    return `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem"><b>${list.length}${p.recreate_truncated?'+':''} users to recreate</b> — too many to select individually; Apply restores all</summary></details>`;
+    return `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem"><b>${list.length}${p.recreate_truncated?'+':''} users to recreate</b> - too many to select individually; Apply restores all</summary></details>`;
   }
   return `<details style="margin-top:10px" open>
-    <summary style="cursor:pointer;font-size:.85rem"><b>${list.length} user(s) to recreate</b> — pick which to restore</summary>
+    <summary style="cursor:pointer;font-size:.85rem"><b>${list.length} user(s) to recreate</b> - pick which to restore</summary>
     <div style="margin:6px 0"><button onclick="_selAll(true)">Select all</button> <button onclick="_selAll(false)">Unselect all</button></div>
     <div class="ulist" id="id_recreate_list">
       ${list.map(u=>`<label><input type="checkbox" value="${esc(u.key)}" checked><span class="nm">${esc(u.label||u.key)}</span>${u.email?`<span class="em">${esc(u.email)}</span>`:''}</label>`).join('')}
@@ -1269,7 +1269,7 @@ async function identityApply(ts){
     if(selection.length===0 && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
   }
   const n = selection ? selection.length : 'all missing';
-  if(!confirm(`APPLY identity restore? This WRITES to the live tenant — recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
+  if(!confirm(`APPLY identity restore? This WRITES to the live tenant - recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
   const box = document.getElementById('id_preview');
   box.innerHTML = '<span class="muted">Applying identity restore… (throttled; may take a while)</span>';
   try{
@@ -1278,13 +1278,13 @@ async function identityApply(ts){
     const rep = r.summary;
     const line = (cat) => { const c=rep[cat]||{}; return `${cat.replace(/_/g,' ')}: ${c.created!=null?c.created+' created, ':''}${c.added!=null?c.added+' added, ':''}${c.existing!=null?c.existing+' existing, ':''}${c.skipped!=null?c.skipped+' skipped, ':''}${c.failed?('<span class=\'st-failed\'>'+c.failed+' failed</span>'):'0 failed'}`; };
     box.innerHTML = `<div class="panel" style="background:var(--panel2)">
-      <b>Restore applied — ${ts}</b>
+      <b>Restore applied - ${ts}</b>
       <div style="font-size:.85rem;margin-top:8px;line-height:1.7">
         ${['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(line).join('<br>')}
       </div>
       ${r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
     </div>`;
-    toast('Identity restore applied — see report + manual steps.');
+    toast('Identity restore applied - see report + manual steps.');
     loadIdentitySnaps();
   }catch(e){ box.innerHTML = `<span class="muted">Apply failed: ${esc(e.message)}</span>`; }
 }
