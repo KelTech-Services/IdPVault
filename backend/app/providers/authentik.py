@@ -85,6 +85,20 @@ class AuthentikAdapter(ProviderAdapter):
                        "assigned_application_name", "assigned_backchannel_application_slug",
                        "assigned_backchannel_application_name", "outpost_set", "url_download_metadata"}
 
+    # Fallback write paths by RESOURCE TYPE — the non-polymorphic endpoints
+    # (core/applications, policies/bindings, …) don't include meta_model_name
+    # in their objects, so path resolution by model name alone fails for them.
+    _RTYPE_PATHS = {
+        "applications": "core/applications/",
+        "groups": "core/groups/",
+        "flows": "flows/instances/",
+        "flow_stage_bindings": "flows/bindings/",
+        "policy_bindings": "policies/bindings/",
+        "brands": "core/brands/",
+        "certificates": "crypto/certificatekeypairs/",
+        "outposts": "outposts/instances/",
+    }
+
     _EXACT_PATHS = {
         "authentik_core.application": "core/applications/",
         "authentik_core.group": "core/groups/",
@@ -114,24 +128,47 @@ class AuthentikAdapter(ProviderAdapter):
                 return seg + app.removeprefix(prefix).replace("_", "/") + "/"
         return None
 
+    def _send(self, c, method: str, path: str, payload: dict):
+        """Write with self-heal: on 400, drop the exact fields Authentik's error
+        body names (DRF returns {"field": ["problem"]}) and retry — bounded."""
+        payload = dict(payload)
+        r = None
+        for _ in range(6):
+            r = c.request(method, path, json=payload)
+            if r.status_code != 400:
+                return r
+            try:
+                err = r.json()
+            except Exception:
+                return r
+            bad = [k for k in err.keys() if k in payload] if isinstance(err, dict) else []
+            if not bad:
+                return r
+            for k in bad:
+                payload.pop(k, None)
+        return r
+
     def push_object(self, resource_type: str, obj: dict, live: dict | None = None) -> tuple[str, str]:
-        """Create-or-update one object from a snapshot. Returns (action, live_pk)."""
+        """Create-or-update one object from a snapshot. Returns (action, live_pk).
+        Updates use PATCH (partial) so unchanged-but-strictly-validated fields on
+        the live object can't fail a write that never intended to touch them."""
         if obj.get("managed"):
             return ("skipped_managed", str(obj.get("pk", "")))
-        path = self._write_path(obj)
+        path = self._write_path(obj) or self._RTYPE_PATHS.get(resource_type)
         if not path:
-            raise RuntimeError(f"no write path known for {obj.get('meta_model_name')!r}")
+            raise RuntimeError(f"no write path known for {resource_type} "
+                               f"(model {obj.get('meta_model_name')!r})")
         payload = {k: v for k, v in obj.items() if k not in self.READONLY_FIELDS}
-        pk = obj.get("pk") or obj.get("brand_uuid")
+        pk = (live or {}).get("pk") or obj.get("pk") or obj.get("brand_uuid")
         with self._client() as c:
             if pk is not None:
-                live = c.get(f"/api/v3/{path}{pk}/")
-                if live.status_code == 200:
-                    r = c.put(f"/api/v3/{path}{pk}/", json=payload)
+                probe = c.get(f"/api/v3/{path}{pk}/")
+                if probe.status_code == 200:
+                    r = self._send(c, "PATCH", f"/api/v3/{path}{pk}/", payload)
                     if r.status_code >= 400:
-                        raise RuntimeError(f"PUT {path}{pk}/ -> {r.status_code}: {r.text[:280]}")
+                        raise RuntimeError(f"PATCH {path}{pk}/ -> {r.status_code}: {r.text[:280]}")
                     return ("updated", str(pk))
-            r = c.post(f"/api/v3/{path}", json=payload)
+            r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
             return ("created", str(r.json().get("pk", "")))

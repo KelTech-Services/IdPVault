@@ -3,6 +3,22 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.14] — 2026-07-12
+### Fixed
+- **Authentik application restore was broken** ("no write path known for None"):
+  objects from non-polymorphic endpoints (applications, policy bindings, groups,
+  flows, brands, certificates, outposts) carry no `meta_model_name`, so write-path
+  resolution failed. A resource-type fallback map now routes them correctly —
+  deleting an Authentik app and restoring it works.
+- Authentik updates switched from PUT to **PATCH** with self-heal (drop the exact
+  fields a 400 error names, retry): a full-replace PUT re-validated untouched
+  fields (e.g. a proxy provider's `external_host`) and failed updates that never
+  meant to change them.
+- Phantom provider updates eliminated: Authentik's denormalized read-only
+  back-references (`assigned_application_name/slug`, backchannel variants) no
+  longer count as config in drift/restore comparison — deleting an app no longer
+  flags its provider as "changed".
+
 ## [0.7.13] — 2026-07-12
 ### Added
 - **Okta app restore-apply.** Deleted apps are recreated from the snapshot
