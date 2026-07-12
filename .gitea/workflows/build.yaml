@@ -8,9 +8,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
+        # The workspace lives inside the runner's job container, not on the docker
+        # host — stream it over stdin instead of a volume mount (DinD-safe).
         run: >
-          docker run --rm -v "$PWD":/src -w /src/backend python:3.12-slim
-          sh -c "pip install -q -r requirements.txt pytest &&
+          tar -cf - backend | docker run --rm -i python:3.12-slim
+          sh -c "mkdir /src && tar -xf - -C /src && cd /src/backend &&
+          pip install -q -r requirements.txt pytest &&
           python -m pytest tests -q"
       - name: Build image
         run: docker build -f docker/Dockerfile -t gitea.keltech.ai/keltech/idpvault:latest .
