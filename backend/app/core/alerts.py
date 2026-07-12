@@ -90,14 +90,16 @@ def _drift_lines(drift: dict, limit: int = 12) -> list:
     """Human-readable per-object change lines from a backup diff."""
     from app.core.events import _name
     lines = []
+    # [+]/[-]/[~] prefixes — a leading "+"/"-" is a markdown bullet in
+    # Slack/Mattermost and gets swallowed by the renderer.
     for rtype, ch in (drift or {}).items():
         for o in ch.get("added", []):
-            lines.append(f"+ {rtype} / {_name(o) or o.get('id', '?')}")
+            lines.append(f"[+] {rtype} / {_name(o) or o.get('id', '?')}")
         for o in ch.get("removed", []):
-            lines.append(f"- {rtype} / {_name(o) or o.get('id', '?')}")
+            lines.append(f"[-] {rtype} / {_name(o) or o.get('id', '?')}")
         for c in ch.get("changed", []):
             nm = _name(c.get("after") or {}) or _name(c.get("before") or {}) or c.get("id", "?")
-            lines.append(f"~ {rtype} / {nm}")
+            lines.append(f"[~] {rtype} / {nm}")
     extra = len(lines) - limit
     out = lines[:limit]
     if extra > 0:

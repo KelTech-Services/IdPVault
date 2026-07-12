@@ -12,6 +12,14 @@ def _name(obj: dict) -> str:
     prof = obj.get("profile") or {}
     if isinstance(prof, dict) and prof.get("name"):
         return str(prof["name"])[:250]
+    # Bindings have no name of their own — describe them by what they connect
+    # (Authentik includes *_obj expansions with the referenced object's name).
+    for k in ("policy_obj", "group_obj", "user_obj", "stage_obj", "target_obj"):
+        v = obj.get(k)
+        if isinstance(v, dict):
+            n = v.get("name") or v.get("username")
+            if n:
+                return f"binding: {n}"[:250]
     return ""
 
 

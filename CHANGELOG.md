@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.22] — 2026-07-12
+### Changed
+- Bindings in alerts and events are labeled by what they connect
+  ("binding: app-it-tools-user") instead of "?".
+- Alert change lines use `[+] [-] [~]` prefixes — leading `+`/`-` characters are
+  markdown bullets in Slack/Mattermost and were being swallowed by the renderer.
+
 ## [0.7.21] — 2026-07-12
 ### Changed
 - **One email per backup run.** Drift is only ever detected during a backup, so
