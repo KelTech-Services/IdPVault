@@ -86,27 +86,56 @@ def send_alert(category: str, title: str, body: str, fields=None) -> None:
         log.info("email alert skipped: %s", e)
 
 
-def alert_drift(tenant_name: str, snapshot_ts: str, drift: dict) -> None:
-    a = sum(len(c.get("added", [])) for c in drift.values())
-    r = sum(len(c.get("removed", [])) for c in drift.values())
-    c = sum(len(c.get("changed", [])) for c in drift.values())
-    send_alert("drift_detected", f"Config drift — {tenant_name}",
-               "A backup detected configuration changes vs the previous snapshot. "
-               "Review in IdPVault -> Events.",
-               {"Tenant": tenant_name, "Snapshot": snapshot_ts,
-                "Changes": f"+{a} added, -{r} removed, ~{c} changed"})
+def _drift_lines(drift: dict, limit: int = 12) -> list:
+    """Human-readable per-object change lines from a backup diff."""
+    from app.core.events import _name
+    lines = []
+    for rtype, ch in (drift or {}).items():
+        for o in ch.get("added", []):
+            lines.append(f"+ {rtype} / {_name(o) or o.get('id', '?')}")
+        for o in ch.get("removed", []):
+            lines.append(f"- {rtype} / {_name(o) or o.get('id', '?')}")
+        for c in ch.get("changed", []):
+            nm = _name(c.get("after") or {}) or _name(c.get("before") or {}) or c.get("id", "?")
+            lines.append(f"~ {rtype} / {nm}")
+    extra = len(lines) - limit
+    out = lines[:limit]
+    if extra > 0:
+        out.append(f"... and {extra} more - see IdPVault -> Events")
+    return out
+
+
+def alert_backup_completed(tenant_name: str, snapshot_ts: str, total_objects: int,
+                           drift: dict | None = None) -> None:
+    """ONE alert per backup run. Drift is only ever detected during a backup, so
+    change details ride in the backup email instead of a second back-to-back one.
+    With changes: sent under 'drift_detected' (falls back to 'backup_success' if
+    that's the subscribed category). Without: plain 'backup_success'."""
+    fields = {"Tenant": tenant_name, "Snapshot": snapshot_ts, "Objects": total_objects}
+    if drift:
+        a = sum(len(c.get("added", [])) for c in drift.values())
+        r = sum(len(c.get("removed", [])) for c in drift.values())
+        ch = sum(len(c.get("changed", [])) for c in drift.values())
+        fields["Changes"] = f"+{a} added, -{r} removed, ~{ch} changed"
+        body = ("Backup completed and detected configuration changes vs the previous "
+                "snapshot:\n\n" + "\n".join(_drift_lines(drift)))
+        try:
+            enabled = _enabled(_cfg())
+        except Exception:
+            enabled = [k for k, v in ALERT_EVENTS.items() if v["default"]]
+        category = "drift_detected" if "drift_detected" in enabled else "backup_success"
+        send_alert(category, f"Backup complete — changes detected — {tenant_name}",
+                   body, fields)
+    else:
+        send_alert("backup_success", f"Backup complete — {tenant_name}",
+                   "A backup completed successfully. No changes since the previous snapshot.",
+                   fields)
 
 
 def alert_failure(tenant_name: str, error: str) -> None:
     send_alert("backup_failed", f"Backup FAILED — {tenant_name}",
                "A backup did not complete. Check tenant credentials and IdP availability.",
                {"Tenant": tenant_name, "Error": error[:400]})
-
-
-def alert_backup_success(tenant_name: str, snapshot_ts: str, total_objects: int) -> None:
-    send_alert("backup_success", f"Backup complete — {tenant_name}",
-               "A backup completed successfully.",
-               {"Tenant": tenant_name, "Snapshot": snapshot_ts, "Objects": total_objects})
 
 
 def alert_restore(tenant_name: str, kind: str, summary: dict) -> None:

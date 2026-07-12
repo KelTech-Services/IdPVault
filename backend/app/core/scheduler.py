@@ -79,11 +79,9 @@ def run_backup(tenant_id: int) -> dict:
                 storage.prune(t.slug, t.retention_keep)
             db.commit()
             log.info("backup done tenant=%s ts=%s drift=%s", t.slug, manifest["timestamp"], bool(drift))
-            if drift:
-                from app.core.alerts import alert_drift
-                alert_drift(t.name, manifest["timestamp"], drift)
-            from app.core.alerts import alert_backup_success
-            alert_backup_success(t.name, manifest["timestamp"], sum(manifest["counts"].values()))
+            from app.core.alerts import alert_backup_completed
+            alert_backup_completed(t.name, manifest["timestamp"],
+                                   sum(manifest["counts"].values()), drift)
             return {"manifest": manifest, "drift": drift}
         except Exception as e:
             db.rollback()

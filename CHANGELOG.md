@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.21] — 2026-07-12
+### Changed
+- **One email per backup run.** Drift is only ever detected during a backup, so
+  the change details now ride inside the backup email ("Backup complete — changes
+  detected", listing what was added/removed/changed per object) instead of a
+  second back-to-back drift email. Subscription categories unchanged: with
+  changes it sends under "drift detected" (falling back to "backup succeeded" if
+  that's what's subscribed); without changes, the plain backup email.
+
 ## [0.7.20] — 2026-07-12
 ### Fixed
 - Authentik scalar list fields (e.g. an outpost's `providers`, `property_mappings`)
