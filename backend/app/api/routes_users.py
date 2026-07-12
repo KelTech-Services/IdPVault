@@ -27,6 +27,11 @@ class UserIn(BaseModel):
 
 @router.post("/users")
 def create_user(body: UserIn, request: Request) -> dict:
+    from app.core import license as lic
+    if not lic.can_add_user():
+        raise HTTPException(402, "user limit reached for your license — the free "
+                                 "Community tier includes a single admin account. "
+                                 "Add a license in Settings → License to add users")
     if body.role not in ("admin", "user"):
         raise HTTPException(422, "role must be admin or user")
     invite = pysecrets.token_urlsafe(24)

@@ -25,7 +25,7 @@ PUBLIC_KEY_B64 = "e9zJJlaHIJK8vwUMICggfzFf7wMeIlxcoKyltGp8aF0="
 
 GRACE_DAYS = 3
 
-FREE = {"tier": "community", "max_tenants": 1, "features": [],
+FREE = {"tier": "community", "max_tenants": 1, "max_users": 1, "features": [],
         "valid": False, "customer": None, "expires": None,
         "status": "community", "days_left": None}
 
@@ -79,6 +79,7 @@ def current_license() -> dict:
         return {**FREE, "status": "expired_or_invalid", "invalid_present": True}
     return {"tier": data.get("tier", "pro"),
             "max_tenants": data.get("max_tenants"),      # None = unlimited
+            "max_users": data.get("max_users"),          # None = unlimited
             "features": data.get("features", []),
             "valid": True, "customer": data.get("customer"),
             "expires": data.get("expires"),
@@ -93,6 +94,17 @@ def can_add_tenant(current_count: int) -> bool:
 
 def has_feature(feature: str) -> bool:
     return feature in current_license().get("features", [])
+
+
+def can_add_user() -> bool:
+    """Free tier = exactly ONE account (the first-run admin). Licensed = up to
+    max_users from the key (None = unlimited)."""
+    m = current_license().get("max_users")
+    if m is None:
+        return True
+    from app.models.db import SessionLocal, User
+    with SessionLocal() as db:
+        return db.query(User).count() < m
 
 
 def entitled_tenant_ids() -> set[int] | None:

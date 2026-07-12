@@ -303,7 +303,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 </main>
 <main id="view-users" class="hidden">
   <section class="panel">
-    <h2>Users <span class="spacer"></span><button class="primary" onclick="document.getElementById('userform').classList.toggle('hidden')">+ Add user</button></h2>
+    <h2>Users <span class="spacer"></span><button id="adduserbtn" class="primary" onclick="document.getElementById('userform').classList.toggle('hidden')">+ Add user</button></h2>
     <div id="userform" class="hidden">
       <div class="formgrid">
         <div><label>Username</label><input id="u_name"></div>
@@ -793,6 +793,12 @@ async function loadUsers(){
   ub.innerHTML = skelRows(5);
   try {
     const us = await api('/users');
+    try { _license = await api('/license'); } catch {}
+    const atUserCap = _license && _license.max_users != null && us.length >= _license.max_users;
+    const ab = document.getElementById('adduserbtn');
+    if(ab){ ab.disabled = !!atUserCap;
+      ab.title = atUserCap ? 'User limit reached for your license — the free Community tier includes a single admin account. Add a license in Settings > License' : '';
+      if(atUserCap) document.getElementById('userform').classList.add('hidden'); }
     ub.innerHTML = us.map(u => `<tr>
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
       <td class="muted">${esc(u.email||'—')}</td>
@@ -846,8 +852,8 @@ async function loadLicense(){
   document.getElementById('lic_clear').classList.toggle('hidden', !(l.valid || l.invalid_present));
   if(!l.valid){
     const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired — paid features are paused.</span><br>' : '';
-    box.innerHTML = bad + `<b>Community tier</b> (free) — ${l.tenant_count}/${l.max_tenants} tenant · config backup &amp; restore included. `
-      + `A paid license unlocks more tenants and identity backup &amp; restore.`;
+    box.innerHTML = bad + `<b>Community tier</b> (free) — ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. `
+      + `A paid license unlocks more tenants, more users, and identity backup &amp; restore.`;
     return;
   }
   const expDate = l.expires ? new Date(l.expires*1000).toISOString().slice(0,10) : 'never';
@@ -856,7 +862,7 @@ async function loadLicense(){
     ? ` <span class="st-failed">— EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
   box.innerHTML = `<b>${esc(l.tier)}</b> license — ${esc(l.customer||'')} · expires <b>${expDate}</b>`
     + (daysToExp!=null && l.status==='active' ? ` <span class="muted">(${daysToExp} days from now)</span>` : '') + grace
-    + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Features: ${esc((l.features||[]).join(', ')||'—')}`
+    + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Users: ${l.user_count} / ${l.max_users==null?'unlimited':l.max_users} · Features: ${esc((l.features||[]).join(', ')||'—')}`
     + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry — the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
 }
 async function installLicense(){

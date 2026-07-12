@@ -36,6 +36,8 @@ def main() -> int:
     ap.add_argument("--years", type=int, default=1, help="license term in years")
     ap.add_argument("--max-tenants", type=int, default=None,
                     help="tenant cap (omit for unlimited)")
+    ap.add_argument("--max-users", type=int, default=None,
+                    help="user/seat cap (omit for unlimited)")
     ap.add_argument("--features", nargs="*", default=["identity"],
                     help="feature flags (default: identity)")
     ap.add_argument("--extend-from", type=float, default=None,
@@ -61,6 +63,7 @@ def main() -> int:
         "customer": args.customer,
         "tier": args.tier,
         "max_tenants": args.max_tenants,      # None = unlimited
+        "max_users": args.max_users,          # None = unlimited
         "features": args.features,
         "issued": int(now),
         "expires": int(anchor + args.years * 365 * 86400),

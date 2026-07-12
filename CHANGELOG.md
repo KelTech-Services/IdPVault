@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.1] — 2026-07-12
+### Added
+- **User seats are license-gated.** The free Community tier includes exactly one
+  account — the admin created at first run. Adding users requires a paid license
+  (which is unlimited-seats unless the key carries a `max_users` cap; mint tool
+  gains `--max-users`). Enforced server-side (402) and in the UI (Add user
+  grayed with an explanatory tooltip); the License panel shows the seat count.
+
 ## [0.8.0] — 2026-07-12
 ### Added
 - **Open-core licensing.** IdPVault runs free in the Community tier (1 tenant,

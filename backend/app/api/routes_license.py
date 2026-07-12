@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from app.core import license as lic
 from app.core.security import require_admin
-from app.models.db import AuditLog, SessionLocal, Setting, Tenant
+from app.models.db import AuditLog, SessionLocal, Setting, Tenant, User
 
 router = APIRouter(tags=["license"], dependencies=[Depends(require_admin)])
 
@@ -15,6 +15,7 @@ def get_license() -> dict:
     info = lic.current_license()
     with SessionLocal() as db:
         tenant_count = db.query(Tenant).count()
+        info["user_count"] = db.query(User).count()
     ids = lic.entitled_tenant_ids()
     info["tenant_count"] = tenant_count
     info["entitled_tenant_ids"] = sorted(ids) if ids is not None else None
