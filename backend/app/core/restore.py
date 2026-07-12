@@ -91,8 +91,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
             live_obj = item.pop("_live")
             if not item.get("restorable", True):
                 item["status"] = "unsupported"
-                item["error"] = (f"{item['resource_type']} can't be auto-restored yet — "
-                                 "shown for visibility; recreate in the IdP console if needed")
+                item["error"] = f"{item['resource_type']}: not auto-restorable yet"
                 continue
             if mode == "dry_run":
                 item["status"] = "planned" if item["action"] != "identical" else "skipped"

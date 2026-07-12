@@ -3,6 +3,19 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.13] — 2026-07-12
+### Added
+- **Okta app restore-apply.** Deleted apps are recreated from the snapshot
+  (label, sign-on mode, settings, visibility, profile; original active/inactive
+  state honored) and changed apps are updated in place. Because IdPs redact
+  secret material from every export, a recreated app comes back with
+  **regenerated credentials** (new OIDC client secret / SAML cert) — the restore
+  report marks these `created_new_credentials` so you know to re-point the
+  integration. Okta's own internal apps are skipped. Group↔app assignments are
+  re-linked via identity restore (natural-key remapping).
+### Changed
+- Shortened the not-auto-restorable note so it isn't truncated in the report.
+
 ## [0.7.12] — 2026-07-12
 ### Changed
 - Restore dialog: removed the redundant "Everything in this snapshot" radio;
