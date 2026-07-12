@@ -3,6 +3,11 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.10] - 2026-07-12
+### Changed
+- Theme toggle moved to its own icon button beside the username (right of
+  "user · role" in the sidebar), leaving Profile and Log out as a clean pair.
+
 ## [0.8.9] - 2026-07-12
 ### Added
 - Light/dark theme toggle (sun/moon button in the sidebar user area). Preference
