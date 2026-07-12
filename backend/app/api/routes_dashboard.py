@@ -56,6 +56,36 @@ def summary() -> dict:
     return out
 
 
+@router.get("/dashboard/trends")
+def trends(days: int = 14) -> dict:
+    """Daily aggregates for the dashboard charts: change events by type,
+    backup runs by outcome, and storage by tenant."""
+    days = max(2, min(days, 90))
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    day_keys = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
+    with SessionLocal() as db:
+        ev_daily = {d: {"add": 0, "update": 0, "delete": 0} for d in day_keys}
+        for e in db.query(Event).filter(Event.at >= start).all():
+            d = e.at.strftime("%Y-%m-%d")
+            if d in ev_daily and e.event_type in ev_daily[d]:
+                ev_daily[d][e.event_type] += 1
+        run_daily = {d: {"ok": 0, "failed": 0} for d in day_keys}
+        for r in db.query(BackupRun).filter(BackupRun.at >= start).all():
+            d = r.at.strftime("%Y-%m-%d")
+            if d in run_daily:
+                run_daily[d]["ok" if r.status == "ok" else "failed"] += 1
+        names = {t.id: t.name for t in db.query(Tenant).all()}
+        storage: dict[int, int] = {}
+        for s in db.query(Snapshot).all():
+            storage[s.tenant_id] = storage.get(s.tenant_id, 0) + s.size
+    return {"days": day_keys,
+            "events_daily": [{"date": d, **ev_daily[d]} for d in day_keys],
+            "runs_daily": [{"date": d, **run_daily[d]} for d in day_keys],
+            "storage_by_tenant": [{"name": names.get(tid, str(tid)), "bytes": b}
+                                  for tid, b in sorted(storage.items(), key=lambda x: -x[1])]}
+
+
 @router.get("/tenants/{tenant_id}/events")
 def tenant_events(tenant_id: int, limit: int = 100, offset: int = 0,
                   resource_type: str | None = None, event_type: str | None = None) -> dict:

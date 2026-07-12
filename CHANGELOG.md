@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.13] - 2026-07-12
+### Added
+- **Dashboard charts** (VisActor VChart, vendored - no CDN): changes over the
+  last 14 days (stacked add/update/delete), backup runs by outcome, and storage
+  by tenant (donut). Theme-aware - charts re-render when you flip light/dark.
+  New `/dashboard/trends` endpoint feeds them.
+- **Design pass**: Inter typeface (vendored, self-hosted), tabular numerals in
+  tables and stat cards, brand palette pulled from the logo (accent is now the
+  logo blue; gold appears as the active-nav indicator and paid-tier name),
+  refined radii (larger on cards/modals), button transitions, visible focus
+  rings for keyboard navigation.
+### Fixed
+- Users & Access restore preview no longer prints a user's email twice when
+  the display name is the email.
+
 ## [0.8.12] - 2026-07-12
 ### Added
 - **Auth0 Users & Access backup + restore** - the last provider gap. Backup

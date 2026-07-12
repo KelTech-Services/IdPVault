@@ -6,18 +6,19 @@
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
 <style>
+@font-face{font-family:'Inter var';src:url('/vendor/InterVariable.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
 :root{
 --bg:#0b0f15;--panel:#121922;--panel2:#1a232e;--panel3:#222e3b;--border:#26323f;
---text:#e6ecf3;--dim:#8b9bad;--accent:#4d9fff;--accent2:#3d8ae0;
+--text:#e6ecf3;--dim:#8b9bad;--accent:#339dff;--accent2:#1f7fe0;--gold:#f0c000;
 --green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;--violet:#c9a3ff;
---radius:10px;--radius-sm:7px;--sidebar-w:238px;--shadow:0 8px 30px rgba(0,0,0,.45);
+--radius:12px;--radius-sm:7px;--radius-lg:16px;--sidebar-w:238px;--shadow:0 8px 30px rgba(0,0,0,.45);
 --topbar-bg:rgba(11,15,21,.82);--card-grad-to:#0f151c;--row-hover:rgba(255,255,255,.014);
 --tag-violet-bg:#241a33;--tag-blue-bg:#0f2438;--tag-amber-bg:#33230f;--tag-green-bg:#0e2b20;--tag-red-bg:#331519;--tag-dim-bg:#1a232e;
 --btn-hover-border:#33465a;--on-accent:#06101c;--del-bg:#2a1418;--del-border:#5a2a30;--on-red:#0d0d0f;
 --placeholder:#556575;--modal-scrim:rgba(4,7,11,.66);--login-grad:#141e2b;
 font-size:15px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:'Inter var',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-optical-sizing:auto;min-height:100vh;-webkit-font-smoothing:antialiased}
 
 #appview{display:flex;min-height:100vh}
 .sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
@@ -27,7 +28,7 @@ nav#mainnav{display:flex;flex-direction:column;gap:2px;padding:12px;flex:1}
 nav#mainnav button{display:flex;align-items:center;gap:11px;background:none;border:none;color:var(--dim);padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:.9rem;font-weight:500;width:100%;text-align:left;transition:all .12s}
 nav#mainnav button svg{width:18px;height:18px;flex:0 0 18px;stroke:currentColor}
 nav#mainnav button:hover{color:var(--text);background:var(--panel2)}
-nav#mainnav button.active{color:var(--text);background:var(--panel3)}
+nav#mainnav button.active{color:var(--text);background:var(--panel3);box-shadow:inset 3px 0 0 var(--gold)}
 nav#mainnav button.active svg{stroke:var(--accent)}
 .sidebar-foot{padding:12px;border-top:1px solid var(--border)}
 #userchip{display:flex;flex-direction:column;gap:9px}
@@ -105,9 +106,15 @@ input::placeholder{color:var(--placeholder)}
 .empty{text-align:center;color:var(--dim);padding:40px 16px;font-size:.88rem}
 .empty svg{width:30px;height:30px;stroke:var(--dim);opacity:.5;margin-bottom:12px}
 .empty .cta{margin-top:14px}
+.chartgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+.chartgrid .chart{height:190px;margin-top:8px}
+@media(max-width:1100px){.chartgrid{grid-template-columns:1fr}}
 .skeleton{background:linear-gradient(90deg,var(--panel2),var(--panel3),var(--panel2));background-size:200% 100%;animation:sk 1.3s infinite;border-radius:5px;height:11px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 td button{padding:6px 11px;font-size:.79rem}
+table,.card .big{font-variant-numeric:tabular-nums}
+button{transition:background .13s,border-color .13s,color .13s}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
 #toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--green);padding:14px 18px;border-radius:var(--radius-sm);font-size:.85rem;max-width:460px;box-shadow:var(--shadow);z-index:99;word-break:break-word}
 #toast.err{border-left-color:var(--red)}
 .snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
@@ -119,9 +126,10 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .evtype{font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.04em}
 .restore-item{display:grid;grid-template-columns:34px 100px 1fr 170px;gap:10px;padding:8px 10px;border-bottom:1px solid var(--panel2);font-size:.84rem;align-items:center}
 .act-create{color:var(--green)}.act-update{color:var(--amber)}.act-identical{color:var(--dim)}
+.tiername{color:var(--gold);text-transform:capitalize;font-weight:650}
 .st-created,.st-updated{color:var(--green)}.st-failed,.st-unsupported{color:var(--red)}.st-skipped,.st-skipped_managed{color:var(--dim)}.st-planned{color:var(--accent)}
 .modal{position:fixed;inset:0;background:var(--modal-scrim);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:80}
-.modal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;width:820px;max-width:94vw;max-height:88vh;overflow:auto;box-shadow:var(--shadow)}
+.modal .box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;width:820px;max-width:94vw;max-height:88vh;overflow:auto;box-shadow:var(--shadow)}
 .chk{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .chk label{display:flex;gap:6px;align-items:center;font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:6px 11px;border-radius:var(--radius-sm);cursor:pointer}
 .ulist{max-height:260px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:8px}
@@ -132,13 +140,13 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .ulist .em{color:var(--dim);font-size:.78rem}
 
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,var(--login-grad),var(--bg))}
-.logincard{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:38px;width:390px;display:grid;gap:14px;box-shadow:var(--shadow)}
+.logincard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-lg);padding:38px;width:390px;display:grid;gap:14px;box-shadow:var(--shadow)}
 .logincard img{width:300px;height:auto;justify-self:center;margin-bottom:4px;max-width:100%;object-fit:contain}
 .logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
 a{color:var(--accent)}a:hover{color:var(--accent2)}
 [data-theme="light"]{
 --bg:#eef1f5;--panel:#ffffff;--panel2:#f0f3f7;--panel3:#e4eaf1;--border:#d7dfe8;
---text:#1c2733;--dim:#5f6d7d;--accent:#2170d4;--accent2:#1a5cb3;
+--text:#1c2733;--dim:#5f6d7d;--accent:#0072db;--accent2:#005cb8;--gold:#a67c00;
 --green:#15805a;--red:#c94040;--amber:#a86e0e;--violet:#7345c8;
 --shadow:0 8px 30px rgba(38,54,78,.14);
 --topbar-bg:rgba(238,241,245,.85);--card-grad-to:#f6f8fb;--row-hover:rgba(20,40,70,.03);
@@ -214,6 +222,11 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
+  <section class="chartgrid hidden" id="chartrow">
+    <div class="card"><div class="lbl2">Changes · last 14 days</div><div class="chart" id="ch_events"></div></div>
+    <div class="card"><div class="lbl2">Backup runs · last 14 days</div><div class="chart" id="ch_runs"></div></div>
+    <div class="card"><div class="lbl2">Storage by tenant</div><div class="chart" id="ch_storage"></div></div>
+  </section>
   <div id="unbackedpanel" class="hidden"></div>
   <section class="panel">
     <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
@@ -432,6 +445,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 </div>
 </div>
 <div id="toast" class="hidden"></div>
+<script src="/vendor/vchart.min.js"></script>
 <script>
 const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'application/json'},...opts})
   .then(async r => {
@@ -455,6 +469,7 @@ function applyTheme(t){
         btn = document.getElementById('themebtn');
   if(moon){ moon.classList.toggle('hidden', t==='light'); sun.classList.toggle('hidden', t!=='light');
             btn.title = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode'; }
+  if(typeof renderCharts === 'function' && window._trendsReady !== false) try{ renderCharts(); }catch{}
 }
 async function toggleTheme(){
   const next = (document.documentElement.dataset.theme === 'light') ? 'dark' : 'light';
@@ -1034,7 +1049,7 @@ async function loadLicense(){
   const daysToExp = l.expires ? Math.max(0, Math.floor((l.expires*1000 - Date.now())/86400000)) : null;
   const grace = l.status==='grace'
     ? ` <span class="st-failed">- EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
-  box.innerHTML = `<b>${esc(l.tier)}</b> license - ${esc(l.customer||'')} · expires <b>${expDate}</b>`
+  box.innerHTML = `<b class="tiername">${esc(l.tier)}</b> license - ${esc(l.customer||'')} · expires <b>${expDate}</b>`
     + (daysToExp!=null && l.status==='active' ? ` <span class="muted">(${daysToExp} days from now)</span>` : '') + grace
     + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Users: ${l.user_count} / ${l.max_users==null?'unlimited':l.max_users} · Features: ${esc((l.features||[]).join(', ')||'-')}`
     + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry - the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
@@ -1174,7 +1189,58 @@ async function loadDashboard(){
       <div class="card ${unbacked>0?'warn':''}" style="cursor:pointer" title="Click for a per-tenant breakdown" onclick="toggleUnbacked()"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">since last backup · click for breakdown</div></div>
       <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
     if(!document.getElementById('unbackedpanel').classList.contains('hidden')) renderUnbacked();
+    loadCharts();
   } catch(e){ el.innerHTML = `<div class="card bad"><div class="lbl2">Dashboard</div><div class="sub">${esc(e.message)}</div></div>`; }
+}
+let _trends = null, _charts = [];
+function _cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+async function loadCharts(){
+  const row = document.getElementById('chartrow');
+  const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
+  if(!row || !VC) return;
+  try { _trends = await api('/dashboard/trends'); } catch { return; }
+  if(!(_trends.storage_by_tenant||[]).length){ row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  renderCharts();
+}
+function renderCharts(){
+  const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
+  if(!VC || !_trends) return;
+  _charts.forEach(c=>{ try{ c.release(); }catch{} }); _charts = [];
+  const light = document.documentElement.dataset.theme === 'light';
+  const G = _cssVar('--green'), A = _cssVar('--amber'), R = _cssVar('--red'),
+        B = _cssVar('--accent'), V = _cssVar('--violet'), GD = _cssVar('--gold');
+  const base = { background: 'transparent' };
+  const opts = el => ({ dom: el, theme: light ? 'light' : 'dark' });
+  const md = s => s.slice(5);   // YYYY-MM-DD -> MM-DD
+  const evRows = [];
+  (_trends.events_daily||[]).forEach(d=>['add','update','delete'].forEach(k=>evRows.push({date: md(d.date), type: k, n: d[k]||0})));
+  const runRows = [];
+  (_trends.runs_daily||[]).forEach(d=>['ok','failed'].forEach(k=>runRows.push({date: md(d.date), type: k, n: d[k]||0})));
+  const stRows = (_trends.storage_by_tenant||[]).map(s=>({name: s.name, mb: Math.max(Math.round(s.bytes/1048576*10)/10, 0.1)}));
+  const specs = [
+    ['ch_events', {...base, type:'bar', data:[{id:'d', values: evRows}], xField:'date', yField:'n',
+      seriesField:'type', stack:true, color:[G, A, R],
+      legends:{visible:true, orient:'bottom', item:{label:{style:{fontSize:11}}}},
+      axes:[{orient:'left', label:{style:{fontSize:10}}, grid:{visible:false}},
+            {orient:'bottom', label:{style:{fontSize:9}, sampling:true}}]}],
+    ['ch_runs', {...base, type:'bar', data:[{id:'d', values: runRows}], xField:'date', yField:'n',
+      seriesField:'type', stack:true, color:[B, R],
+      legends:{visible:true, orient:'bottom', item:{label:{style:{fontSize:11}}}},
+      axes:[{orient:'left', label:{style:{fontSize:10}}, grid:{visible:false}},
+            {orient:'bottom', label:{style:{fontSize:9}, sampling:true}}]}],
+    ['ch_storage', {...base, type:'pie', data:[{id:'d', values: stRows}], valueField:'mb',
+      categoryField:'name', innerRadius:0.62, outerRadius:0.85, color:[B, GD, V, G, A, R],
+      label:{visible:false},
+      legends:{visible:true, orient:'bottom', item:{label:{style:{fontSize:11}}}},
+      tooltip:{mark:{content:[{key: d=>d.name, value: d=>d.mb+' MB'}]}}}],
+  ];
+  specs.forEach(([id, spec])=>{
+    const el = document.getElementById(id); if(!el) return;
+    el.innerHTML = '';
+    try { const ch = new VC(spec, opts(el)); ch.renderSync ? ch.renderSync() : ch.render(); _charts.push(ch); }
+    catch(e){ console.warn('chart', id, e); }
+  });
 }
 function toggleUnbacked(){
   const el = document.getElementById('unbackedpanel');
@@ -1437,7 +1503,7 @@ function renderIdentityRestore(p){
     ? list.map(x=>`<div class="restore-item">
         <div><input type="checkbox" class="ir-sel" value="${esc(x.key)}" checked onchange="updateIdentityCount()"></div>
         <div class="act-create">recreate</div>
-        <div>user / ${esc(x.label||x.key)}${x.email?` <span class="muted">${esc(x.email)}</span>`:''}</div>
+        <div>user / ${esc(x.label||x.key)}${x.email&&x.email!==(x.label||x.key)?` <span class="muted">${esc(x.email)}</span>`:''}</div>
         <div class="st-planned">missing in live</div></div>`).join('')
     : (list.length ? `<div class="restore-item"><div></div><div class="act-create">recreate</div><div>${list.length}${p.recreate_truncated?'+':''} users - too many to select individually; Apply restores all</div><div class="st-planned">missing in live</div></div>` : '');
   const agg = [];
