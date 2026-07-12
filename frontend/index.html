@@ -182,7 +182,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <div class="content">
   <div class="topbar">
     <h1 id="pagetitle">Dashboard</h1>
-    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver">v0.7.2</span></div>
+    <div class="topbar-right"><span class="health"><span id="healthdot" title="API health"></span> API</span><span class="ver" id="appver"></span></div>
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
@@ -279,7 +279,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
   <div class="box">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore — <span id="r_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="r_snap"></span>. Preview is read-only. Apply writes changed objects back to the live tenant.</p>
-    <div id="r_scope" class="chk"></div>
     <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
       <select id="r_target" style="width:auto;margin-left:8px"></select>
       <span class="muted" style="font-size:.76rem">— default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
@@ -592,8 +591,9 @@ function currentRoute(){
 
 /* ---------- health ---------- */
 async function health(){
-  try { await fetch('/healthz').then(r=>r.json());
+  try { const h = await fetch('/healthz').then(r=>r.json());
     document.getElementById('healthdot').classList.add('ok');
+    if(h.version) document.getElementById('appver').textContent = 'v'+h.version;
   } catch { document.getElementById('healthdot').classList.remove('ok'); }
 }
 
@@ -928,7 +928,6 @@ async function openRestore(ts){
   document.getElementById('r_summary').textContent = '';
   document.getElementById('r_items').innerHTML = '';
   document.getElementById('r_applybtn').classList.add('hidden');
-  document.getElementById('r_scope').innerHTML = '<label><input type="radio" name="rscope" value="all" checked> Everything in this snapshot</label>';
   const src = _tenants.find(x=>x.id===snapTenantId);
   const sameprov = _tenants.filter(x=>!src || x.provider===src.provider);
   document.getElementById('r_target').innerHTML = sameprov.map(x=>`<option value="${x.id}"${x.id===snapTenantId?' selected':''}>${esc(x.name)}${x.id===snapTenantId?' (same tenant)':''}</option>`).join('');
@@ -944,10 +943,13 @@ function renderRestore(res){
     `<b>${isDry?'Preview':'Applied'}:</b> ${s.total} objects — ` +
     Object.entries(acts).map(([k,v])=>`<span class="act-${k}">${v} ${k}</span>`).join(' · ') +
     (s.mode==='apply' ? ' — ' + Object.entries(sts).map(([k,v])=>`<span class="st-${k}">${v} ${k}</span>`).join(' · ') : '');
-  const head = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div>${isDry?'<input type="checkbox" checked onchange="toggleAllRestore(this)" title="select all">':''}</div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
-  document.getElementById('r_items').innerHTML = head +
+  const hasActionable = res.items.some(it=>(it.action==='create'||it.action==='update') && it.restorable!==false);
+  const selbar = (isDry && hasActionable)
+    ? `<div style="margin:8px 0 4px"><button onclick="setAllRestore(true)">Select all</button> <button onclick="setAllRestore(false)">Unselect all</button></div>` : '';
+  const head = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
+  document.getElementById('r_items').innerHTML = selbar + head +
     res.items.map((it,i)=>{
-      const actionable = it.action==='create'||it.action==='update';
+      const actionable = (it.action==='create'||it.action==='update') && it.restorable!==false;
       const box = (isDry && actionable) ? `<input type="checkbox" class="r-sel" data-i="${i}" checked onchange="updateRestoreCount()">` : '';
       return `<div class="restore-item">
       <div>${box}</div>
@@ -956,7 +958,7 @@ function renderRestore(res){
       <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`;
     }).join('');
 }
-function toggleAllRestore(cb){ document.querySelectorAll('#r_items .r-sel').forEach(b=>b.checked=cb.checked); updateRestoreCount(); }
+function setAllRestore(v){ document.querySelectorAll('#r_items .r-sel').forEach(b=>b.checked=v); updateRestoreCount(); }
 function updateRestoreCount(){
   const boxes=[...document.querySelectorAll('#r_items .r-sel')];
   const n=boxes.filter(b=>b.checked).length;

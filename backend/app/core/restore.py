@@ -34,8 +34,9 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
                adapter) -> list[dict]:
     items = []
     for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, adapter.restore_order)):
-        if rtype in adapter.never_restore:
-            continue
+        # never_restore types stay VISIBLE when they differ from live (so a deleted
+        # app is seen, marked unsupported) — they're just not auto-restorable.
+        unsupported = rtype in adapter.never_restore
         live_idx = {adapter.natural_key(rtype, o): o for o in live_export.get(rtype, [])}
         for obj in snap_export.get(rtype, []):
             key = adapter.natural_key(rtype, obj)
@@ -50,10 +51,13 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
                                 if json.dumps(n_obj.get(k), sort_keys=True, default=str)
                                 != json.dumps(n_live.get(k), sort_keys=True, default=str))
                 action = "update" if fields else "identical"
+            if unsupported and action == "identical":
+                continue  # unchanged unsupported objects would just be noise
             items.append({"resource_type": rtype, "object_id": key,
                           "object_name": obj_name(obj), "action": action,
                           "changed_fields": fields[:30],
                           "managed": bool(obj.get("managed")),
+                          "restorable": not unsupported,
                           "_obj": obj, "_live": live})
     return items
 
@@ -85,6 +89,11 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         for item in plan:
             obj = item.pop("_obj")
             live_obj = item.pop("_live")
+            if not item.get("restorable", True):
+                item["status"] = "unsupported"
+                item["error"] = (f"{item['resource_type']} can't be auto-restored yet — "
+                                 "shown for visibility; recreate in the IdP console if needed")
+                continue
             if mode == "dry_run":
                 item["status"] = "planned" if item["action"] != "identical" else "skipped"
                 continue
@@ -109,9 +118,9 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         if t.id != src.id:
             summary["promote"] = {"source": src.slug, "target": t.slug}
         for it in plan:
-            for key in ("action", "status"):
-                summary.setdefault(key + "s", {})
-                summary[key + "s"][it[key]] = summary[key + "s"].get(it[key], 0) + 1
+            for key, plural in (("action", "actions"), ("status", "statuses")):
+                summary.setdefault(plural, {})
+                summary[plural][it[key]] = summary[plural].get(it[key], 0) + 1
 
         run = RestoreRun(tenant_id=t.id, snapshot_ts=snapshot_ts, mode=mode, actor=actor,
                          summary=summary, results={"items": plan})

@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.12] — 2026-07-12
+### Changed
+- Restore dialog: removed the redundant "Everything in this snapshot" radio;
+  per-item checkboxes with explicit **Select all / Unselect all** buttons are the
+  selection mechanism.
+- Non-auto-restorable resource types (e.g. Okta apps) are now **visible** in the
+  restore preview whenever they differ from live — a deleted app shows as
+  `create … unsupported` with an explanatory note — instead of being silently
+  omitted from the plan. Unchanged unsupported objects stay hidden to avoid noise.
+### Fixed
+- Restore summary key typo (`statuss` → `statuses`) — the Applied line in the UI
+  and restore alerts now show the per-status counts (skipped/updated/failed/…).
+- Header version badge was hardcoded (stuck at v0.7.2); it now reads the running
+  version from `/healthz`.
+
 ## [0.7.11] — 2026-07-12
 ### Added
 - Config restore-apply for **Okta** (`push_object`): create-or-update of groups,
