@@ -24,7 +24,9 @@ class SettingsIn(BaseModel):
     alert_webhook_format: str | None = None  # auto | slack | ntfy
     alert_events: list | None = None  # subscribed alert categories
     default_schedule_cron: str | None = None
+    default_identity_schedule_cron: str | None = None
     default_retention_keep: int | None = None
+    org_timezone: str | None = None  # IANA tz that cron schedules run in (default UTC)
     okta_rate_reserve_pct: int | None = None  # 0-90; headroom left on Okta limits
     mfa_trust_days: int | None = None  # 0 = always prompt for MFA; N = trust device N days
     login_max_attempts: int | None = None    # failed logins before lockout (default 5)
@@ -59,6 +61,13 @@ def get_settings_api() -> dict:
 
 @router.put("/settings")
 def put_settings(body: SettingsIn, request: Request) -> dict:
+    if body.org_timezone:
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(body.org_timezone)
+        except Exception:
+            raise HTTPException(422, f"unknown timezone: {body.org_timezone}")
+    tz_changed = False
     with SessionLocal() as db:
         if body.smtp is not None:
             cur = _get(db, "smtp")
@@ -70,13 +79,19 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_retention_keep", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "stale_backup_hours", "public_url", "enforce_host"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_identity_schedule_cron", "default_retention_keep", "org_timezone", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "stale_backup_hours", "public_url", "enforce_host"):
             v = getattr(body, k)
             if v is not None:
+                if k == "org_timezone" and v != general.get("org_timezone", "UTC"):
+                    tz_changed = True
                 general[k] = v
         _put(db, "general", general)
         db.add(AuditLog(actor=request.state.user["username"], action="settings.update", detail={}))
         db.commit()
+    if tz_changed:
+        # Re-register all tenant cron jobs so they run in the new timezone.
+        from app.core.scheduler import load_tenant_jobs
+        load_tenant_jobs()
     return {"ok": True}
 
 

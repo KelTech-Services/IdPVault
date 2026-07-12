@@ -1,12 +1,14 @@
-<h3>Tiers</h3>
-<table><tr><th></th><th>Community (free)</th><th>Licensed</th></tr>
-<tr><td>Tenants</td><td>1</td><td>Per license (typically unlimited)</td></tr>
-<tr><td>Users</td><td>1 (the first-run admin)</td><td>Per license (typically unlimited)</td></tr>
-<tr><td>Config backup, drift, events, alerts, config restore</td><td>Included</td><td>Included</td></tr>
-<tr><td>Identity backup &amp; restore</td><td>Not included</td><td>Included</td></tr></table>
+<h3>Plans</h3>
+<table><tr><th></th><th>Community (free)</th><th>Business</th><th>MSP</th></tr>
+<tr><td>Tenants</td><td>1</td><td>4</td><td>4 included, add more any time</td></tr>
+<tr><td>Users</td><td>1 (the first-run admin)</td><td>Unlimited</td><td>Unlimited</td></tr>
+<tr><td>Config backup, drift, events, alerts, config restore</td><td>Included</td><td>Included</td><td>Included</td></tr>
+<tr><td>Users &amp; Access backup &amp; restore</td><td>Not included</td><td>Included</td><td>Included</td></tr>
+<tr><td>Client orgs, org-scoped users, per-org grouping</td><td>Not included</td><td>Not included</td><td>Included</td></tr></table>
+<p>The MSP plan is built for managed-service providers running tenants for multiple client organizations; it ships in an upcoming release. Licenses are sold at flat, published prices - no per-end-user counting, no sales calls. Purchase and upgrades: <a href="https://idpvault.com" target="_blank" rel="noopener">idpvault.com</a>.</p>
 <h3>How license keys work</h3>
 <p>A key is a cryptographically signed token verified <b>entirely offline</b> against a public key built into the app. IdPVault never phones home, sends no telemetry, and needs no internet access to validate a license. Install, inspect, or remove the key in <b>Settings → License</b>.</p>
 <h3>Terms &amp; renewal</h3>
-<p>Licenses are sold as 1-year (minimum), 2-year, 5-year, or perpetual. Your renewal key can be installed any time before expiry; its term extends from the old expiry date, so renewing early never costs you time. The License panel always shows the expiry date and a day countdown.</p>
+<p>Licenses are sold as annual terms. Your renewal key can be installed any time before expiry; its term extends from the old expiry date, so renewing early never costs you time. The License panel always shows the expiry date and a day countdown. MSP tenant add-ons can be purchased whenever needed; a replacement key with the higher tenant count is issued immediately.</p>
 <h3>If a license expires or is removed</h3>
-<p>After a 3-day grace window, the instance downgrades <b>non-destructively</b>: nothing is deleted. Your oldest tenant stays fully operational; other tenants keep all data and snapshots but pause backup/restore; identity features pause. Everything resumes the moment a valid key is installed.</p>
+<p>After a 3-day grace window, the instance downgrades <b>non-destructively</b>: nothing is deleted. Your oldest tenant stays fully operational; other tenants keep all data and snapshots but pause backup/restore; Users &amp; Access features pause. Everything resumes the moment a valid key is installed.</p>

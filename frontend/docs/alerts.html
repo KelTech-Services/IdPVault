@@ -7,6 +7,6 @@
 <tr><td>Changes detected during backup</td><td>a backup finds config changed vs the previous snapshot - the recommended always-on alert; the change list is included in the backup message</td></tr>
 <tr><td>Backup failed</td><td>a scheduled or manual backup errors (credentials, availability)</td></tr>
 <tr><td>Backup succeeded</td><td>every completed backup (noisy; off by default)</td></tr>
-<tr><td>Restore applied</td><td>a config or identity restore writes to a live tenant</td></tr>
+<tr><td>Restore applied</td><td>a config or Users &amp; Access restore writes to a live tenant</td></tr>
 <tr><td>Backup overdue</td><td>a daily self-check finds a scheduled tenant with no recent successful backup - the watchdog for silent failures</td></tr></table>
 <p>Tip: subscribe to <i>drift</i> but not <i>backup succeeded</i> and you'll only hear from IdPVault when something actually changed, failed, or was overdue.</p>

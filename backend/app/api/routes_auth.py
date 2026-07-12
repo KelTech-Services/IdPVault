@@ -145,7 +145,8 @@ def me(request: Request) -> dict:
     u = request.state.user
     with SessionLocal() as db:
         row = db.get(User, u["id"])
-        return {**u, "mfa_enabled": bool(row and row.mfa_enabled)}
+        return {**u, "mfa_enabled": bool(row and row.mfa_enabled),
+                "time_format": (row.time_format if row else None) or "auto"}
 
 
 # ---------- self-service password ----------
@@ -171,17 +172,22 @@ def change_password(body: ChangePw, request: Request) -> dict:
 # ---------- self-service profile ----------
 class ProfileIn(BaseModel):
     email: str | None = None
+    time_format: str | None = None  # auto | 12 | 24
 
 
 @router.post("/auth/profile")
 def update_profile(body: ProfileIn, request: Request) -> dict:
+    if body.time_format is not None and body.time_format not in ("auto", "12", "24"):
+        raise HTTPException(422, "time_format must be auto, 12, or 24")
     with SessionLocal() as db:
         u = db.get(User, request.state.user["id"])
         if body.email is not None:
             u.email = body.email.strip()
+        if body.time_format is not None:
+            u.time_format = body.time_format
         db.add(AuditLog(actor=u.username, action="auth.profile_update", detail={}))
         db.commit()
-        return {"email": u.email}
+        return {"email": u.email, "time_format": u.time_format}
 
 
 # ---------- forgot password (public) ----------

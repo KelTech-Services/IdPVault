@@ -107,6 +107,14 @@ Feature work (gated behind `msp` feature flag):
   filtered to granted orgs. Requires Alembic first (largest schema change to date).
 - Later MSP upsells: per-org alert routing (client's own webhook/email), client-facing
   monthly backup report per org.
+- **MSP docs gating**: MSP-only doc pages (Orgs, scoped users) must carry
+  `feature:'msp'` in DOC_TOPICS so they only appear when an MSP license is
+  installed (filter shipped in v0.8.7). Prereq: expose the installed license's
+  feature list to non-admin sessions (GET /license is admin-only today) — add a
+  lightweight `features` field to /auth/me or a public-ish /license/summary.
+- UI naming: the identity feature is presented as **"Users & Access"** everywhere
+  user-facing (since "identity" is overloaded in IAM); the license feature key
+  stays `identity` for compatibility with already-minted keys.
 
 ### v1.0 — public ship
 

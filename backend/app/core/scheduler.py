@@ -1,29 +1,62 @@
 """APScheduler wiring: one cron job per tenant, plus on-demand runs."""
 import logging
+import os
 import time
 from datetime import datetime, timezone
 
+from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 log = logging.getLogger(__name__)
-scheduler = BackgroundScheduler(timezone="UTC")
+# Backups queue and run one at a time by default so modest hosts are never
+# overloaded by same-time schedules; hosts with headroom can raise
+# IDPVAULT_BACKUP_WORKERS. Same-tenant runs never overlap regardless
+# (APScheduler max_instances=1 per job).
+_WORKERS = max(1, int(os.environ.get("IDPVAULT_BACKUP_WORKERS", "1")))
+scheduler = BackgroundScheduler(
+    timezone="UTC",
+    executors={"default": ThreadPoolExecutor(_WORKERS)},
+    job_defaults={"coalesce": True, "misfire_grace_time": 3600},
+)
+
+
+def org_timezone() -> str:
+    """IANA timezone that tenant cron schedules are interpreted in (Settings ->
+    org timezone; default UTC). Snapshot names/storage stay UTC regardless."""
+    try:
+        from zoneinfo import ZoneInfo
+
+        from app.models.db import SessionLocal, Setting
+        with SessionLocal() as db:
+            row = db.get(Setting, "general")
+            tz = (dict(row.value) if row else {}).get("org_timezone") or "UTC"
+        ZoneInfo(tz)  # validate; fall back to UTC on bad values
+        return tz
+    except Exception:
+        return "UTC"
+
+
+def cron_trigger(expr: str) -> CronTrigger:
+    """Cron trigger evaluated in the org timezone (DST-correct)."""
+    return CronTrigger.from_crontab(expr, timezone=org_timezone())
 
 
 def load_tenant_jobs() -> None:
-    """Register cron backup jobs for all tenants with a schedule set."""
+    """(Re-)register cron backup jobs for all tenants with a schedule set.
+    Safe to call again after settings changes (replace_existing)."""
     from app.models.db import SessionLocal, Tenant
 
     scheduler.add_job(health_check, CronTrigger.from_crontab("30 0 * * *"), id="health-check", replace_existing=True)
     with SessionLocal() as db:
         for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
-            scheduler.add_job(run_backup, CronTrigger.from_crontab(t.schedule_cron),
+            scheduler.add_job(run_backup, cron_trigger(t.schedule_cron),
                               args=[t.id], id=f"backup-{t.id}", replace_existing=True)
-            log.info("scheduled config backup tenant=%s cron=%s", t.slug, t.schedule_cron)
+            log.info("scheduled config backup tenant=%s cron=%s tz=%s", t.slug, t.schedule_cron, org_timezone())
         from app.core.identity import run_identity_backup
         for t in db.query(Tenant).filter(Tenant.identity_enabled == True,  # noqa: E712
                                          Tenant.identity_schedule_cron.isnot(None)).all():
-            scheduler.add_job(run_identity_backup, CronTrigger.from_crontab(t.identity_schedule_cron),
+            scheduler.add_job(run_identity_backup, cron_trigger(t.identity_schedule_cron),
                               args=[t.id], id=f"identity-{t.id}", replace_existing=True)
             log.info("scheduled identity backup tenant=%s cron=%s", t.slug, t.identity_schedule_cron)
 

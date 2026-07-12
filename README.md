@@ -10,7 +10,7 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 
 - Scheduled + on-demand encrypted backups (AES-256-GCM, per-tenant envelope keys)
 - Providers: Authentik, Okta, Auth0 (pluggable adapter interface)
-- Identity backup (opt-in): users, group memberships, and provenance-aware app assignments
+- Users & Access backup (opt-in): users, group memberships, and provenance-aware app assignments
 - Adaptive Okta rate limiting (auto-learns limits; configurable reserve headroom)
 - Snapshot-to-snapshot diff, drift detection, and a per-object change events feed
 - Restore engine: dry-run preview, dependency-ordered apply (Authentik), per-object
@@ -21,6 +21,9 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 - Retention policies per tenant; audit log with viewer
 - Alerts on drift or failed backups: webhook (ntfy / Slack) + email
 - Prometheus metrics endpoint (set IDPVAULT_METRICS_TOKEN to enable)
+- Backups queue and run one at a time by default, safe for modest hosts (set
+  IDPVAULT_BACKUP_WORKERS to run more in parallel); schedules run in your org
+  timezone, DST-aware
 
 ## Quick deploy (Docker Compose / Portainer stack)
 
@@ -77,8 +80,10 @@ The app itself is open-core:
 
 - **Community (free, no key needed):** 1 tenant, full config backup, drift
   detection & events, alerts, and config restore.
-- **Paid license:** more tenants (or unlimited) and identity backup & restore
+- **Business:** 4 tenants, unlimited users, and Users & Access backup & restore
   (users, group memberships, app assignments).
+- **MSP** (upcoming): tenant add-ons whenever you need them, client orgs, and
+  org-scoped users. Flat published pricing at https://idpvault.com.
 
 License keys are Ed25519-signed tokens verified **entirely offline** against a
 public key embedded in the app — IdPVault never phones home and sends no

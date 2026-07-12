@@ -1,7 +1,7 @@
 <h3>What gets backed up</h3>
 <p>Config backups capture your IdP's configuration objects via its API: applications/clients, providers, flows, stages, policies, groups, mappings, zones, hooks, and more (the exact set depends on the provider). Each backup is a complete point-in-time snapshot, encrypted with a per-tenant data key before it touches disk.</p>
 <h3>Scheduling &amp; retention</h3>
-<p>Each tenant has its own cron schedule (UTC) and a retention count - how many snapshots to keep. Old snapshots past the retention count are pruned automatically after each successful backup. Manual backups any time with <b>Backup now</b>.</p>
+<p>Each tenant has its own schedule (Daily/Weekly/Monthly with a time, or custom cron for anything else) and a retention count - how many snapshots to keep. Schedules run in the org timezone set in Settings. Backups queue and run one at a time, so same-time schedules never overload the host. Old snapshots past the retention count are pruned automatically after each successful backup. Manual backups any time with <b>Backup now</b>.</p>
 <h3>Snapshots</h3>
 <ul>
 <li><b>Browse</b> - open any snapshot and inspect every object in it (searchable).</li>

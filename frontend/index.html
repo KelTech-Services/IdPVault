@@ -210,13 +210,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
         <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
         <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
         <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
-        <div><label>Schedule (cron, UTC - optional)</label><input id="f_cron" placeholder="0 3 * * *"></div>
+        <div><label>Backup schedule</label><div id="sched_fs"></div></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
         <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
-        <div id="fd_ident"><label>Identity backup (users & assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
-        <div id="fd_identcron"><label>Identity schedule (cron, UTC)</label><input id="f_identcron" placeholder="0 6 * * *"></div>
-        <div id="fd_identkeep"><label>Identity retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
+        <div id="fd_ident"><label>Users &amp; Access backup (users, memberships, app assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+        <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
+        <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
+      <p class="muted" style="font-size:.76rem;margin:2px 0 10px">Schedules run in the org timezone (Settings). Backups queue and run one at a time - same-tenant runs never overlap.</p>
       <button class="primary" onclick="saveTenant()">Save tenant</button>
       <button onclick="toggleAdd()">Cancel</button>
       <button id="f_delete" class="hidden" onclick="deleteFromForm()">Delete tenant</button>
@@ -234,8 +235,8 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="idpanel">
-    <h2>Identity - <span id="id_slug"></span><span class="spacer"></span>
-      <button class="mutating" onclick="identityBackupNow()">Back up identities now</button>
+    <h2>Users &amp; Access - <span id="id_slug"></span><span class="spacer"></span>
+      <button class="mutating" onclick="identityBackupNow()">Back up now</button>
       <button onclick="document.getElementById('idpanel').classList.add('hidden')">Close</button></h2>
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
     <table><thead><tr><th>Timestamp (UTC)</th><th>Users</th><th>Memberships</th><th>Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
@@ -274,6 +275,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div class="formgrid" style="grid-template-columns:1fr auto;align-items:end">
       <div><label>Email (used for password resets)</label><input id="pf_email" type="email" placeholder="you@example.com"></div>
       <div><button class="primary" onclick="saveProfileEmail()">Save email</button></div>
+      <div><label>Time format (for times shown to you)</label><select id="pf_tf" onchange="saveTimeFormat()"><option value="auto">Automatic (browser locale)</option><option value="12">12-hour (AM/PM)</option><option value="24">24-hour</option></select></div>
     </div>
     <h3 style="font-size:.9rem;margin:18px 0 8px">Change password</h3>
     <div class="formgrid" style="grid-template-columns:1fr 1fr">
@@ -302,7 +304,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 </div>
 <div id="idrestoremodal" class="modal hidden">
   <div class="box">
-    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Identity restore - <span id="ir_tenant"></span></h2>
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access restore - <span id="ir_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is create-only and additive: it recreates missing users and re-adds memberships/assignments; it never modifies or deletes existing users.</p>
     <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
       <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
@@ -365,15 +367,17 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div class="formgrid">
       <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
       <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
-      <div><label>Default backup schedule (cron, UTC)</label><input id="s_defcron" placeholder="0 3 * * *"></div>
+      <div><label>Org timezone (schedules run in this timezone)</label><select id="s_tz"></select></div>
       <div><label>Default retention (snapshots)</label><input id="s_defkeep" type="number" placeholder="30"></div>
+      <div><label>Default backup schedule</label><div id="sched_sd"></div></div>
+      <div><label>Default Users &amp; Access schedule</label><div id="sched_si"></div></div>
       <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
       <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
       <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
     </div>
-    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works - otherwise you can lock yourself out.</p>
+    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works - otherwise you can lock yourself out. Backups queue and run one at a time - same-tenant runs never overlap.</p>
     <button class="primary" onclick="saveSettings()">Save settings</button>
   </section>
   <section class="panel">
@@ -486,6 +490,11 @@ async function saveProfileEmail(){
     me.email = r.email; toast('Email saved.');
   }catch(e){ toast(e.message, true); }
 }
+async function saveTimeFormat(){
+  try{ const r = await api('/auth/profile', {method:'POST', body: JSON.stringify({time_format:v('pf_tf')})});
+    me.time_format = r.time_format; initSchedPickers(); toast('Time format saved.');
+  }catch(e){ toast(e.message, true); }
+}
 function showForgot(){ document.getElementById('forgotwrap').classList.toggle('hidden'); const f=document.getElementById('fg_id'); if(!document.getElementById('forgotwrap').classList.contains('hidden')) f.focus(); }
 async function doForgot(){
   if(!v('fg_id')) return toast('Enter your username or email', true);
@@ -498,6 +507,7 @@ async function doForgot(){
 async function openProfile(){
   document.getElementById('pf_user').textContent = me.username;
   document.getElementById('pf_email').value = me.email || '';
+  document.getElementById('pf_tf').value = me.time_format || 'auto';
   document.getElementById('pf_cur').value=''; document.getElementById('pf_new').value='';
   document.getElementById('profilemodal').classList.remove('hidden');
   renderMfa();
@@ -598,6 +608,7 @@ function showApp(){
   const isAdmin = me.role === 'admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  initSchedPickers();
   health(); loadTenants(); setInterval(health, 30000);
   setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);
   switchView(currentRoute(), true);            // restore page from URL on load/refresh
@@ -641,7 +652,7 @@ async function health(){
 /* ---------- tenants ---------- */
 function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
-const LIC_TIP_IDENTITY = 'Identity backup &amp; restore requires a paid license - add one in Settings &gt; License';
+const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Settings &gt; License';
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   const isAdmin = me.role === 'admin';
@@ -670,7 +681,7 @@ async function loadTenants(){
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
         <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        ${isAdmin ? (t.supports_identity===false ? `<button disabled title="Identity backup isn't supported for this provider yet">Identity</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>`) : ''}
+        ${isAdmin ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Users &amp; Access</button>`) : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -689,11 +700,11 @@ function editTenant(id){
   document.getElementById('f_clientid').value = '';
   document.getElementById('f_clientsecret').value = '';
   if(t.provider==='auth0'){ document.getElementById('f_clientid').placeholder='leave blank to keep current'; document.getElementById('f_clientsecret').placeholder='leave blank to keep current'; }
-  document.getElementById('f_cron').value = t.schedule_cron || '';
+  schedSet('fs', t.schedule_cron || null);
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
   document.getElementById('f_ident').value = t.identity_enabled ? 'true' : 'false';
-  document.getElementById('f_identcron').value = t.identity_schedule_cron || '';
+  schedSet('fi', t.identity_schedule_cron || null);
   document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
   document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured - blank keeps it, a space clears it' : 'postgresql://… - optional, self-hosted only';
   document.getElementById('f_slug').disabled = true;
@@ -716,12 +727,20 @@ function resetForm(){
   document.getElementById('f_slug').disabled = false;
   document.getElementById('f_provider').disabled = false;
   document.getElementById('f_token').placeholder = 'paste token - encrypted at rest';
-  ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_cron','f_dburl','f_identcron'].forEach(i=>document.getElementById(i).value='');
+  ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_dburl'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_provider').value='authentik';
   document.getElementById('f_ident').value='false';
   document.getElementById('f_identkeep').value=14;
   document.getElementById('f_keep').value = 30;
   document.getElementById('f_delete').classList.add('hidden');
+  schedSet('fs', null); schedSet('fi', null);
+  // prefill from org defaults (Settings) for new tenants
+  api('/settings').then(s=>{
+    if(editingId) return;
+    if(s.default_schedule_cron) schedSet('fs', s.default_schedule_cron);
+    if(s.default_identity_schedule_cron) schedSet('fi', s.default_identity_schedule_cron);
+    if(s.default_retention_keep) document.getElementById('f_keep').value = s.default_retention_keep;
+  }).catch(()=>{});
   onProviderChange();
 }
 async function saveTenant(){
@@ -729,8 +748,8 @@ async function saveTenant(){
   const auth0cred = ()=>{ const cid=v('f_clientid'), sec=v('f_clientsecret'); return (cid&&sec) ? cid+':'+sec : ''; };
   if(editingId){
     const body = { name: v('f_name'), base_url: v('f_url'),
-      schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
-      identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: v('f_identcron') || null,
+      schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
+      identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: schedGet('fi'),
       identity_retention_keep: parseInt(v('f_identkeep')||'14') };
     const tok = prov==='auth0' ? auth0cred() : v('f_token');
     if(tok) body.api_token = tok;
@@ -746,9 +765,9 @@ async function saveTenant(){
   const body = {
     name: v('f_name'), slug: v('f_slug'), provider: prov,
     base_url: v('f_url'), api_token: prov==='auth0' ? auth0cred() : v('f_token'),
-    schedule_cron: v('f_cron') || null, retention_keep: parseInt(v('f_keep')||'30'),
+    schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
     db_url: prov==='authentik' ? (v('f_dburl') || null) : null,
-    identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: v('f_identcron') || null,
+    identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: schedGet('fi'),
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and credentials are required', true);
@@ -797,6 +816,76 @@ async function showSnaps(id, slug){
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
 function fmtTs(ts){ return ts.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3 $4:$5:$6'); }
+function hour12Pref(){ const tf=(me&&me.time_format)||'auto'; return tf==='12'?true : tf==='24'?false : undefined; }
+function fmtLocal(iso){ const o=hour12Pref(); return new Date(iso).toLocaleString([], o===undefined?{}:{hour12:o}); }
+
+/* ---------- schedule pickers (friendly cron) ---------- */
+const SCHED_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function timeLabel(h,m){
+  const tf=(me&&me.time_format)||'auto';
+  const use12 = tf==='12' || (tf==='auto' && /AM|PM/i.test(new Date(2000,0,1,13).toLocaleTimeString()));
+  const mm = String(m).padStart(2,'0');
+  if(!use12) return `${String(h).padStart(2,'0')}:${mm}`;
+  const ap = h<12?'AM':'PM'; let hh=h%12; if(hh===0) hh=12;
+  return `${hh}:${mm} ${ap}`;
+}
+function initSchedPickers(){
+  const timeOpts = Array.from({length:48},(_,i)=>{const h=Math.floor(i/2),m=(i%2)*30;return `<option value="${h}:${m}">${timeLabel(h,m)}</option>`;}).join('');
+  ['fs','fi','sd','si'].forEach(p=>{
+    const host = document.getElementById('sched_'+p); if(!host) return;
+    const prev = host.dataset.ready ? schedGet(p) : undefined;
+    host.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap">
+      <select id="${p}_freq" onchange="schedToggle('${p}')" style="width:auto"><option value="">Disabled</option>
+        <option value="daily">Daily</option><option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option><option value="cron">Custom (cron)</option></select>
+      <select id="${p}_dow" class="hidden" style="width:auto">${SCHED_DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select>
+      <select id="${p}_dom" class="hidden" style="width:auto">${Array.from({length:28},(_,i)=>`<option value="${i+1}">Day ${i+1}</option>`).join('')}</select>
+      <select id="${p}_time" class="hidden" style="width:auto">${timeOpts}</select>
+      <input id="${p}_cron" class="hidden" placeholder="0 3 * * *" style="width:110px" title="Standard 5-field cron, evaluated in the org timezone"></div>`;
+    host.dataset.ready = '1';
+    if(prev !== undefined) schedSet(p, prev);
+  });
+}
+function schedToggle(p){
+  const f = v(p+'_freq');
+  document.getElementById(p+'_dow').classList.toggle('hidden', f!=='weekly');
+  document.getElementById(p+'_dom').classList.toggle('hidden', f!=='monthly');
+  document.getElementById(p+'_time').classList.toggle('hidden', f===''||f==='cron');
+  document.getElementById(p+'_cron').classList.toggle('hidden', f!=='cron');
+}
+function schedSet(p, cron){
+  const el = k=>document.getElementById(p+k);
+  if(!el('_freq')) return;
+  let f='', h=3, m=0, mt;
+  if(cron){
+    if((mt=cron.match(/^(\d{1,2}) (\d{1,2}) \* \* \*$/)))      { f='daily';   m=+mt[1]; h=+mt[2]; }
+    else if((mt=cron.match(/^(\d{1,2}) (\d{1,2}) \* \* (\d)$/))){ f='weekly';  m=+mt[1]; h=+mt[2]; el('_dow').value=mt[3]; }
+    else if((mt=cron.match(/^(\d{1,2}) (\d{1,2}) (\d{1,2}) \* \*$/))){ f='monthly'; m=+mt[1]; h=+mt[2]; el('_dom').value=mt[3]; }
+    else f='cron';
+    if(f!=='cron' && m!==0 && m!==30) f='cron';        // odd minutes: show as raw cron
+    if(f==='cron') el('_cron').value = cron;
+  }
+  el('_freq').value = f;
+  if(f && f!=='cron') el('_time').value = `${h}:${m}`;
+  schedToggle(p);
+}
+function schedGet(p){
+  const f = v(p+'_freq');
+  if(!f) return null;
+  if(f==='cron') return v(p+'_cron').trim() || null;
+  const [h,m] = v(p+'_time').split(':');
+  if(f==='daily')  return `${m} ${h} * * *`;
+  if(f==='weekly') return `${m} ${h} * * ${v(p+'_dow')}`;
+  return `${m} ${h} ${v(p+'_dom')} * *`;
+}
+function initTzPicker(current){
+  const sel = document.getElementById('s_tz'); if(!sel) return;
+  let zones = ['UTC'];
+  try { zones = Intl.supportedValuesOf('timeZone'); } catch {}
+  if(!zones.includes('UTC')) zones = ['UTC', ...zones];
+  if(current && !zones.includes(current)) zones = [current, ...zones];
+  sel.innerHTML = zones.map(z=>`<option value="${z}"${z===current?' selected':''}>${z}</option>`).join('');
+}
 function selSnap(row){
   const ts = row.dataset.ts, cb = row.querySelector('input');
   if(selectedSnaps.includes(ts)){ selectedSnaps = selectedSnaps.filter(x=>x!==ts); cb.checked=false; row.classList.remove('sel'); }
@@ -877,9 +966,9 @@ async function delUser(id, name){
 /* ---------- settings ---------- */
 const ALERT_CATALOG = [
   {key:'drift_detected', label:'Changes detected during backup', when:'a backup finds config changed vs the previous snapshot; the change list is included in the backup message'},
-  {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or identity) errors'},
+  {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or Users & Access) errors'},
   {key:'backup_success', label:'Backup succeeded',             when:'a backup completes successfully (can be noisy)'},
-  {key:'restore_applied',label:'Restore applied',              when:'a config or identity restore is written to a live tenant'},
+  {key:'restore_applied',label:'Restore applied',              when:'a config or Users & Access restore is written to a live tenant'},
 ];
 function renderAlertEvents(enabled){
   document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
@@ -894,7 +983,7 @@ async function loadLicense(){
   if(!l.valid){
     const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired - paid features are paused.</span><br>' : '';
     box.innerHTML = bad + `<b>Community tier</b> (free) - ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. `
-      + `A paid license unlocks more tenants, more users, and identity backup &amp; restore.`;
+      + `A paid license unlocks more tenants, more users, and Users &amp; Access backup &amp; restore. <a href="https://idpvault.com" target="_blank" rel="noopener">Get a license at idpvault.com</a>`;
     return;
   }
   const expDate = l.expires ? new Date(l.expires*1000).toISOString().slice(0,10) : 'never';
@@ -917,7 +1006,7 @@ async function installLicense(){
   } catch(e){ toast('Install failed: ' + e.message, true); }
 }
 async function clearLicense(){
-  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no identity backup). Nothing is deleted - paid actions pause until a license is installed again.')) return;
+  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no Users & Access backup). Nothing is deleted - paid actions pause until a license is installed again.')) return;
   try {
     await api('/license', {method:'DELETE'});
     toast('License removed - running in Community tier.');
@@ -931,7 +1020,7 @@ const DOC_TOPICS = [
   {key:'backups',         title:'Backups & snapshots'},
   {key:'drift-events',    title:'Drift & events'},
   {key:'restore',         title:'Config restore'},
-  {key:'identity',        title:'Identity backup & restore'},
+  {key:'identity',        title:'Users & Access backup'},
   {key:'alerts',          title:'Alerts & notifications'},
   {key:'users-security',  title:'Users & security'},
   {key:'licensing',       title:'Licensing & tiers'},
@@ -939,10 +1028,12 @@ const DOC_TOPICS = [
 ];
 let _docKey = null;
 function loadDocs(){
+  // Topics may carry a `feature` key (e.g. 'msp'): those pages only appear when
+  // the installed license includes that feature. Untagged topics show for everyone.
+  const feats = (_license && _license.features) || [];
+  const topics = DOC_TOPICS.filter(t=>!t.feature || feats.includes(t.feature));
   const tn = document.getElementById('doctopics');
-  if(!tn.childElementCount){
-    tn.innerHTML = DOC_TOPICS.map(t=>`<button data-doc="${t.key}" onclick="openDoc('${t.key}')">${t.title}</button>`).join('');
-  }
+  tn.innerHTML = topics.map(t=>`<button data-doc="${t.key}" onclick="openDoc('${t.key}')">${t.title}</button>`).join('');
   openDoc(_docKey || 'getting-started');
 }
 async function openDoc(key){
@@ -972,7 +1063,9 @@ async function loadSettings(){
     document.getElementById('s_webhook').value = s.alert_webhook_url || '';
     document.getElementById('s_webhookfmt').value = s.alert_webhook_format || 'auto';
     renderAlertEvents(Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied']);
-    document.getElementById('s_defcron').value = s.default_schedule_cron || '';
+    schedSet('sd', s.default_schedule_cron || null);
+    schedSet('si', s.default_identity_schedule_cron || null);
+    initTzPicker(s.org_timezone || 'UTC');
     document.getElementById('s_defkeep').value = s.default_retention_keep || '';
     document.getElementById('s_reserve').value = s.okta_rate_reserve_pct || '';
     document.getElementById('s_mfadays').value = (s.mfa_trust_days!=null? s.mfa_trust_days : '');
@@ -990,7 +1083,9 @@ async function saveSettings(){
     alert_webhook_url: v('s_webhook'),
     alert_webhook_format: v('s_webhookfmt'),
     alert_events: [...document.querySelectorAll('#s_events input:checked')].map(c=>c.value),
-    default_schedule_cron: v('s_defcron'),
+    default_schedule_cron: schedGet('sd') || '',
+    default_identity_schedule_cron: schedGet('si') || '',
+    org_timezone: v('s_tz') || 'UTC',
     default_retention_keep: parseInt(v('s_defkeep')||'0') || null,
     okta_rate_reserve_pct: parseInt(v('s_reserve')||'0') || null,
     mfa_trust_days: parseInt(v('s_mfadays')||'0'),
@@ -1075,7 +1170,7 @@ async function loadEvents(){
     const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}`);
     if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, 'No change events yet - these appear from the second backup onward.'); return; }
     tb.innerHTML = d.events.map(e=>`<tr>
-      <td class="muted">${new Date(e.at).toLocaleString()}</td>
+      <td class="muted">${fmtLocal(e.at)}</td>
       <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>
       <td>${esc(e.resource_type)}</td>
       <td>${esc(e.object_name||e.object_id||'-')}${e.detail&&e.detail.fields&&e.detail.fields.length?` <span class="muted">(${e.detail.fields.slice(0,6).join(', ')})</span>`:''}</td>
@@ -1175,7 +1270,7 @@ async function loadAudit(){
     const d = await api(`/audit?limit=200${f?'&action='+f:''}`);
     if(!d.entries.length){ tb.innerHTML=emptyRow(4, EI.list, 'No audit entries yet.'); return; }
     tb.innerHTML = d.entries.map(a=>`<tr>
-      <td class="muted">${new Date(a.at).toLocaleString()}</td>
+      <td class="muted">${fmtLocal(a.at)}</td>
       <td>${esc(a.actor)}</td><td>${esc(a.action)}</td>
       <td class="muted" style="font-size:.78rem">${esc(JSON.stringify(a.detail))}</td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
@@ -1243,7 +1338,7 @@ async function loadIdentitySnaps(){
   tb.innerHTML = skelRows(7);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No identity snapshots yet - enable identity backup on the tenant (Edit) and run one.'); return; }
+    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
       const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
@@ -1254,12 +1349,12 @@ async function loadIdentitySnaps(){
   }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function identityBackupNow(){
-  document.getElementById('id_estimate').textContent = 'Backing up identities… (throttled to respect Okta API limits - may take a while on large orgs)';
+  document.getElementById('id_estimate').textContent = 'Backing up users & access… (throttled to respect Okta API limits - may take a while on large orgs)';
   try{
     const r = await api(`/tenants/${_idCtx.tenantId}/identity/backup`, {method:'POST'});
-    toast(`Identity backup done - ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
+    toast(`Users & Access backup done - ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
     loadIdentityEstimate(); loadIdentitySnaps();
-  }catch(e){ toast('Identity backup failed: '+e.message, true); loadIdentityEstimate(); }
+  }catch(e){ toast('Users & Access backup failed: '+e.message, true); loadIdentityEstimate(); }
 }
 let _irCtx = null;
 const RECREATE_SELECT_MAX = 200;
@@ -1337,7 +1432,7 @@ async function identityApply(){
     if(selection.length===0 && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
   }
   const n = selection ? selection.length : (p.summary.users.recreate||0);
-  if(!confirm(`APPLY identity restore? This WRITES to the live tenant: recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
+  if(!confirm(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
   document.getElementById('ir_summary').textContent = 'Applying… (throttled; may take a while)';
   document.getElementById('ir_applybtn').disabled = true;
   try{
@@ -1354,7 +1449,7 @@ async function identityApply(){
       ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(row).join('') +
       (r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
     document.getElementById('ir_applybtn').classList.add('hidden');
-    toast('Identity restore applied - see the report.');
+    toast('Users & Access restore applied - see the report.');
     loadIdentitySnaps();
   }catch(e){ document.getElementById('ir_summary').textContent = 'Apply failed: '+e.message; }
   document.getElementById('ir_applybtn').disabled = false;

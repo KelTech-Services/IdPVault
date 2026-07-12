@@ -141,7 +141,8 @@ def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
             t.identity_schedule_cron = fields["identity_schedule_cron"] or None
             jid = f"identity-{t.id}"
             if t.identity_enabled and t.identity_schedule_cron:
-                scheduler.add_job(run_identity_backup, CronTrigger.from_crontab(t.identity_schedule_cron),
+                from app.core.scheduler import cron_trigger
+                scheduler.add_job(run_identity_backup, cron_trigger(t.identity_schedule_cron),
                                   args=[t.id], id=jid, replace_existing=True)
             else:
                 try:
@@ -151,7 +152,8 @@ def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
         if "schedule_cron" in fields:
             t.schedule_cron = fields["schedule_cron"] or None
             if t.schedule_cron:
-                scheduler.add_job(run_backup, CronTrigger.from_crontab(t.schedule_cron),
+                from app.core.scheduler import cron_trigger
+                scheduler.add_job(run_backup, cron_trigger(t.schedule_cron),
                                   args=[t.id], id=f"backup-{t.id}", replace_existing=True)
             else:
                 try:

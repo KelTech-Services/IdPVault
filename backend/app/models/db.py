@@ -66,6 +66,7 @@ _COLUMN_MIGRATIONS = [
     ("tenants", "identity_retention_keep", "INTEGER DEFAULT 14"),
     ("users", "mfa_enabled", "BOOLEAN DEFAULT FALSE"),
     ("users", "mfa_secret_enc", "VARCHAR(255)"),
+    ("users", "time_format", "VARCHAR(6) DEFAULT 'auto'"),
     ("users", "failed_logins", "INTEGER DEFAULT 0"),
     ("users", "locked_until", "TIMESTAMPTZ"),
 ]
@@ -100,6 +101,7 @@ class User(Base):
     invite_token: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_secret_enc: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    time_format: Mapped[str] = mapped_column(String(6), default="auto")  # auto | 12 | 24
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

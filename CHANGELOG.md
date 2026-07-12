@@ -3,6 +3,27 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.7] - 2026-07-12
+### Added
+- Friendly scheduling: Daily/Weekly/Monthly + time dropdowns (with a custom-cron
+  escape hatch) replace raw cron fields in the tenant form and Settings; new
+  org-wide default Users & Access schedule; new tenants prefill from org defaults.
+- Org timezone (Settings): all schedules are evaluated in it, DST-aware; jobs
+  re-register automatically when it changes. Snapshot names/storage stay UTC.
+- Per-user time format (Profile): automatic / 12-hour / 24-hour; Events and
+  Audit timestamps render in the viewer's local time.
+- Serial backup queue: backups run one at a time by default (safe for modest
+  hosts), each starting the moment the previous finishes; opt into parallelism
+  with IDPVAULT_BACKUP_WORKERS. A 1-hour misfire grace runs delayed jobs late
+  instead of skipping them.
+- Licensing doc: three-plan comparison (Community / Business / MSP) with the
+  idpvault.com purchase link; "Get a license" link in Settings -> License.
+- Docs topics support license-feature gating (groundwork for MSP-only pages).
+### Changed
+- The identity feature is now presented as "Users & Access" across the UI and
+  docs ("identity" is overloaded in IAM). The license feature key stays
+  `identity`, so existing keys are unaffected.
+
 ## [0.8.6] - 2026-07-12
 ### Added
 - Clickable "Unbacked changes" dashboard card: opens a per-tenant breakdown
