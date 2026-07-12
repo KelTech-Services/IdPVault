@@ -39,12 +39,18 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
         if rtype in adapter.derived_types:
             continue  # server-regenerated side-effects — never restore work
         unsupported = rtype in adapter.never_restore
-        live_idx = {adapter.natural_key(rtype, o): o for o in live_export.get(rtype, [])}
+        # HYBRID matching: internal id first (a renamed object still matches its
+        # own id), then natural key (a deleted+recreated object with a NEW id
+        # matches by slug/name/label — prevents duplicate creates on re-restore).
+        from app.providers.base import ProviderAdapter as _Base
+        live_list = live_export.get(rtype, [])
+        live_by_id = {_Base.natural_key(adapter, rtype, o): o for o in live_list}
+        live_by_nk = {adapter.natural_key(rtype, o): o for o in live_list}
         for obj in snap_export.get(rtype, []):
             key = adapter.natural_key(rtype, obj)
             if not _selected(selection, rtype, key):
                 continue
-            live = live_idx.get(key)
+            live = live_by_id.get(_Base.natural_key(adapter, rtype, obj)) or live_by_nk.get(key)
             if live is None:
                 action, fields = "create", []
             else:

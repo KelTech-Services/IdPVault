@@ -3,6 +3,16 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.16] — 2026-07-12
+### Fixed
+- **Duplicate-create trap on re-restore**: plan matching is now hybrid — internal
+  id first (renamed objects still match themselves), then natural key
+  (slug/name/label). Previously an object that had already been recreated (new
+  internal id) showed as "create" again on the next preview of an older snapshot,
+  and applying could create a duplicate (Okta allows duplicate app instances).
+  Per-provider natural keys added for Authentik (slug/name/domain) and Okta
+  (app label, group name, policy/zone/idp/hook name).
+
 ## [0.7.15] — 2026-07-12
 ### Fixed
 - **Authentik reference remapping**: objects that reference other objects by

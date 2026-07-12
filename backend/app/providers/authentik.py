@@ -40,6 +40,12 @@ class AuthentikAdapter(ProviderAdapter):
         super().__init__(base_url, credentials)
         self._pk_remap: dict = {}
 
+    def natural_key(self, resource_type: str, obj: dict) -> str:
+        field = self._NK.get(resource_type)
+        if field and obj.get(field) is not None:
+            return str(obj[field])
+        return super().natural_key(resource_type, obj)
+
     def begin_restore(self, snap_export: dict, live_export: dict) -> None:
         """Prebuild old-pk -> live-pk remaps by natural key, so references to
         objects that were deleted and recreated (new pk) resolve — including

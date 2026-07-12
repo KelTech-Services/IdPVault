@@ -54,6 +54,19 @@ class OktaAdapter(ProviderAdapter):
         super().__init__(base_url, credentials)
         self._rl = AdaptiveRateLimiter(reserve_pct=self._reserve_pct())
 
+    def natural_key(self, resource_type: str, obj: dict) -> str:
+        if resource_type == "apps" and obj.get("label"):
+            return str(obj["label"])
+        if resource_type == "groups":
+            n = (obj.get("profile") or {}).get("name")
+            if n:
+                return str(n)
+        if (resource_type.startswith("policies") or
+                resource_type in ("network_zones", "idps", "event_hooks", "inline_hooks")):
+            if obj.get("name"):
+                return str(obj["name"])
+        return super().natural_key(resource_type, obj)
+
     @staticmethod
     def _reserve_pct() -> float:
         try:
