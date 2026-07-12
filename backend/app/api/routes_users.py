@@ -23,6 +23,7 @@ class UserIn(BaseModel):
     username: str
     email: str
     role: str = "user"
+    password: str | None = None  # set directly instead of sending an invite
 
 
 @router.post("/users")
@@ -34,17 +35,25 @@ def create_user(body: UserIn, request: Request) -> dict:
                                  "Add a license in Settings → License to add users")
     if body.role not in ("admin", "user"):
         raise HTTPException(422, "role must be admin or user")
-    invite = pysecrets.token_urlsafe(24)
+    if body.password is not None and len(body.password) < 8:
+        raise HTTPException(422, "password must be at least 8 characters")
+    direct = body.password is not None
+    invite = None if direct else pysecrets.token_urlsafe(24)
     with SessionLocal() as db:
         if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(409, "username already exists")
         u = User(username=body.username, email=body.email, role=body.role,
-                 is_active=False, invite_token=invite)
+                 is_active=direct,
+                 password_hash=hash_password(body.password) if direct else None,
+                 invite_token=invite)
         db.add(u)
         db.add(AuditLog(actor=request.state.user["username"], action="user.create",
-                        detail={"username": body.username, "role": body.role}))
+                        detail={"username": body.username, "role": body.role,
+                                "method": "password" if direct else "invite"}))
         db.commit()
         uid = u.id
+    if direct:
+        return {"id": uid, "invite_link": None, "emailed": False}
     invite_link = f"/#invite={invite}"
     emailed = False
     try:

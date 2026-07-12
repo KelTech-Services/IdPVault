@@ -1,7 +1,7 @@
 <h3>Roles</h3>
 <p>Two roles, enforced server-side on every endpoint (not just hidden buttons): <b>admin</b> (everything) and <b>user</b> (read-only: dashboard, events, snapshots browse). The free Community tier includes the single admin created at first run; adding users requires a paid license.</p>
-<h3>Invites</h3>
-<p>New users are created as pending invites: a one-time link lets them set their own password. If SMTP is configured the invite is emailed; either way you get a copyable link.</p>
+<h3>Adding users</h3>
+<p>Two ways to create a user. <b>Send invite link</b>: the account starts as a pending invite and a one-time link lets them set their own password; if SMTP is configured the invite is emailed, and either way you get a copyable link. <b>Set password now</b>: the admin sets an initial password and the account is active immediately - no email required. Share it securely; the user can change it in their profile.</p>
 <h3>Passwords &amp; MFA</h3>
 <ul>
 <li>Passwords are hashed with <b>scrypt</b>; sessions are server-side (revocable), with Secure/HttpOnly cookies behind HTTPS.</li>

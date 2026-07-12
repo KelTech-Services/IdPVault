@@ -61,6 +61,64 @@ identity backup & restore. Strict-but-non-destructive downgrade with a 3-day gra
 window; oldest tenant stays fully live on free. Settings → License UI with expiry
 countdown; server-side gating everywhere; repo licensed under BSL 1.1.
 
+**v0.8.1–0.8.4** — polish & guardrails: license terms finalized (annual keys, renewal
+extends from previous expiry, single-admin free tier); in-app Docs section (9 topic
+pages, visible to all users); 22-test smoke suite (crypto, license verification,
+restore matching, auth, alerts) wired into CI so a failing test blocks the image from
+reaching the registry; user-facing copy style pass; "Set password now" option when
+creating users (no SMTP required).
+
+## Planned
+
+### v0.9 — MSP tier (orgs & scoped access)
+
+License matrix (all enforcement via existing signed-key fields + `features` flags):
+
+| Tier | Price model | Tenants | Users | Features |
+|---|---|---|---|---|
+| Community | free | 1 | 1 (first-run admin) | config backup & restore |
+| Business | annual | 4 | unlimited | + identity backup & restore |
+| MSP | annual subscription | 4 included, per-tenant add-ons | unlimited | + orgs, scoped users |
+
+Sold terms are **annual only** (adding longer terms later is trivial; removing them
+is not). Renewal keys extend from previous expiry. Existing 3-day grace and
+strict-but-non-destructive downgrade apply unchanged; on MSP expiry org-scoped users
+keep read-only sign-in and all write actions pause with license messaging.
+
+MSP mechanics: license is minted from the Stripe subscription state (subscription =
+source of truth, key = signed receipt). Tenant count is a Stripe quantity; customers
+add tenants any time via the Stripe customer portal ("Manage license" link in
+Settings → License) — quantity change prorates, webhook mints a replacement key with
+the same expiry and higher max_tenants, emailed instantly. No sales calls, flat
+published pricing.
+
+Feature work (gated behind `msp` feature flag):
+- **Orgs page**: new menu item. Org = name, primary contact (name/email/phone),
+  free-form notes, lightweight billing memo (what the MSP charges, monthly/annual
+  cadence, next renewal date) → "renewals coming up" dashboard card. Deliberately
+  NOT a PSA — no invoicing/payment tracking.
+- **Tenant → org**: nullable org field on tenants, dropdown of defined orgs in the
+  tenant form; dashboard groupable by org.
+- **Scoped users**: grants live at org level (auto-covers tenants added to the org
+  later). Role matrix: global **admin**, global **user** (read-only everything),
+  **org admin** (backup/restore/edit tenants within own org only), **org viewer**
+  (read-only within own org; action buttons grayed with "Contact your MSP to take
+  this action"). Enforced server-side on every tenant-scoped endpoint, lists
+  filtered to granted orgs. Requires Alembic first (largest schema change to date).
+- Later MSP upsells: per-org alert routing (client's own webhook/email), client-facing
+  monthly backup report per org.
+
+### v1.0 — public ship
+
+- Zero-config deployment (compose up only: master.key auto-generated on first boot
+  with never-regenerate guard, named volumes default, generated DB password)
+- Public GitHub repo (clean history, README, GitHub Actions CI), full CHANGELOG
+  published — transparent build history
+- Marketing site (idpvault.com) + Stripe checkout, flat public pricing
+- Dashboard/UX polish (clickable unbacked-changes card, identity restore UI matching
+  config restore, timezone-aware scheduling dropdowns, org timezone + per-user
+  12/24h preference)
+
 ## Next
 
 - Optional profile-revert for existing users (identity restore currently create-only)

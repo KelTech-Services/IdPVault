@@ -3,6 +3,18 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.5] - 2026-07-12
+### Added
+- "Set password now" option when creating users: the admin sets an initial
+  password and the account is active immediately - no SMTP required. The invite
+  link flow remains the default.
+### Changed
+- Identity restore UI rebuilt to match the config restore experience: same
+  modal, dry-run preview into a plan table (action / object / status) with
+  per-user checkboxes, Select all / Unselect all, and an apply button showing
+  the selection count. Post-apply report uses the same table with per-category
+  ok/failed statuses. Docs updated (users & security).
+
 ## [0.8.4] - 2026-07-12
 ### Changed
 - Docs and UI copy style pass: em-dashes removed from all user-facing text

@@ -239,7 +239,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
     <table><thead><tr><th>Timestamp (UTC)</th><th>Users</th><th>Memberships</th><th>Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
-    <div id="id_preview" style="margin-top:12px"></div>
   </section>
   <section class="panel hidden" id="browsepanel">
     <h2>Browse - <span id="b_label"></span><span class="spacer"></span>
@@ -300,6 +299,17 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <div id="r_items" style="max-height:44vh;overflow:auto"></div>
   </div>
 </div>
+<div id="idrestoremodal" class="modal hidden">
+  <div class="box">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Identity restore - <span id="ir_tenant"></span></h2>
+    <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is create-only and additive: it recreates missing users and re-adds memberships/assignments; it never modifies or deletes existing users.</p>
+    <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
+      <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
+      <button onclick="closeIdentityRestore()">Close</button></div>
+    <div id="ir_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
+    <div id="ir_items" style="max-height:44vh;overflow:auto"></div>
+  </div>
+</div>
 <main id="view-audit" class="hidden">
   <section class="panel">
     <h2>Audit log <span class="spacer"></span>
@@ -320,9 +330,11 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
         <div><label>Username</label><input id="u_name"></div>
         <div><label>Email</label><input id="u_email" type="email"></div>
         <div><label>Role</label><select id="u_role"><option value="user">User (read-only)</option><option value="admin">Admin</option></select></div>
+        <div><label>Password setup</label><select id="u_mode" onchange="document.getElementById('u_pwwrap').classList.toggle('hidden', this.value!=='password')"><option value="invite">Send invite link</option><option value="password">Set password now</option></select></div>
+        <div id="u_pwwrap" class="hidden"><label>Password (min 8 characters)</label><input id="u_pw" type="password" placeholder="they can change it later in their profile"></div>
       </div>
-      <button class="primary" onclick="createUser()">Create &amp; invite</button>
-      <p class="muted" style="margin-top:8px;font-size:.78rem">If SMTP is configured the invite is emailed; either way you'll get a copyable invite link.</p>
+      <button class="primary" onclick="createUser()">Create user</button>
+      <p class="muted" style="margin-top:8px;font-size:.78rem">Invite link: emailed if SMTP is configured; either way you get a copyable link. Set password now: no email needed, the account is active immediately - share the password securely.</p>
     </div>
     <table>
       <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th style="width:300px">Actions</th></tr></thead>
@@ -834,11 +846,20 @@ async function loadUsers(){
 }
 async function createUser(){
   try {
-    const r = await api('/users', {method:'POST', body: JSON.stringify({username: v('u_name'), email: v('u_email'), role: v('u_role')})});
-    const link = location.origin + r.invite_link;
-    toast(r.emailed ? `Invite emailed. Link (backup): ${link}` : `User created. Invite link: ${link}`);
-    try { await navigator.clipboard.writeText(link); } catch {}
-    ['u_name','u_email'].forEach(i=>document.getElementById(i).value='');
+    const body = {username: v('u_name'), email: v('u_email'), role: v('u_role')};
+    if(v('u_mode')==='password'){
+      if((v('u_pw')||'').length < 8) return toast('Password must be at least 8 characters.', true);
+      body.password = v('u_pw');
+    }
+    const r = await api('/users', {method:'POST', body: JSON.stringify(body)});
+    if(r.invite_link){
+      const link = location.origin + r.invite_link;
+      toast(r.emailed ? `Invite emailed. Link (backup): ${link}` : `User created. Invite link: ${link}`);
+      try { await navigator.clipboard.writeText(link); } catch {}
+    } else {
+      toast('User created and active - they can sign in now.');
+    }
+    ['u_name','u_email','u_pw'].forEach(i=>document.getElementById(i).value='');
     loadUsers();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
@@ -1181,7 +1202,6 @@ let _idCtx = null;
 function openIdentity(id, slug){
   _idCtx = {tenantId:id, slug};
   document.getElementById('id_slug').textContent = slug;
-  document.getElementById('id_preview').innerHTML = '';
   document.getElementById('idpanel').classList.remove('hidden');
   document.getElementById('idpanel').scrollIntoView({behavior:'smooth'});
   loadIdentityEstimate(); loadIdentitySnaps();
@@ -1205,7 +1225,7 @@ async function loadIdentitySnaps(){
       const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
         ? `<tr><td>${fmtTs(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="identityPreview('${r.ts}')">Restore preview</button></td></tr>`;
+        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
   }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -1217,76 +1237,103 @@ async function identityBackupNow(){
     loadIdentityEstimate(); loadIdentitySnaps();
   }catch(e){ toast('Identity backup failed: '+e.message, true); loadIdentityEstimate(); }
 }
-async function identityPreview(ts){
-  const box = document.getElementById('id_preview');
-  box.innerHTML = '<span class="muted">Running dry-run preview (read-only)…</span>';
-  try{
-    const p = await api(`/tenants/${_idCtx.tenantId}/identity/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:ts})});
-    const u = p.summary.users;
-    box.innerHTML = `<div class="panel" style="background:var(--panel2)">
-      <b>Restore preview - ${ts}</b> <span class="muted">(read-only dry-run; writing is a separate step)</span>
-      <div class="diffstat" style="margin-top:8px">
-        <span class="ev-add">${u.recreate} users recreate</span>
-        <span class="ev-update">${u.update} update</span>
-        <span class="muted">${u.identical} identical</span></div>
-      ${u.update>0?`<div class="muted" style="font-size:.8rem;margin-top:4px">Note: ${u.update} existing user(s) differ from this snapshot, but identity restore is <b>create-only</b> - it recreates deleted users and does not modify existing ones.</div>`:''}
-      <div style="font-size:.85rem">+${p.summary.group_memberships_to_add} group memberships · +${p.summary.app_group_assignments_to_add} group→app · +${p.summary.app_user_assignments_direct_to_add} direct user→app</div>
-      ${p.manual_steps.length?`<div style="margin-top:8px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
-      <p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>
-      ${_renderRecreateList(p)}
-      <div style="margin-top:10px">${_idApplyable(p)?`<button class="danger" onclick="identityApply('${ts}')">Apply identity restore</button> <span class="muted" style="font-size:.78rem">writes to the live tenant</span>`:'<span class="muted" style="font-size:.82rem">Nothing to apply - live already matches this snapshot.</span>'}</div></div>`;
-  }catch(e){ box.innerHTML=`<span class="muted">Preview failed: ${esc(e.message)}</span>`; }
-}
-
-
-
+let _irCtx = null;
 const RECREATE_SELECT_MAX = 200;
-function _renderRecreateList(p){
-  const list = p.recreate_users || [];
-  if(!list.length) return '';
-  if(list.length > RECREATE_SELECT_MAX || p.recreate_truncated){
-    return `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem"><b>${list.length}${p.recreate_truncated?'+':''} users to recreate</b> - too many to select individually; Apply restores all</summary></details>`;
-  }
-  return `<details style="margin-top:10px" open>
-    <summary style="cursor:pointer;font-size:.85rem"><b>${list.length} user(s) to recreate</b> - pick which to restore</summary>
-    <div style="margin:6px 0"><button onclick="_selAll(true)">Select all</button> <button onclick="_selAll(false)">Unselect all</button></div>
-    <div class="ulist" id="id_recreate_list">
-      ${list.map(u=>`<label><input type="checkbox" value="${esc(u.key)}" checked><span class="nm">${esc(u.label||u.key)}</span>${u.email?`<span class="em">${esc(u.email)}</span>`:''}</label>`).join('')}
-    </div></details>`;
+const IR_HEAD = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
+function openIdentityRestore(ts){
+  _irCtx = { ts, preview: null };
+  document.getElementById('ir_tenant').textContent = document.getElementById('id_slug').textContent;
+  document.getElementById('ir_snap').textContent = ts;
+  document.getElementById('ir_summary').textContent = '';
+  document.getElementById('ir_items').innerHTML = '';
+  document.getElementById('ir_applybtn').classList.add('hidden');
+  document.getElementById('idrestoremodal').classList.remove('hidden');
 }
-function _selAll(v){ document.querySelectorAll('#id_recreate_list input[type=checkbox]').forEach(b=>b.checked=v); }
+function closeIdentityRestore(){ document.getElementById('idrestoremodal').classList.add('hidden'); _irCtx=null; }
+async function identityPreview(){
+  document.getElementById('ir_summary').textContent = 'Running preview… (read-only)';
+  try{
+    const p = await api(`/tenants/${_idCtx.tenantId}/identity/restore/preview`, {method:'POST', body: JSON.stringify({snapshot_ts:_irCtx.ts})});
+    _irCtx.preview = p;
+    renderIdentityRestore(p);
+  }catch(e){ document.getElementById('ir_summary').textContent = 'Preview failed: '+e.message; }
+}
+function renderIdentityRestore(p){
+  const u = p.summary.users;
+  const gm = p.summary.group_memberships_to_add||0;
+  const ag = p.summary.app_group_assignments_to_add||0;
+  const au = p.summary.app_user_assignments_direct_to_add||0;
+  document.getElementById('ir_summary').innerHTML =
+    `<b>Preview:</b> <span class="ev-add">${u.recreate} recreate</span> · <span class="muted">${u.identical} identical</span>` +
+    (u.update>0?` · <span class="muted">${u.update} differ (create-only: left untouched)</span>`:'') +
+    (_idApplyable(p)?'':' · <span class="muted">nothing to apply - live already matches this snapshot</span>');
+  const list = p.recreate_users || [];
+  const selectable = list.length>0 && list.length<=RECREATE_SELECT_MAX && !p.recreate_truncated;
+  const selbar = selectable ? `<div style="margin:8px 0 4px"><button onclick="setAllIdentity(true)">Select all</button> <button onclick="setAllIdentity(false)">Unselect all</button></div>` : '';
+  const userRows = selectable
+    ? list.map(x=>`<div class="restore-item">
+        <div><input type="checkbox" class="ir-sel" value="${esc(x.key)}" checked onchange="updateIdentityCount()"></div>
+        <div class="act-create">recreate</div>
+        <div>user / ${esc(x.label||x.key)}${x.email?` <span class="muted">${esc(x.email)}</span>`:''}</div>
+        <div class="st-planned">missing in live</div></div>`).join('')
+    : (list.length ? `<div class="restore-item"><div></div><div class="act-create">recreate</div><div>${list.length}${p.recreate_truncated?'+':''} users - too many to select individually; Apply restores all</div><div class="st-planned">missing in live</div></div>` : '');
+  const agg = [];
+  if(gm) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>group memberships</div><div class="ev-add">+${gm} to re-add</div></div>`);
+  if(ag) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>app assignments (via group)</div><div class="ev-add">+${ag} to re-add</div></div>`);
+  if(au) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>app assignments (direct user)</div><div class="ev-add">+${au} to re-add</div></div>`);
+  const extra = (p.manual_steps&&p.manual_steps.length?`<div style="margin-top:10px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'')
+    + (p.note?`<p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>`:'');
+  document.getElementById('ir_items').innerHTML = selbar + IR_HEAD + userRows + agg.join('') + extra;
+  updateIdentityCount();
+}
+function setAllIdentity(v){ document.querySelectorAll('#ir_items .ir-sel').forEach(b=>b.checked=v); updateIdentityCount(); }
+function updateIdentityCount(){
+  const p = _irCtx && _irCtx.preview; if(!p) return;
+  const btn = document.getElementById('ir_applybtn');
+  if(!_idApplyable(p)){ btn.classList.add('hidden'); return; }
+  btn.classList.remove('hidden'); btn.disabled = false;
+  const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
+  if(boxes.length){
+    const n = boxes.filter(b=>b.checked).length;
+    btn.textContent = `Apply restore (${n} user${n===1?'':'s'})`;
+  } else btn.textContent = 'Apply restore';
+}
 
 function _idApplyable(p){
   const u = p.summary.users;
   return (u.recreate||0) + (p.summary.group_memberships_to_add||0)
        + (p.summary.app_group_assignments_to_add||0) + (p.summary.app_user_assignments_direct_to_add||0) > 0;
 }
-async function identityApply(ts){
+async function identityApply(){
+  const p = _irCtx && _irCtx.preview; if(!p) return;
   let selection = null;
-  const boxes = document.querySelectorAll('#id_recreate_list input[type=checkbox]');
+  const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
   if(boxes.length){
-    selection = [...boxes].filter(b=>b.checked).map(b=>b.value);
+    selection = boxes.filter(b=>b.checked).map(b=>b.value);
     if(selection.length===0 && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
   }
-  const n = selection ? selection.length : 'all missing';
-  if(!confirm(`APPLY identity restore? This WRITES to the live tenant - recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
-  const box = document.getElementById('id_preview');
-  box.innerHTML = '<span class="muted">Applying identity restore… (throttled; may take a while)</span>';
+  const n = selection ? selection.length : (p.summary.users.recreate||0);
+  if(!confirm(`APPLY identity restore? This WRITES to the live tenant: recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
+  document.getElementById('ir_summary').textContent = 'Applying… (throttled; may take a while)';
+  document.getElementById('ir_applybtn').disabled = true;
   try{
-    const payload = {snapshot_ts:ts, confirm:true}; if(selection) payload.selection = selection;
+    const payload = {snapshot_ts:_irCtx.ts, confirm:true}; if(selection) payload.selection = selection;
     const r = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     const rep = r.summary;
-    const line = (cat) => { const c=rep[cat]||{}; return `${cat.replace(/_/g,' ')}: ${c.created!=null?c.created+' created, ':''}${c.added!=null?c.added+' added, ':''}${c.existing!=null?c.existing+' existing, ':''}${c.skipped!=null?c.skipped+' skipped, ':''}${c.failed?('<span class=\'st-failed\'>'+c.failed+' failed</span>'):'0 failed'}`; };
-    box.innerHTML = `<div class="panel" style="background:var(--panel2)">
-      <b>Restore applied - ${ts}</b>
-      <div style="font-size:.85rem;margin-top:8px;line-height:1.7">
-        ${['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(line).join('<br>')}
-      </div>
-      ${r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:''}
-    </div>`;
-    toast('Identity restore applied - see report + manual steps.');
+    const row = (cat) => { const c=rep[cat]||{};
+      const done = [c.created!=null?c.created+' created':null, c.added!=null?c.added+' added':null,
+                    c.existing!=null?c.existing+' existing':null, c.skipped!=null?c.skipped+' skipped':null]
+                   .filter(Boolean).join(' · ');
+      return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${c.failed?`<span class="st-failed">${c.failed} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`; };
+    document.getElementById('ir_summary').innerHTML = `<b>Applied:</b> snapshot ${_irCtx.ts}`;
+    document.getElementById('ir_items').innerHTML = IR_HEAD +
+      ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(row).join('') +
+      (r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
+    document.getElementById('ir_applybtn').classList.add('hidden');
+    toast('Identity restore applied - see the report.');
     loadIdentitySnaps();
-  }catch(e){ box.innerHTML = `<span class="muted">Apply failed: ${esc(e.message)}</span>`; }
+  }catch(e){ document.getElementById('ir_summary').textContent = 'Apply failed: '+e.message; }
+  document.getElementById('ir_applybtn').disabled = false;
 }
 
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

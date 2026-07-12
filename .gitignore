@@ -10,5 +10,3 @@ node_modules/
 dist/
 .DS_Store
 .pytest_cache/
-._*
-.DS_Store
