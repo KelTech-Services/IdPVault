@@ -20,9 +20,18 @@ def _require_identity_license(tenant_id: int) -> None:
                                  "add one in Settings → License")
 
 
+def _require_identity_supported(tenant_id: int) -> None:
+    from app.providers import identity_supported
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+    if t is not None and not identity_supported(t.provider):
+        raise HTTPException(422, f"identity backup isn't supported for {t.provider} yet")
+
+
 @router.post("/tenants/{tenant_id}/identity/backup")
 def backup(tenant_id: int) -> dict:
     _require_identity_license(tenant_id)
+    _require_identity_supported(tenant_id)
     try:
         return run_identity_backup(tenant_id)
     except ValueError as e:

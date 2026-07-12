@@ -4,7 +4,7 @@
 <p>Change detection happens during backups, so the backup notification and the change details arrive as <b>one</b> message: "Backup complete - changes detected", with a per-object list ([+] added, [-] removed, [~] changed). No-change backups send a plain success message (if subscribed).</p>
 <h3>Event subscriptions</h3>
 <table><tr><th>Event</th><th>Fires when</th></tr>
-<tr><td>Configuration drift detected</td><td>a backup finds config changed vs the previous snapshot - the recommended always-on alert</td></tr>
+<tr><td>Changes detected during backup</td><td>a backup finds config changed vs the previous snapshot - the recommended always-on alert; the change list is included in the backup message</td></tr>
 <tr><td>Backup failed</td><td>a scheduled or manual backup errors (credentials, availability)</td></tr>
 <tr><td>Backup succeeded</td><td>every completed backup (noisy; off by default)</td></tr>
 <tr><td>Restore applied</td><td>a config or identity restore writes to a live tenant</td></tr>

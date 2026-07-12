@@ -130,8 +130,14 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                                 f"(credentials are never exportable via the IdP API).")
             manual_steps.append("Recreated users will need to RE-ENROLL MFA factors.")
         if t.provider == "authentik":
-            manual_steps.append("For full credential recovery on self-hosted Authentik, use the "
-                                "encrypted pg_dump from full-DR mode instead of API user restore.")
+            if t.enc_db_url:
+                manual_steps.append("This tenant has full-DR configured: for full credential "
+                                    "recovery, restore the encrypted pg_dump instead of the "
+                                    "API user restore.")
+            elif recreate:
+                manual_steps.append("API-restored users come back without credentials. To capture "
+                                    "credentials in future snapshots, configure full-DR (Postgres "
+                                    "URL) on this tenant (Edit).")
 
         db.add(AuditLog(actor=actor, action="identity.restore.preview",
                         detail={"tenant": t.slug, "snapshot": snapshot_ts}))

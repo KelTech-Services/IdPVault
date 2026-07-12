@@ -16,6 +16,8 @@ class ProviderAdapter(ABC):
     restore_order: list[str] = []
     never_restore: set[str] = set()
     derived_types: set[str] = set()
+    # Whether export_identities/apply_identities are implemented for this provider.
+    supports_identity: bool = False
 
     def begin_restore(self, snap_export: dict, live_export: dict) -> None:
         """Hook called once before a restore plan is executed — adapters may build

@@ -3,6 +3,23 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.6] - 2026-07-12
+### Added
+- Clickable "Unbacked changes" dashboard card: opens a per-tenant breakdown
+  (count, provider, last backup incl. failed status) with a Backup now button
+  per row.
+- Provider capability flag (`supports_identity`): the Identity button is
+  disabled with an explanatory tooltip for providers without identity backup
+  (currently Auth0), and the API rejects unsupported identity backups cleanly
+  instead of recording a failed run.
+### Changed
+- Authentik identity-restore manual steps are now full-DR-aware: with a
+  Postgres URL configured they point to the pg_dump for credential recovery;
+  without one they explain credentials won't come back via API restore and how
+  to enable full-DR.
+- Alert subscription renamed: "Configuration drift detected" is now "Changes
+  detected during backup" (the change list is included in the backup message).
+
 ## [0.8.5] - 2026-07-12
 ### Added
 - "Set password now" option when creating users: the admin sets an initial

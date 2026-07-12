@@ -24,6 +24,7 @@ RESOURCES = {
 
 class OktaAdapter(ProviderAdapter):
     name = "okta"
+    supports_identity = True
     restore_order = ["groups", "apps", "network_zones", "policies_password", "policies_mfa",
                      "policies_signon", "policies_access", "idps", "event_hooks", "inline_hooks"]
     # Schema-shaped types are not auto-restored (server-generated structure /

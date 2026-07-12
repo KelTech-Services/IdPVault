@@ -22,6 +22,7 @@ RESOURCES = {
 
 class AuthentikAdapter(ProviderAdapter):
     name = "authentik"
+    supports_identity = True
     restore_order = ["certificates", "property_mappings", "flows", "stages", "policies",
                      "groups", "providers", "applications", "flow_stage_bindings",
                      "policy_bindings", "outposts", "brands"]

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from app.core import crypto
 from app.core.security import require_admin
+from app.providers import identity_supported
 from app.models.db import AuditLog, SessionLocal, Tenant
 
 router = APIRouter(tags=["tenants"])
@@ -64,6 +65,7 @@ def list_tenants() -> list[dict]:
              "base_url": t.base_url,
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep,
              "db_dr": bool(t.enc_db_url),
+             "supports_identity": identity_supported(t.provider),
              "identity_enabled": t.identity_enabled,
              "identity_schedule_cron": t.identity_schedule_cron,
              "identity_retention_keep": t.identity_retention_keep}

@@ -197,6 +197,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
   </div>
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
+  <div id="unbackedpanel" class="hidden"></div>
   <section class="panel">
     <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
@@ -669,7 +670,7 @@ async function loadTenants(){
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
         <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        ${isAdmin ? `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>` : ''}
+        ${isAdmin ? (t.supports_identity===false ? `<button disabled title="Identity backup isn't supported for this provider yet">Identity</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>`) : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -875,7 +876,7 @@ async function delUser(id, name){
 
 /* ---------- settings ---------- */
 const ALERT_CATALOG = [
-  {key:'drift_detected', label:'Configuration drift detected', when:'a backup finds config changed vs the previous snapshot'},
+  {key:'drift_detected', label:'Changes detected during backup', when:'a backup finds config changed vs the previous snapshot; the change list is included in the backup message'},
   {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or identity) errors'},
   {key:'backup_success', label:'Backup succeeded',             when:'a backup completes successfully (can be noisy)'},
   {key:'restore_applied',label:'Restore applied',              when:'a config or identity restore is written to a live tenant'},
@@ -1019,19 +1020,42 @@ async function testEmail(){
 
 /* ---------- dashboard cards ---------- */
 function fmtBytes(n){ if(!n) return '0 B'; const u=['B','KB','MB','GB']; let i=0; while(n>=1024&&i<u.length-1){n/=1024;i++;} return n.toFixed(i?1:0)+' '+u[i]; }
+let _dashData = null;
 async function loadDashboard(){
   const el = document.getElementById('statcards'); if(!el) return;
   try {
     const d = await api('/dashboard/summary');
+    _dashData = d;
     const cov = d.coverage, pct = cov.total ? Math.round(cov.ok/cov.total*100) : 0;
     const covClass = cov.total===0?'':pct===100?'good':pct>=50?'warn':'bad';
     const unbacked = d.tenants.reduce((a,t)=> a + (t.unbacked_changes||0), 0);
     el.innerHTML = `
       <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '-'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
       <div class="card"><div class="lbl2">Tenants</div><div class="big">${d.tenants.length}</div><div class="sub">${d.tenants.map(t=>t.provider).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||'none'}</div></div>
-      <div class="card ${unbacked>0?'warn':''}"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">across tenants since last backup</div></div>
+      <div class="card ${unbacked>0?'warn':''}" style="cursor:pointer" title="Click for a per-tenant breakdown" onclick="toggleUnbacked()"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">since last backup · click for breakdown</div></div>
       <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
+    if(!document.getElementById('unbackedpanel').classList.contains('hidden')) renderUnbacked();
   } catch(e){ el.innerHTML = `<div class="card bad"><div class="lbl2">Dashboard</div><div class="sub">${esc(e.message)}</div></div>`; }
+}
+function toggleUnbacked(){
+  const el = document.getElementById('unbackedpanel');
+  if(!el.classList.contains('hidden')){ el.classList.add('hidden'); return; }
+  renderUnbacked(); el.classList.remove('hidden');
+}
+function renderUnbacked(){
+  const el = document.getElementById('unbackedpanel');
+  const d = _dashData; if(!d) return;
+  const rows = d.tenants.map(t=>{
+    const tt = _tenants.find(x=>x.id===t.id);
+    const cnt = t.unbacked_changes;
+    const cntCell = cnt==null ? '<span class="muted" title="No successful backup yet, or the provider does not report admin events">n/a</span>' : (cnt>0?`<span class="ev-update"><b>${cnt}</b></span>`:'0');
+    const lastCell = t.last_run ? `${fmtTs(t.last_run.ts)}${t.last_run.status!=='ok'?` <span class="st-failed">(${t.last_run.status})</span>`:''}` : '<span class="muted">never</span>';
+    const btn = (me && me.role==='admin') ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now</button>` : '';
+    return `<tr><td>${esc(t.name)}</td><td><span class="tag ${t.provider}">${t.provider}</span></td><td>${cntCell}</td><td class="muted">${lastCell}</td><td>${btn}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<section class="panel"><h2>Unbacked changes by tenant <span class="spacer"></span><button onclick="document.getElementById('unbackedpanel').classList.add('hidden')">Close</button></h2>
+    <p class="muted" style="font-size:.8rem;margin-bottom:8px">Changes counted from the provider's own event log since the last successful backup. The exact change list comes from the next backup's diff - run a backup to capture them.</p>
+    <table><thead><tr><th>Tenant</th><th>Provider</th><th>Unbacked changes</th><th>Last backup (UTC)</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`;
 }
 
 /* ---------- events ---------- */
