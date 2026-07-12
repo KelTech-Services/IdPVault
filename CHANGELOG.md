@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.17] — 2026-07-12
+### Fixed
+- Authentik `pk` no longer counts as config in comparisons — a recreated object
+  whose only difference is its new internal id shows `identical` instead of a
+  phantom update.
+- Authentik updates for applications and flows now use the correct SLUG detail
+  routes (their APIs aren't keyed by pk) — fixes an update wrongly falling back
+  to create and failing on slug uniqueness.
+
 ## [0.7.16] — 2026-07-12
 ### Fixed
 - **Duplicate-create trap on re-restore**: plan matching is now hybrid — internal

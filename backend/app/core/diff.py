@@ -7,7 +7,7 @@ import json
 
 # Runtime telemetry / server-managed noise — never config.
 VOLATILE_FIELDS = {"cache_count", "verbose_name", "verbose_name_plural",
-                   "id", "client_id", "created_at", "updated_at",
+                   "id", "pk", "client_id", "created_at", "updated_at",
                    "created", "lastUpdated", "lastMembershipUpdated",
                    "_links", "_embedded",
                    # Authentik denormalized read-only back-references — computed

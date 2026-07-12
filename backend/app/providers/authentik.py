@@ -206,15 +206,20 @@ class AuthentikAdapter(ProviderAdapter):
         payload = self._remap_refs({k: v for k, v in obj.items()
                                     if k not in self.READONLY_FIELDS})
         old_pk = obj.get("pk") or obj.get("brand_uuid")
-        pk = (live or {}).get("pk") or old_pk
+        # Authentik detail routes for applications/flows are keyed by SLUG, not pk.
+        lookup_field = {"applications": "slug", "flows": "slug"}.get(resource_type)
+        if lookup_field:
+            ident = (live or {}).get(lookup_field) or obj.get(lookup_field)
+        else:
+            ident = (live or {}).get("pk") or old_pk
         with self._client() as c:
-            if pk is not None:
-                probe = c.get(f"/api/v3/{path}{pk}/")
+            if ident is not None:
+                probe = c.get(f"/api/v3/{path}{ident}/")
                 if probe.status_code == 200:
-                    r = self._send(c, "PATCH", f"/api/v3/{path}{pk}/", payload)
+                    r = self._send(c, "PATCH", f"/api/v3/{path}{ident}/", payload)
                     if r.status_code >= 400:
-                        raise RuntimeError(f"PATCH {path}{pk}/ -> {r.status_code}: {r.text[:280]}")
-                    return ("updated", str(pk))
+                        raise RuntimeError(f"PATCH {path}{ident}/ -> {r.status_code}: {r.text[:280]}")
+                    return ("updated", str(ident))
             r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
