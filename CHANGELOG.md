@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.2] — 2026-07-12
+### Added
+- **In-app Docs.** New "Docs" item in the sidebar (visible to all users) with
+  nine guides: getting started, backups & snapshots, drift & events, config
+  restore (per-provider coverage), identity backup & restore, alerts, users &
+  security, licensing & tiers, and deployment & proxy.
+
 ## [0.8.1] — 2026-07-12
 ### Added
 - **User seats are license-gated.** The free Community tier includes exactly one

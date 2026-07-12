@@ -33,7 +33,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Mint an IdPVault license key")
     ap.add_argument("--customer", required=True)
     ap.add_argument("--tier", default="pro")
-    ap.add_argument("--years", type=int, default=1, help="license term in years")
+    ap.add_argument("--years", type=int, default=1,
+                    help="license term in years (offered terms: 1, 2, 5)")
+    ap.add_argument("--perpetual", action="store_true",
+                    help="no expiry — the key never needs renewing")
     ap.add_argument("--max-tenants", type=int, default=None,
                     help="tenant cap (omit for unlimited)")
     ap.add_argument("--max-users", type=int, default=None,
@@ -66,12 +69,13 @@ def main() -> int:
         "max_users": args.max_users,          # None = unlimited
         "features": args.features,
         "issued": int(now),
-        "expires": int(anchor + args.years * 365 * 86400),
+        "expires": None if args.perpetual else int(anchor + args.years * 365 * 86400),
     }
     body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     token = f"{b64url(body)}.{b64url(priv.sign(body))}"
 
-    exp_str = time.strftime("%Y-%m-%d", time.gmtime(payload["expires"]))
+    exp_str = ("perpetual" if payload["expires"] is None
+               else time.strftime("%Y-%m-%d", time.gmtime(payload["expires"])))
     print(f"# customer={args.customer} tier={args.tier} "
           f"max_tenants={args.max_tenants or 'unlimited'} "
           f"features={','.join(args.features) or '-'} expires={exp_str}", file=sys.stderr)

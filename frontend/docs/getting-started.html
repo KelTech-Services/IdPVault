@@ -1,0 +1,16 @@
+<h3>What IdPVault does</h3>
+<p>IdPVault takes scheduled, encrypted snapshots of your identity providers — <b>Authentik</b>, <b>Okta</b>, and <b>Auth0</b> — detects configuration changes between snapshots, and can restore configuration (and deleted apps) back into the live tenant. Everything runs on your own infrastructure; nothing is sent to us, ever.</p>
+<h3>First run</h3>
+<ol>
+<li>Deploy the container and open the web UI. On a fresh install the <b>setup wizard</b> creates your admin account — no credentials in config files.</li>
+<li>Add your first tenant: <b>Dashboard → + Add tenant</b>. Pick the provider first — the form adapts to what that provider needs.</li>
+<li>Click <b>Backup now</b> to take your first snapshot, then set a schedule (cron, UTC) so backups run themselves.</li>
+</ol>
+<h3>Connecting each provider</h3>
+<table><tr><th>Provider</th><th>Credential</th><th>How to get it</th></tr>
+<tr><td>Authentik</td><td>API token</td><td>Admin → Tokens &amp; App passwords → create a token for a service account with read (and, for restore, write) permissions.</td></tr>
+<tr><td>Okta</td><td>SSWS API token</td><td>Admin → Security → API → Tokens. Created under an admin account; inherits that account's permissions.</td></tr>
+<tr><td>Auth0</td><td>Client ID + Client Secret</td><td>Create a <b>Machine-to-Machine application</b> authorized for the Management API. IdPVault mints short-lived tokens automatically — no expiring pasted tokens.</td></tr></table>
+<p>All credentials are encrypted at rest with envelope encryption (AES-256-GCM) the moment they are saved.</p>
+<h3>Day-to-day</h3>
+<p>The dashboard shows coverage, unbacked changes, and storage. The Events page lists every detected change. Alerts (webhook + email) tell you when something changed, failed, or was restored — see <b>Alerts &amp; notifications</b>.</p>

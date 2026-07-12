@@ -75,6 +75,16 @@ button.danger:hover{border-color:var(--red);color:var(--red);background:var(--pa
 #f_delete,.del{background:#2a1418;border:1px solid #5a2a30;color:var(--red);font-weight:600}
 #f_delete:hover,.del:hover{background:var(--red);color:#0d0d0f;border-color:var(--red)}
 button:disabled{opacity:.45;cursor:not-allowed}
+.docprose h3{margin:20px 0 8px;font-size:1.02rem}
+.docprose h3:first-child{margin-top:0}
+.docprose h4{margin:14px 0 6px;font-size:.88rem;color:var(--dim)}
+.docprose p,.docprose li{font-size:.86rem;line-height:1.6}
+.docprose ul,.docprose ol{margin:6px 0 12px 20px}
+.docprose p{margin:0 0 10px}
+.docprose code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:.8rem}
+.docprose table{width:100%;border-collapse:collapse;margin:10px 0 14px}
+.docprose th,.docprose td{border:1px solid var(--border);padding:6px 10px;font-size:.82rem;text-align:left}
+#doctopics button.active{border-color:var(--accent,#4d9fff);color:var(--accent,#4d9fff)}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
 input,select{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:9px 11px;font-size:.85rem;width:100%;transition:border .12s}
@@ -167,6 +177,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
     <button data-view="events" onclick="switchView('events')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Events</span></button>
     <button data-view="audit" class="adminonly" onclick="switchView('audit')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg><span>Audit</span></button>
     <button data-view="users" class="adminonly" onclick="switchView('users')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Users</span></button>
+    <button data-view="docs" onclick="switchView('docs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Docs</span></button>
     <button data-view="settings" class="adminonly" onclick="switchView('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg><span>Settings</span></button>
   </nav>
   <div class="sidebar-foot">
@@ -317,6 +328,13 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th style="width:300px">Actions</th></tr></thead>
       <tbody id="userbody"></tbody>
     </table>
+  </section>
+</main>
+<main id="view-docs" class="hidden">
+  <section class="panel">
+    <h2>Documentation</h2>
+    <div id="doctopics" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
+    <div id="docbody" class="docprose"><span class="muted">Pick a topic above.</span></div>
   </section>
 </main>
 <main id="view-settings" class="hidden">
@@ -574,7 +592,7 @@ function showApp(){
     if(location.hash.startsWith('#/')) switchView(currentRoute(), true);   // back/forward nav
   });
 }
-const VIEWS = ['dashboard','events','audit','users','settings'];
+const VIEWS = ['dashboard','events','audit','users','docs','settings'];
 function switchView(name, skipHash){
   if(!VIEWS.includes(name)) name = 'dashboard';
   // read-only users can't reach admin-only pages
@@ -589,7 +607,8 @@ function switchView(name, skipHash){
   if(name === 'audit') loadAudit();
   if(name === 'users') loadUsers();
   if(name === 'settings') loadSettings();
-  const T={dashboard:'Dashboard',events:'Events',audit:'Audit log',users:'Users',settings:'Settings'};
+  if(name === 'docs') loadDocs();
+  const T={dashboard:'Dashboard',events:'Events',audit:'Audit log',users:'Users',docs:'Docs',settings:'Settings'};
   const pt=document.getElementById('pagetitle'); if(pt) pt.textContent=T[name]||name;
   if(!skipHash && location.hash !== '#/'+name) location.hash = '#/'+name;
 }
@@ -882,6 +901,38 @@ async function clearLicense(){
     toast('License removed — running in Community tier.');
     _license = null; loadLicense(); loadTenants();
   } catch(e){ toast('Remove failed: ' + e.message, true); }
+}
+
+/* ---------- docs ---------- */
+const DOC_TOPICS = [
+  {key:'getting-started', title:'Getting started'},
+  {key:'backups',         title:'Backups & snapshots'},
+  {key:'drift-events',    title:'Drift & events'},
+  {key:'restore',         title:'Config restore'},
+  {key:'identity',        title:'Identity backup & restore'},
+  {key:'alerts',          title:'Alerts & notifications'},
+  {key:'users-security',  title:'Users & security'},
+  {key:'licensing',       title:'Licensing & tiers'},
+  {key:'deployment',      title:'Deployment & proxy'},
+];
+let _docKey = null;
+function loadDocs(){
+  const tn = document.getElementById('doctopics');
+  if(!tn.childElementCount){
+    tn.innerHTML = DOC_TOPICS.map(t=>`<button data-doc="${t.key}" onclick="openDoc('${t.key}')">${t.title}</button>`).join('');
+  }
+  openDoc(_docKey || 'getting-started');
+}
+async function openDoc(key){
+  _docKey = key;
+  document.querySelectorAll('#doctopics button').forEach(b=>b.classList.toggle('active', b.dataset.doc===key));
+  const body = document.getElementById('docbody');
+  body.innerHTML = '<span class="muted">Loading…</span>';
+  try {
+    const r = await fetch(`/docs/${key}.html`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    body.innerHTML = await r.text();
+  } catch(e){ body.innerHTML = `<span class="muted">Failed to load doc: ${esc(String(e.message||e))}</span>`; }
 }
 
 async function loadSettings(){

@@ -1,0 +1,14 @@
+<h3>Architecture</h3>
+<p>Two containers: the IdPVault app (runs as a non-root user) and a Postgres database. Persistent data lives in three volumes: <code>/data</code> (encrypted snapshots), <code>/secrets</code> (the master encryption key), and the Postgres volume.</p>
+<h3>The master key</h3>
+<p>The master key is the root of all envelope encryption — tenant credentials, snapshots, and the SMTP password are all encrypted under keys wrapped by it. <b>Back it up.</b> If the key is lost, existing snapshots are unrecoverable by design (there is no escrow and no phone-home). Never regenerate it while encrypted data exists.</p>
+<h3>Reverse proxy &amp; HTTPS</h3>
+<ol>
+<li>Put IdPVault behind your reverse proxy with a real hostname and TLS.</li>
+<li>Set <b>Settings → Core → Public URL</b> to that address — email links use it, and cookies switch to Secure via the proxy's <code>X-Forwarded-Proto</code> header (make sure your proxy sends it).</li>
+<li>Once confirmed working, optionally enable <b>Enforce host</b> to reject requests addressed to any other hostname (<code>/healthz</code> and <code>/metrics</code> stay exempt).</li>
+</ol>
+<h3>Health &amp; monitoring</h3>
+<p><code>/healthz</code> is the only unauthenticated endpoint (returns status + version). A token-guarded Prometheus <code>/metrics</code> endpoint is available for scraping. A daily self-check alerts if any scheduled tenant has gone too long without a successful backup.</p>
+<h3>Updates</h3>
+<p>Upgrades are image pulls; the schema migrates additively on boot. Take a backup of the IdPVault volumes before major upgrades, as with any stateful service.</p>

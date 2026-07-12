@@ -1,0 +1,14 @@
+<h3>What gets backed up</h3>
+<p>Config backups capture your IdP's configuration objects via its API: applications/clients, providers, flows, stages, policies, groups, mappings, zones, hooks, and more (the exact set depends on the provider). Each backup is a complete point-in-time snapshot, encrypted with a per-tenant data key before it touches disk.</p>
+<h3>Scheduling &amp; retention</h3>
+<p>Each tenant has its own cron schedule (UTC) and a retention count — how many snapshots to keep. Old snapshots past the retention count are pruned automatically after each successful backup. Manual backups any time with <b>Backup now</b>.</p>
+<h3>Snapshots</h3>
+<ul>
+<li><b>Browse</b> — open any snapshot and inspect every object in it (searchable).</li>
+<li><b>Diff</b> — select any two snapshots and see exactly what was added, removed, or changed between them.</li>
+<li><b>Restore…</b> — see the <b>Config restore</b> doc.</li>
+</ul>
+<h3>What backups can't include</h3>
+<p>Identity providers deliberately redact secret material (client secrets, private keys, SAML signing certificates) from their export APIs — no backup product can capture them. A restored app therefore comes back with regenerated credentials; the restore report flags exactly which ones.</p>
+<h3>Full-DR for self-hosted Authentik</h3>
+<p>Optionally add a Postgres URL to an Authentik tenant and every config snapshot also stores an encrypted <code>pg_dump</code> of the Authentik database — the belt-and-suspenders option for self-hosters.</p>
