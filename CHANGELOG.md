@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.11] - 2026-07-12
+### Changed
+- Tenant form placeholders are now provider-aware neutral examples (Acme Okta /
+  acme-okta / https://acme.okta.com etc.) instead of KelTech-specific text.
+- Logos are sized by width in both themes, so the dark-theme logo now renders
+  at the same visual size as the light-theme one (sidebar and login card).
+
 ## [0.8.10] - 2026-07-12
 ### Changed
 - Theme toggle moved to its own icon button beside the username (right of

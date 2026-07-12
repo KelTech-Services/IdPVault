@@ -22,7 +22,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 #appview{display:flex;min-height:100vh}
 .sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .sidebar .brand{padding:20px 18px 12px;display:flex;justify-content:center}
-.sidebar .brand img{height:44px;width:auto;max-width:100%;object-fit:contain}
+.sidebar .brand img{width:150px;height:auto;max-width:100%;object-fit:contain}
 nav#mainnav{display:flex;flex-direction:column;gap:2px;padding:12px;flex:1}
 nav#mainnav button{display:flex;align-items:center;gap:11px;background:none;border:none;color:var(--dim);padding:10px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:.9rem;font-weight:500;width:100%;text-align:left;transition:all .12s}
 nav#mainnav button svg{width:18px;height:18px;flex:0 0 18px;stroke:currentColor}
@@ -133,7 +133,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 
 #loginview{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,var(--login-grad),var(--bg))}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:38px;width:390px;display:grid;gap:14px;box-shadow:var(--shadow)}
-.logincard img{height:110px;width:auto;justify-self:center;margin-bottom:4px;max-width:100%;object-fit:contain}
+.logincard img{width:300px;height:auto;justify-self:center;margin-bottom:4px;max-width:100%;object-fit:contain}
 .logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
 a{color:var(--accent)}a:hover{color:var(--accent2)}
 [data-theme="light"]{
@@ -221,9 +221,9 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
       <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
         <div><label>Provider</label><select id="f_provider" onchange="onProviderChange()"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
-        <div><label>Name</label><input id="f_name" placeholder="KelTech Authentik"></div>
-        <div><label>Slug</label><input id="f_slug" placeholder="keltech-authentik"></div>
-        <div><label>Base URL</label><input id="f_url" placeholder="https://auth.example.com"></div>
+        <div><label>Name</label><input id="f_name" placeholder="Acme Authentik"></div>
+        <div><label>Slug</label><input id="f_slug" placeholder="acme-authentik"></div>
+        <div><label>Base URL</label><input id="f_url" placeholder="https://auth.acme.com"></div>
         <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
         <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
         <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
@@ -757,8 +757,13 @@ function onProviderChange(){
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
   show('fd_dburl', p==='authentik');
   show('fd_ident', hasIdentity); show('fd_identcron', hasIdentity); show('fd_identkeep', hasIdentity);
-  document.getElementById('f_url').placeholder = isAuth0 ? 'https://your-tenant.us.auth0.com' : p==='okta' ? 'https://your-org.okta.com' : 'https://auth.example.com';
-  if(!editingId) document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token - encrypted at rest' : 'paste token - encrypted at rest';
+  document.getElementById('f_url').placeholder = isAuth0 ? 'https://acme.us.auth0.com' : p==='okta' ? 'https://acme.okta.com' : 'https://auth.acme.com';
+  if(!editingId){
+    document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token - encrypted at rest' : 'paste token - encrypted at rest';
+    const pname = isAuth0 ? 'Auth0' : p==='okta' ? 'Okta' : 'Authentik';
+    document.getElementById('f_name').placeholder = `Acme ${pname}`;
+    document.getElementById('f_slug').placeholder = `acme-${p}`;
+  }
 }
 function resetForm(){
   editingId = null;
