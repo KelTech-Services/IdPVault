@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.18] — 2026-07-12
+### Fixed
+- Authentik policy/flow-stage **bindings no longer duplicate on re-restore**:
+  bindings have no name, so they now match by a composite of what they connect
+  (policy/group/user + target + order, with id remapping applied) instead of
+  their server-assigned pk — a binding recreated in a previous run is recognized
+  as the same binding. Note: restore is additive; a duplicate created before this
+  fix must be removed manually in Authentik.
+
 ## [0.7.17] — 2026-07-12
 ### Fixed
 - Authentik `pk` no longer counts as config in comparisons — a recreated object

@@ -44,6 +44,18 @@ class AuthentikAdapter(ProviderAdapter):
         field = self._NK.get(resource_type)
         if field and obj.get(field) is not None:
             return str(obj[field])
+        # Bindings have no name — identity is WHAT they connect. Composite key over
+        # their references (with old->live pk remapping applied) so a binding whose
+        # target was deleted+recreated still matches its live counterpart instead
+        # of being re-created as a duplicate.
+        if resource_type in ("policy_bindings", "flow_stage_bindings"):
+            rm = lambda v: self._pk_remap.get(str(v), v) if v is not None else None  # noqa: E731
+            if resource_type == "policy_bindings":
+                parts = (rm(obj.get("policy")), rm(obj.get("group")),
+                         rm(obj.get("user")), rm(obj.get("target")), obj.get("order"))
+            else:
+                parts = (rm(obj.get("target")), rm(obj.get("stage")), obj.get("order"))
+            return "|".join(str(p) for p in parts)
         return super().natural_key(resource_type, obj)
 
     def begin_restore(self, snap_export: dict, live_export: dict) -> None:
