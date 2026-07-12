@@ -26,6 +26,45 @@ class AuthentikAdapter(ProviderAdapter):
                      "groups", "providers", "applications", "flow_stage_bindings",
                      "policy_bindings", "outposts", "brands"]
     never_restore = {"blueprints", "user_schemas"}
+    # Natural keys used to remap stale snapshot pks -> current live pks (an object
+    # deleted + recreated gets a new pk; anything referencing the old pk must follow).
+    _NK = {"applications": "slug", "flows": "slug", "groups": "name",
+           "policies": "name", "stages": "name", "providers": "name",
+           "property_mappings": "name", "certificates": "name", "brands": "domain"}
+    # Reference fields that may carry pks of other objects (bindings, app->provider).
+    _REF_FIELDS = ("target", "policy", "stage", "flow", "provider", "providers",
+                   "group", "user", "authorization_flow", "authentication_flow",
+                   "invalidation_flow")
+
+    def __init__(self, base_url: str, credentials: str):
+        super().__init__(base_url, credentials)
+        self._pk_remap: dict = {}
+
+    def begin_restore(self, snap_export: dict, live_export: dict) -> None:
+        """Prebuild old-pk -> live-pk remaps by natural key, so references to
+        objects that were deleted and recreated (new pk) resolve — including
+        recreations from PREVIOUS restore runs."""
+        self._pk_remap = {}
+        for rtype, field in self._NK.items():
+            live_by_key = {o.get(field): o.get("pk")
+                           for o in live_export.get(rtype, []) if o.get(field) is not None}
+            for o in snap_export.get(rtype, []):
+                key, old = o.get(field), o.get("pk")
+                new = live_by_key.get(key)
+                if key is not None and old is not None and new is not None and new != old:
+                    self._pk_remap[str(old)] = new
+
+    def _remap_refs(self, payload: dict) -> dict:
+        if not self._pk_remap:
+            return payload
+        for f in self._REF_FIELDS:
+            v = payload.get(f)
+            if isinstance(v, (str, int)) and str(v) in self._pk_remap:
+                payload[f] = self._pk_remap[str(v)]
+            elif isinstance(v, list):
+                payload[f] = [self._pk_remap.get(str(x), x) if isinstance(x, (str, int)) else x
+                              for x in v]
+        return payload
 
     def _client(self) -> httpx.Client:
         return httpx.Client(
@@ -158,8 +197,10 @@ class AuthentikAdapter(ProviderAdapter):
         if not path:
             raise RuntimeError(f"no write path known for {resource_type} "
                                f"(model {obj.get('meta_model_name')!r})")
-        payload = {k: v for k, v in obj.items() if k not in self.READONLY_FIELDS}
-        pk = (live or {}).get("pk") or obj.get("pk") or obj.get("brand_uuid")
+        payload = self._remap_refs({k: v for k, v in obj.items()
+                                    if k not in self.READONLY_FIELDS})
+        old_pk = obj.get("pk") or obj.get("brand_uuid")
+        pk = (live or {}).get("pk") or old_pk
         with self._client() as c:
             if pk is not None:
                 probe = c.get(f"/api/v3/{path}{pk}/")
@@ -171,7 +212,11 @@ class AuthentikAdapter(ProviderAdapter):
             r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
-            return ("created", str(r.json().get("pk", "")))
+            new_pk = r.json().get("pk", "")
+            if old_pk is not None and new_pk:
+                # later objects in THIS run referencing the old pk follow the new one
+                self._pk_remap[str(old_pk)] = new_pk
+            return ("created", str(new_pk))
 
     def export_identities(self) -> dict[str, list[dict]]:
         with self._client() as c:

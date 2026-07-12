@@ -3,7 +3,7 @@ import json
 
 
 def _name(obj: dict) -> str:
-    for k in ("name", "label", "displayName", "display_name", "slug", "username", "title"):
+    for k in ("label", "name", "displayName", "display_name", "slug", "username", "title"):
         v = obj.get(k)
         if isinstance(v, str) and v:
             return v[:250]

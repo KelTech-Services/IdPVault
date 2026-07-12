@@ -36,6 +36,8 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
     for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, adapter.restore_order)):
         # never_restore types stay VISIBLE when they differ from live (so a deleted
         # app is seen, marked unsupported) — they're just not auto-restorable.
+        if rtype in adapter.derived_types:
+            continue  # server-regenerated side-effects — never restore work
         unsupported = rtype in adapter.never_restore
         live_idx = {adapter.natural_key(rtype, o): o for o in live_export.get(rtype, [])}
         for obj in snap_export.get(rtype, []):
@@ -84,6 +86,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
 
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
+        adapter.begin_restore(snap, live)   # adapters build id-remap state here
         plan = build_plan(snap, live, selection, adapter)
 
         for item in plan:

@@ -29,7 +29,10 @@ class OktaAdapter(ProviderAdapter):
     # Schema-shaped types are not auto-restored (server-generated structure /
     # lifecycle endpoints); they stay backed up, browsable, and visible in plans.
     never_restore = {"authorization_servers", "user_schemas", "user_types",
-                     "user_type_schemas", "app_user_schemas", "profile_mappings"}
+                     "user_type_schemas"}
+    # Okta regenerates these automatically when an app is (re)created — never
+    # restore work, so they don't appear in plans at all.
+    derived_types = {"app_user_schemas", "profile_mappings"}
     _WRITE_PATH = {"groups": "/api/v1/groups", "apps": "/api/v1/apps",
                    "network_zones": "/api/v1/zones",
                    "policies_signon": "/api/v1/policies", "policies_password": "/api/v1/policies",

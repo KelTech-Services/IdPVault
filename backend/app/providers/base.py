@@ -9,9 +9,17 @@ from abc import ABC, abstractmethod
 class ProviderAdapter(ABC):
     name: str = "base"
     # Config restore ordering: resource types in dependency order (parents first);
-    # types not listed restore last. never_restore = types never written back.
+    # types not listed restore last. never_restore = types never written back but
+    # still VISIBLE in plans when they differ. derived_types = server-generated
+    # side-effects of other objects (regenerated automatically on recreate) —
+    # excluded from plans entirely; backed up and browsable only.
     restore_order: list[str] = []
     never_restore: set[str] = set()
+    derived_types: set[str] = set()
+
+    def begin_restore(self, snap_export: dict, live_export: dict) -> None:
+        """Hook called once before a restore plan is executed — adapters may build
+        remap state (e.g. old-id -> live-id by natural key). Default: no-op."""
 
     def __init__(self, base_url: str, credentials: str):
         self.base_url = base_url.rstrip("/")

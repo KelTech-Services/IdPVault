@@ -3,6 +3,22 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.15] — 2026-07-12
+### Fixed
+- **Authentik reference remapping**: objects that reference other objects by
+  internal id (policy bindings → application, app → provider, flow references)
+  now resolve deleted-and-recreated targets by natural key (slug/name) — old
+  snapshot ids are remapped to the current live ids, including recreations from
+  a previous restore run. Fixes `POST policies/bindings -> 400 {"target": …}`
+  after restoring a deleted application.
+### Changed
+- Okta's server-derived per-app objects (app user schemas, profile mappings) no
+  longer appear in restore plans at all — Okta regenerates them automatically
+  when an app is recreated, so they were noise/scary-red rows with no action.
+  They remain backed up and browsable in snapshots.
+- Object names in plans/events prefer the friendly `label` over the internal
+  `name` (Okta apps now show "GoDaddy", not `godaddy`).
+
 ## [0.7.14] — 2026-07-12
 ### Fixed
 - **Authentik application restore was broken** ("no write path known for None"):
