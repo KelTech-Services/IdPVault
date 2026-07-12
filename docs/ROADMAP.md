@@ -46,13 +46,23 @@ hardening (canonical Public URL, `X-Forwarded-Proto`, optional Host enforcement)
 switched to OAuth2 client-credentials (auto-minted Management API tokens); provider-driven
 Add-Tenant form (per-provider fields).
 
-**v0.7.4–0.7.5** — Auth0 hardening + restore: resilient Auth0 export (single-fetch
-endpoints, skip feature-gated/deprecated ones); **Auth0 config restore-apply** (clients,
-connections, resource servers, roles, rules); per-adapter restore ordering + never-restore.
+**v0.7.4–0.7.22** — the restore engine, completed and battle-tested live on all three
+providers: Auth0 config restore-apply (self-healing writes, 429 retry); **Okta config
+restore-apply including apps** (recreated apps get regenerated credentials, flagged);
+**Authentik restore completed** (applications & policy bindings, id remapping so
+bindings follow recreated objects, converging comparisons); hybrid id/natural-key
+matching (renames AND recreates, no duplicate creates); per-item restore selection
+with checkboxes; unsupported objects visible in plans; drift-detection fix for
+identity-enabled tenants; one consolidated email per backup with the change list.
 
-## v0.7 — next
+**v0.8.0** — open-core licensing: offline Ed25519-signed license keys (no phone-home),
+free Community tier (1 tenant, config backup/restore), paid unlocks more tenants +
+identity backup & restore. Strict-but-non-destructive downgrade with a 3-day grace
+window; oldest tenant stays fully live on free. Settings → License UI with expiry
+countdown; server-side gating everywhere; repo licensed under BSL 1.1.
 
-- Restore apply for Okta **config** adapter (Auth0 shipped in v0.7.5)
+## Next
+
 - Optional profile-revert for existing users (identity restore currently create-only)
 - Background job queue for long identity backups/restores (currently synchronous)
 - Identity events/diff lane

@@ -25,10 +25,17 @@ class TenantIn(BaseModel):
 
 @router.post("/tenants", dependencies=[Depends(require_admin)])
 def create_tenant(body: TenantIn) -> dict:
+    from app.core import license as lic
     if body.provider not in ("authentik", "okta", "auth0"):
         raise HTTPException(422, "provider must be authentik, okta, or auth0")
+    if body.identity_enabled and not lic.has_feature("identity"):
+        raise HTTPException(402, "identity backup requires a paid license — "
+                                 "add one in Settings → License")
     data_key = crypto.new_data_key()
     with SessionLocal() as db:
+        if not lic.can_add_tenant(db.query(Tenant).count()):
+            raise HTTPException(402, "tenant limit reached for your license tier — "
+                                     "upgrade in Settings → License to add more tenants")
         t = Tenant(
             name=body.name, slug=body.slug, provider=body.provider,
             base_url=body.base_url,
@@ -48,9 +55,12 @@ def create_tenant(body: TenantIn) -> dict:
 
 @router.get("/tenants")
 def list_tenants() -> list[dict]:
+    from app.core import license as lic
+    entitled = lic.entitled_tenant_ids()          # None = all entitled
     with SessionLocal() as db:
         return [
             {"id": t.id, "name": t.name, "slug": t.slug, "provider": t.provider,
+             "active": entitled is None or t.id in entitled,
              "base_url": t.base_url,
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep,
              "db_dr": bool(t.enc_db_url),
@@ -95,7 +105,11 @@ class TenantUpdate(BaseModel):
 @router.patch("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
 def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
     from apscheduler.triggers.cron import CronTrigger
+    from app.core import license as lic
     from app.core.scheduler import scheduler, run_backup
+    if body.identity_enabled and not lic.has_feature("identity"):
+        raise HTTPException(402, "identity backup requires a paid license — "
+                                 "add one in Settings → License")
 
     fields = body.model_dump(exclude_unset=True)
     with SessionLocal() as db:

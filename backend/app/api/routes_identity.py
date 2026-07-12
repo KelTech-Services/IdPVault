@@ -11,8 +11,18 @@ from app.models.db import IdentitySnapshot, SessionLocal, Tenant
 router = APIRouter(tags=["identity"], dependencies=[Depends(require_admin)])
 
 
+def _require_identity_license(tenant_id: int) -> None:
+    """Identity backup/restore is a paid feature; existing identity snapshots
+    stay viewable regardless."""
+    from app.core import license as lic
+    if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
+        raise HTTPException(402, "identity backup & restore requires a paid license — "
+                                 "add one in Settings → License")
+
+
 @router.post("/tenants/{tenant_id}/identity/backup")
 def backup(tenant_id: int) -> dict:
+    _require_identity_license(tenant_id)
     try:
         return run_identity_backup(tenant_id)
     except ValueError as e:
@@ -45,6 +55,7 @@ class IdRestoreIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/identity/restore/preview")
 def restore_preview(tenant_id: int, body: IdRestoreIn, request: Request) -> dict:
+    _require_identity_license(tenant_id)
     try:
         return plan_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
     except FileNotFoundError:
@@ -61,6 +72,7 @@ class IdApplyIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
 def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
+    _require_identity_license(tenant_id)
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")
     try:

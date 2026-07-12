@@ -3,6 +3,32 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.0] — 2026-07-12
+### Added
+- **Open-core licensing.** IdPVault runs free in the Community tier (1 tenant,
+  full config backup & restore) and unlocks more tenants plus identity backup &
+  restore with a paid license key. Keys are Ed25519-signed tokens verified
+  entirely OFFLINE against a public key embedded in the app — no phone-home,
+  no telemetry, nothing leaves your network.
+- Settings → License: install/remove a key, see tier, customer, expiry date with
+  countdown, entitlements, and grace-window warnings. Renewal keys can be
+  installed early — their term extends from the previous expiry.
+- Server-side enforcement at every paid door (not just hidden buttons): tenant
+  creation beyond the licensed limit, backup/restore for over-limit tenants, and
+  all identity backup/restore paths return 402 with a clear message; scheduled
+  jobs for unentitled tenants skip with a log line. UI grays the affected
+  buttons with explanatory tooltips.
+- **Non-destructive downgrade.** If a license expires (after a 3-day grace
+  window) or is removed, nothing is deleted: the oldest tenant stays fully
+  live, other tenants keep their data and snapshots but pause backup/restore,
+  and identity features pause — everything resumes the moment a valid key is
+  installed.
+- `tools/mint_license.py` — KelTech-internal key minting (Ed25519, annual/multi-
+  year, `--extend-from` for renewals).
+- Repository licensed under the **Business Source License 1.1** (production use
+  permitted except offering IdPVault as a hosted service; converts to Apache
+  2.0 on 2030-07-12).
+
 ## [0.7.22] — 2026-07-12
 ### Changed
 - Bindings in alerts and events are labeled by what they connect

@@ -11,6 +11,11 @@ router = APIRouter(tags=["backups"])
 
 @router.post("/tenants/{tenant_id}/backup", dependencies=[Depends(require_admin)])
 def trigger_backup(tenant_id: int) -> dict:
+    from app.core import license as lic
+    if not lic.is_tenant_entitled(tenant_id):
+        raise HTTPException(402, "this tenant is over your license's tenant limit — "
+                                 "backups are paused for it until a license is added "
+                                 "in Settings → License")
     result = run_backup(tenant_id)
     return {"manifest": result["manifest"], "drift_detected": bool(result["drift"])}
 

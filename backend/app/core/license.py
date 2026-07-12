@@ -1,9 +1,16 @@
 """Open-core license verification. Licenses are Ed25519-signed tokens verified
 OFFLINE against an embedded public key — the app never phones home. Without a
-valid license the app runs in the free Community tier (1 tenant, no identity backup).
+valid license the app runs in the free Community tier (1 tenant, no identity
+backup).
 
 Token format:  base64url(payload_json) + "." + base64url(signature)
-Payload fields: customer, tier, max_tenants (null = unlimited), features[], issued, expires (epoch seconds)
+Payload: customer, tier, max_tenants (null = unlimited), features[], issued, expires
+
+Lifecycle: a token is honored for GRACE_DAYS past its expiry ("grace" status, a
+renewal-hiccup buffer), then the app downgrades to Community — strict but
+NON-DESTRUCTIVE: nothing is deleted; paid actions go dormant. The entitled set
+under a tenant cap is the OLDEST tenants (lowest id); the free tenant is the
+oldest one and always stays fully live.
 """
 import base64
 import json
@@ -16,8 +23,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 # (never in this repo/image) and used by tools/mint_license.py to issue keys.
 PUBLIC_KEY_B64 = "e9zJJlaHIJK8vwUMICggfzFf7wMeIlxcoKyltGp8aF0="
 
+GRACE_DAYS = 3
+
 FREE = {"tier": "community", "max_tenants": 1, "features": [],
-        "valid": False, "customer": None, "expires": None}
+        "valid": False, "customer": None, "expires": None,
+        "status": "community", "days_left": None}
 
 
 def _b64url(s: str) -> bytes:
@@ -25,7 +35,9 @@ def _b64url(s: str) -> bytes:
 
 
 def verify(token: str) -> dict | None:
-    """Return the license payload if the signature is valid and unexpired, else None."""
+    """Return the license payload if the signature is valid and it is within
+    expiry + grace. The payload gets a computed '_status' ('active' | 'grace')
+    and '_days_left' (until hard cutoff = expires + grace)."""
     try:
         payload_b64, sig_b64 = token.strip().split(".", 1)
         payload = _b64url(payload_b64)
@@ -33,8 +45,16 @@ def verify(token: str) -> dict | None:
         pub.verify(_b64url(sig_b64), payload)          # raises InvalidSignature
         data = json.loads(payload)
         exp = data.get("expires")
-        if exp and datetime.now(timezone.utc).timestamp() > float(exp):
-            return None
+        if exp:
+            now = datetime.now(timezone.utc).timestamp()
+            hard_cutoff = float(exp) + GRACE_DAYS * 86400
+            if now > hard_cutoff:
+                return None
+            data["_status"] = "active" if now <= float(exp) else "grace"
+            data["_days_left"] = max(0, int((hard_cutoff - now) // 86400))
+        else:
+            data["_status"] = "active"
+            data["_days_left"] = None
         return data
     except (InvalidSignature, ValueError, Exception):
         return None
@@ -48,17 +68,22 @@ def _stored_token() -> str | None:
 
 
 def current_license() -> dict:
+    """Entitlements as configured RIGHT NOW: the installed token's payload if it
+    verifies (with status/days_left), the FREE tier otherwise. 'invalid_present'
+    flags a stored token that no longer verifies (bad or past grace)."""
     token = _stored_token()
     if not token:
         return dict(FREE)
     data = verify(token)
     if not data:
-        return {**FREE, "invalid_present": True}
+        return {**FREE, "status": "expired_or_invalid", "invalid_present": True}
     return {"tier": data.get("tier", "pro"),
             "max_tenants": data.get("max_tenants"),      # None = unlimited
             "features": data.get("features", []),
             "valid": True, "customer": data.get("customer"),
-            "expires": data.get("expires")}
+            "expires": data.get("expires"),
+            "status": data.get("_status", "active"),
+            "days_left": data.get("_days_left")}
 
 
 def can_add_tenant(current_count: int) -> bool:
@@ -68,3 +93,20 @@ def can_add_tenant(current_count: int) -> bool:
 
 def has_feature(feature: str) -> bool:
     return feature in current_license().get("features", [])
+
+
+def entitled_tenant_ids() -> set[int] | None:
+    """Tenant ids allowed to run paid actions (backup/restore) under the current
+    cap — the OLDEST tenants (lowest id). None = all tenants entitled."""
+    m = current_license()["max_tenants"]
+    if m is None:
+        return None
+    from app.models.db import SessionLocal, Tenant
+    with SessionLocal() as db:
+        ids = [t.id for t in db.query(Tenant.id).order_by(Tenant.id).limit(m)]
+    return set(ids)
+
+
+def is_tenant_entitled(tenant_id: int) -> bool:
+    ids = entitled_tenant_ids()
+    return ids is None or tenant_id in ids

@@ -187,7 +187,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 <main id="view-dashboard">
   <section class="cards" id="statcards"></section>
   <section class="panel">
-    <h2>Tenants <span class="spacer"></span><button class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
+    <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
       <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
@@ -321,6 +321,15 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 </main>
 <main id="view-settings" class="hidden">
   <section class="panel">
+    <h2>License</h2>
+    <div id="lic_status" class="muted" style="font-size:.85rem;margin-bottom:14px">Loading…</div>
+    <div class="formgrid">
+      <div style="grid-column:span 2"><label>License key</label><input id="lic_key" type="password" placeholder="paste your license key — issued when you purchase at idpvault.com"></div>
+    </div>
+    <button class="primary" onclick="installLicense()">Install license</button>
+    <button id="lic_clear" class="hidden" onclick="clearLicense()">Remove license</button>
+  </section>
+  <section class="panel">
     <h2>Core — security &amp; operations</h2>
     <div class="formgrid">
       <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
@@ -379,7 +388,7 @@ const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'applica
     return r.json();
   });
 
-let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null;
+let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null, _license = null;
 
 
 const EI = {
@@ -599,25 +608,38 @@ async function health(){
 
 /* ---------- tenants ---------- */
 function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
+const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit — backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
+const LIC_TIP_IDENTITY = 'Identity backup &amp; restore requires a paid license — add one in Settings &gt; License';
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   const isAdmin = me.role === 'admin';
   tb.innerHTML = skelRows(6);
   try {
     const ts = await api('/tenants'); _tenants = ts;
+    if(isAdmin){ try { _license = await api('/license'); } catch {} }
+    const atLimit = _license && _license.max_tenants != null && ts.length >= _license.max_tenants;
+    const addBtn = document.getElementById('addtenantbtn');
+    if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
+      addBtn.title = atLimit ? 'Tenant limit reached for your license — upgrade in Settings > License' : ''; }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
-    tb.innerHTML = ts.map(t => `<tr>
-      <td>${esc(t.name)}</td>
+    const identOk = !_license || (_license.features||[]).includes('identity');
+    tb.innerHTML = ts.map(t => {
+      const inactive = t.active === false;
+      const lockT = inactive ? `disabled title="${LIC_TIP_TENANT}"` : '';
+      const lockI = inactive ? `disabled title="${LIC_TIP_TENANT}"`
+                  : (!identOk ? `disabled title="${LIC_TIP_IDENTITY}"` : '');
+      return `<tr>
+      <td>${esc(t.name)}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '—'}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${isAdmin ? `
-        <button onclick="backupNow(${t.id}, this)">Backup now</button>
+        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
         <button onclick="editTenant(${t.id})">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        ${isAdmin ? `<button onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>` : ''}
-      </td></tr>`).join('');
+        ${isAdmin ? `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Identity</button>` : ''}
+      </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
 function editTenant(id){
@@ -738,7 +760,7 @@ async function showSnaps(id, slug){
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
       <td onclick="selSnap(this.parentElement)">${fmtTs(ts)} <span class="muted">(${ts})</span></td>
-      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?`<button onclick="openRestore('${ts}')">Restore…</button>`:''}</td></tr>`).join('');
+      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore…</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
@@ -816,7 +838,48 @@ function renderAlertEvents(enabled){
   document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
     `<label title="${esc(e.when)}"><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)}</label>`).join('');
 }
+/* ---------- license ---------- */
+async function loadLicense(){
+  const box = document.getElementById('lic_status'); if(!box) return;
+  try { _license = await api('/license'); } catch(e){ box.textContent = 'Failed to load license: ' + e.message; return; }
+  const l = _license;
+  document.getElementById('lic_clear').classList.toggle('hidden', !(l.valid || l.invalid_present));
+  if(!l.valid){
+    const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired — paid features are paused.</span><br>' : '';
+    box.innerHTML = bad + `<b>Community tier</b> (free) — ${l.tenant_count}/${l.max_tenants} tenant · config backup &amp; restore included. `
+      + `A paid license unlocks more tenants and identity backup &amp; restore.`;
+    return;
+  }
+  const expDate = l.expires ? new Date(l.expires*1000).toISOString().slice(0,10) : 'never';
+  const daysToExp = l.expires ? Math.max(0, Math.floor((l.expires*1000 - Date.now())/86400000)) : null;
+  const grace = l.status==='grace'
+    ? ` <span class="st-failed">— EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
+  box.innerHTML = `<b>${esc(l.tier)}</b> license — ${esc(l.customer||'')} · expires <b>${expDate}</b>`
+    + (daysToExp!=null && l.status==='active' ? ` <span class="muted">(${daysToExp} days from now)</span>` : '') + grace
+    + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Features: ${esc((l.features||[]).join(', ')||'—')}`
+    + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry — the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
+}
+async function installLicense(){
+  const key = v('lic_key');
+  if(!key) return toast('Paste a license key first', true);
+  try {
+    await api('/license', {method:'PUT', body: JSON.stringify({token:key})});
+    document.getElementById('lic_key').value = '';
+    toast('License installed — paid features unlocked.');
+    _license = null; loadLicense(); loadTenants();
+  } catch(e){ toast('Install failed: ' + e.message, true); }
+}
+async function clearLicense(){
+  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no identity backup). Nothing is deleted — paid actions pause until a license is installed again.')) return;
+  try {
+    await api('/license', {method:'DELETE'});
+    toast('License removed — running in Community tier.');
+    _license = null; loadLicense(); loadTenants();
+  } catch(e){ toast('Remove failed: ' + e.message, true); }
+}
+
 async function loadSettings(){
+  loadLicense();
   try {
     const s = await api('/settings');
     const smtp = s.smtp || {};

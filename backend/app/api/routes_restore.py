@@ -10,6 +10,15 @@ from app.models.db import RestoreRun, SessionLocal, Tenant
 router = APIRouter(tags=["restore"], dependencies=[Depends(require_admin)])
 
 
+def _require_entitled(*tenant_ids) -> None:
+    from app.core import license as lic
+    for tid in tenant_ids:
+        if tid is not None and not lic.is_tenant_entitled(tid):
+            raise HTTPException(402, "this tenant is over your license's tenant limit — "
+                                     "restore is paused for it until a license is added "
+                                     "in Settings → License")
+
+
 class RestoreSelection(BaseModel):
     resource_types: list[str] | None = None
     objects: list[dict] | None = None   # [{resource_type, object_id}]
@@ -23,6 +32,7 @@ class RestoreIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/restore/preview")
 def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
+    _require_entitled(tenant_id, body.target_tenant_id)
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,
@@ -36,6 +46,7 @@ def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
 
 @router.post("/tenants/{tenant_id}/restore/apply")
 def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
+    _require_entitled(tenant_id, body.target_tenant_id)
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,

@@ -11,8 +11,13 @@ DEFAULT_RATE_PER_MIN = 300
 
 def run_identity_backup(tenant_id: int) -> dict:
     from app.core import crypto, storage
+    from app.core import license as lic
     from app.models.db import IdentitySnapshot, SessionLocal, Tenant
     from app.providers import get_adapter
+
+    if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
+        log.warning("identity backup skipped tenant=%s — requires a paid license", tenant_id)
+        return {"skipped": "license"}
 
     started = time.monotonic()
     with SessionLocal() as db:

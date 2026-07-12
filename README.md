@@ -64,3 +64,27 @@ Snapshots are encrypted, versioned, and diffable, and support selective config r
 
 Use IdPVault for what it is: configuration versioning, drift detection, and config-level
 restore. Pair it with host-level backups of your self-hosted IdP for full disaster recovery.
+
+
+## Licensing & tiers
+
+IdPVault is source-available under the **Business Source License 1.1** (see
+`LICENSE`): you can run it in production for your own organization; offering it
+to third parties as a hosted/managed service requires a commercial agreement.
+The code converts to Apache 2.0 on the Change Date.
+
+The app itself is open-core:
+
+- **Community (free, no key needed):** 1 tenant, full config backup, drift
+  detection & events, alerts, and config restore.
+- **Paid license:** more tenants (or unlimited) and identity backup & restore
+  (users, group memberships, app assignments).
+
+License keys are Ed25519-signed tokens verified **entirely offline** against a
+public key embedded in the app — IdPVault never phones home and sends no
+telemetry. Install/manage keys in **Settings → License**. If a license expires
+(after a 3-day grace window) or is removed, nothing is deleted: your oldest
+tenant stays fully operational, other tenants keep all their data and snapshots
+but pause backup/restore, and identity features pause — everything resumes as
+soon as a valid key is installed. Renewal keys can be installed early; their
+term extends from the previous expiry.
