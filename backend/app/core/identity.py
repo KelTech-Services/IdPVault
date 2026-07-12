@@ -129,6 +129,11 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
             manual_steps.append(f"{recreate} recreated user(s) will need a PASSWORD RESET "
                                 f"(credentials are never exportable via the IdP API).")
             manual_steps.append("Recreated users will need to RE-ENROLL MFA factors.")
+        if t.provider == "auth0" and recreate:
+            manual_steps.append("Auth0 users are recreated BLOCKED with a random password: "
+                                "send a password reset, then unblock them. Social/enterprise "
+                                "users can't be recreated via the API - they sign in again "
+                                "through their identity provider.")
         if t.provider == "authentik":
             if t.enc_db_url:
                 manual_steps.append("This tenant has full-DR configured: for full credential "

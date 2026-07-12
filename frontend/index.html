@@ -753,7 +753,7 @@ function editTenant(id){
 function onProviderChange(){
   const p = document.getElementById('f_provider').value;
   const show = (id,on)=>document.getElementById(id).classList.toggle('hidden', !on);
-  const isAuth0 = p==='auth0', hasIdentity = (p==='authentik'||p==='okta');
+  const isAuth0 = p==='auth0', hasIdentity = true;  // all providers support Users & Access now
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
   show('fd_dburl', p==='authentik');
   show('fd_ident', hasIdentity); show('fd_identcron', hasIdentity); show('fd_identkeep', hasIdentity);
@@ -793,7 +793,7 @@ async function saveTenant(){
   if(editingId){
     const body = { name: v('f_name'), base_url: v('f_url'),
       schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
-      identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: schedGet('fi'),
+      identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
       identity_retention_keep: parseInt(v('f_identkeep')||'14') };
     const tok = prov==='auth0' ? auth0cred() : v('f_token');
     if(tok) body.api_token = tok;
@@ -811,7 +811,7 @@ async function saveTenant(){
     base_url: v('f_url'), api_token: prov==='auth0' ? auth0cred() : v('f_token'),
     schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
     db_url: prov==='authentik' ? (v('f_dburl') || null) : null,
-    identity_enabled: (prov!=='auth0' && v('f_ident')==='true'), identity_schedule_cron: schedGet('fi'),
+    identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and credentials are required', true);

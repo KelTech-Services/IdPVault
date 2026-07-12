@@ -39,6 +39,7 @@ OPTIONAL = {"rules", "custom_domains"}
 
 class Auth0Adapter(ProviderAdapter):
     name = "auth0"
+    supports_identity = True
     restore_order = ["resource_servers", "connections", "roles", "clients", "rules"]
     never_restore = {"tenant_settings", "branding", "custom_domains", "actions"}
     # restore write paths + id field per type; actions/singletons excluded above.
@@ -200,3 +201,172 @@ class Auth0Adapter(ProviderAdapter):
                 raise RuntimeError(f"POST {base} -> {r.status_code}: {r.text[:280]}")
             body = r.json()
             return ("created", str(body.get(idf) or body.get("id") or ""))
+
+    # ---- Users & Access (identity) backup / restore ----
+    # Auth0 model: users + ROLES and ORGANIZATIONS as the "group" buckets (each
+    # group_ref entry carries kind: "role" | "org" so restore hits the right
+    # endpoint). Auth0 has no user<->app assignment concept, so the app buckets
+    # stay empty (per the ProviderAdapter contract).
+    _USER_EXPORT_CAP = 1000  # Auth0 page pagination is hard-capped at 1000 records
+
+    @staticmethod
+    def _slim_user(u: dict) -> dict:
+        ids = u.get("identities") or []
+        conn = ids[0].get("connection") if ids else None
+        return {"id": u.get("user_id"),
+                "profile": {"login": u.get("email") or u.get("username") or u.get("user_id"),
+                            "email": u.get("email"),
+                            "displayName": u.get("name") or "",
+                            "username": u.get("username")},
+                "status": "BLOCKED" if u.get("blocked") else "ACTIVE",
+                "connection": conn,
+                "created": u.get("created_at")}
+
+    def _plist(self, c, path: str, cap: int | None = None, **extra) -> list[dict]:
+        """Page/per_page list pager; tolerates dict envelopes."""
+        out, page = [], 0
+        while True:
+            r = self._req(c, "GET", path, params={"page": page, "per_page": 100, **extra})
+            r.raise_for_status()
+            items = r.json()
+            if not isinstance(items, list):
+                items = (items.get("users") or items.get("members")
+                         or items.get("organizations") or items.get("roles") or [])
+            out.extend(items)
+            if len(items) < 100:
+                return out
+            page += 1
+            if cap and page * 100 >= cap:
+                return out
+
+    def export_identities(self) -> dict[str, list[dict]]:
+        with self._client() as c:
+            r = self._req(c, "GET", "/api/v2/users",
+                          params={"page": 0, "per_page": 1, "include_totals": "true"})
+            r.raise_for_status()
+            total = r.json().get("total", 0)
+            if total > self._USER_EXPORT_CAP:
+                raise RuntimeError(
+                    f"auth0: tenant has {total} users; the paged export is capped at "
+                    f"{self._USER_EXPORT_CAP}. Bulk users-export job support is on the "
+                    f"roadmap - refusing a silently partial backup.")
+            users = [self._slim_user(u)
+                     for u in self._plist(c, "/api/v2/users", cap=self._USER_EXPORT_CAP)]
+            memberships, group_ref = [], []
+            for rl in self._plist(c, "/api/v2/roles"):
+                rid = rl.get("id")
+                group_ref.append({"id": rid, "name": rl.get("name"), "kind": "role"})
+                for m in self._plist(c, f"/api/v2/roles/{rid}/users", cap=self._USER_EXPORT_CAP):
+                    memberships.append({"group_id": rid, "user_id": m.get("user_id")})
+            try:
+                orgs = self._plist(c, "/api/v2/organizations")
+            except httpx.HTTPStatusError as e:   # feature-gated on some plans
+                if 400 <= e.response.status_code < 500:
+                    log.warning("auth0 identities: organizations unavailable (HTTP %s) - skipping",
+                                e.response.status_code)
+                    orgs = []
+                else:
+                    raise
+            for o in orgs:
+                oid = o.get("id")
+                group_ref.append({"id": oid, "name": o.get("display_name") or o.get("name"),
+                                  "kind": "org"})
+                for m in self._plist(c, f"/api/v2/organizations/{oid}/members",
+                                     cap=self._USER_EXPORT_CAP):
+                    memberships.append({"group_id": oid, "user_id": m.get("user_id")})
+            return {"users": users, "group_memberships": memberships,
+                    "app_group_assignments": [], "app_user_assignments_direct": [],
+                    "group_ref": group_ref, "app_ref": []}
+
+    def apply_identities(self, snap: dict, only_keys=None) -> dict:
+        """Additive restore: recreate missing users (by email/login), then re-add
+        missing role assignments and organization memberships. Resolved by natural
+        key ((kind, name) for roles/orgs; login for users) so recreated-object id
+        changes don't break edges. Recreated users are BLOCKED with a random
+        password (Auth0 requires one) - admin sends a reset, then unblocks."""
+        import secrets as pysecrets
+        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
+               "group_memberships": {"added": 0, "skipped": 0, "failed": []},
+               "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
+               "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
+        with self._client() as c:
+            live = self.export_identities()
+            live_user = {(u.get("profile") or {}).get("login"): u.get("id")
+                         for u in live.get("users", [])}
+            live_group = {(g.get("kind"), g.get("name")): g["id"]
+                          for g in live.get("group_ref", []) if g.get("name")}
+            live_group_ids = {g["id"] for g in live.get("group_ref", [])}
+            snap_login = {u.get("id"): (u.get("profile") or {}).get("login")
+                          for u in snap.get("users", [])}
+            snap_gref = {g["id"]: g for g in snap.get("group_ref", [])}
+
+            # 1) users - create the ones missing live (matched by email/login)
+            for u in snap.get("users", []):
+                prof = u.get("profile") or {}
+                login = prof.get("login")
+                if not login:
+                    rep["users"]["failed"].append({"user": u.get("id"), "error": "user has no email/login"})
+                    continue
+                if login in live_user:
+                    rep["users"]["existing"] += 1
+                    continue
+                if only_keys is not None and login not in only_keys:
+                    rep["users"]["skipped"] += 1
+                    continue
+                conn = u.get("connection")
+                if not conn:
+                    rep["users"]["failed"].append({"user": login, "error": "no connection recorded in snapshot"})
+                    continue
+                payload = {"connection": conn, "email": prof.get("email"),
+                           "name": prof.get("displayName") or None,
+                           "blocked": True, "email_verified": True, "verify_email": False,
+                           "password": pysecrets.token_urlsafe(24) + "aA1!"}
+                if prof.get("username"):
+                    payload["username"] = prof["username"]
+                payload = {k: v for k, v in payload.items() if v is not None}
+                r = self._req(c, "POST", "/api/v2/users", json=payload)
+                if r.status_code == 400 and "username" in payload and "username" in (r.text or "").lower():
+                    payload.pop("username")   # connection doesn't take usernames
+                    r = self._req(c, "POST", "/api/v2/users", json=payload)
+                if r.status_code == 409:
+                    rep["users"]["existing"] += 1
+                elif r.status_code >= 400:
+                    err = r.text[:180]
+                    if "connection" in err.lower():
+                        err += " (only database-connection users can be recreated via the API; "\
+                               "social/enterprise users sign in again through their IdP)"
+                    rep["users"]["failed"].append({"user": login, "error": err})
+                else:
+                    live_user[login] = r.json().get("user_id")
+                    rep["users"]["created"] += 1
+
+            # 2) role assignments + organization memberships (one bucket, kind-dispatched)
+            live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
+
+            def r_group(gid):
+                g = snap_gref.get(gid) or {}
+                key = (g.get("kind"), g.get("name"))
+                if key in live_group:
+                    return live_group[key], g.get("kind")
+                return (gid if gid in live_group_ids else None), g.get("kind")
+
+            for e in snap.get("group_memberships", []):
+                lg, kind = r_group(e["group_id"])
+                lu = live_user.get(snap_login.get(e["user_id"]))
+                if not lg or not lu or (lg, lu) in live_mem:
+                    rep["group_memberships"]["skipped"] += 1
+                    continue
+                try:
+                    if kind == "org":
+                        r = self._req(c, "POST", f"/api/v2/organizations/{lg}/members",
+                                      json={"members": [lu]})
+                    else:
+                        r = self._req(c, "POST", f"/api/v2/roles/{lg}/users",
+                                      json={"users": [lu]})
+                    if r.status_code >= 400:
+                        raise RuntimeError(f"HTTP {r.status_code}: {r.text[:150]}")
+                    rep["group_memberships"]["added"] += 1
+                except Exception as ex:
+                    rep["group_memberships"]["failed"].append(
+                        {"edge": f"{lg}/{lu}", "error": str(ex)[:150]})
+        return rep

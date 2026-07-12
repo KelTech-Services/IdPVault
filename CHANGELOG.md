@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.12] - 2026-07-12
+### Added
+- **Auth0 Users & Access backup + restore** - the last provider gap. Backup
+  captures users (paged, with a loud failure instead of a silently partial
+  export past Auth0's 1,000-record pagination cap), role assignments, and
+  organization memberships (roles and orgs ride the group bucket with a `kind`
+  tag; Auth0 has no user-to-app assignment concept). Restore is create-only and
+  additive like the other providers: missing users are recreated blocked with a
+  random password (send a reset, then unblock), matched by email; role/org
+  edges re-added by natural key. Social/enterprise users are reported, not
+  recreated (their identity lives at the external IdP). Organizations are
+  skipped gracefully on plans without the feature.
+- Tenant form now offers Users & Access for Auth0; provider-specific manual
+  steps shown in restore previews. 3 new mapping tests (25 total).
+
 ## [0.8.11] - 2026-07-12
 ### Changed
 - Tenant form placeholders are now provider-aware neutral examples (Acme Okta /

@@ -1,5 +1,5 @@
 <h3>What Users &amp; Access backup captures</h3>
-<p>Separate from config, Users &amp; Access backup (a paid feature) captures <b>who</b>: users (profiles, status), group memberships, and app assignments, with provenance preserved (group-inherited vs directly-assigned access). It has its own schedule, retention, and storage per tenant. Currently supported for Authentik and Okta; Auth0 support is coming.</p>
+<p>Separate from config, Users &amp; Access backup (a paid feature) captures <b>who</b>: users (profiles, status), group memberships, and app assignments, with provenance preserved (group-inherited vs directly-assigned access). It has its own schedule, retention, and storage per tenant. Supported for all three providers; the exact shape follows each provider's model - for Auth0 that means users plus <b>role assignments and organization memberships</b> (Auth0 has no user-to-app assignment concept, so that bucket doesn't apply).</p>
 <h3>Rate limits &amp; estimates</h3>
 <p>Users &amp; Access exports can be API-heavy on large orgs. IdPVault paces itself with an adaptive rate limiter (learns your Okta org's limits, keeps configurable headroom) and shows a measured duration estimate with a cadence recommendation before you commit to a schedule.</p>
 <h3>Users &amp; Access restore</h3>
@@ -8,4 +8,5 @@
 <ul>
 <li>Recreated users arrive deactivated without passwords/MFA; they re-enroll on activation. IdPs never export credential material.</li>
 <li>Authentik app access is governed by policy bindings, which live in <b>config</b> restore; run both for full recovery.</li>
+<li>Auth0: recreated users come back <b>blocked</b> with a random password - send a password reset, then unblock. Only database-connection users can be recreated via the API (social/enterprise users sign in again through their IdP). Tenants over 1,000 users need the bulk export job, which is on the roadmap - the backup fails loudly rather than being silently partial.</li>
 </ul>
