@@ -11,6 +11,10 @@
 --text:#e6ecf3;--dim:#8b9bad;--accent:#4d9fff;--accent2:#3d8ae0;
 --green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;--violet:#c9a3ff;
 --radius:10px;--radius-sm:7px;--sidebar-w:238px;--shadow:0 8px 30px rgba(0,0,0,.45);
+--topbar-bg:rgba(11,15,21,.82);--card-grad-to:#0f151c;--row-hover:rgba(255,255,255,.014);
+--tag-violet-bg:#241a33;--tag-blue-bg:#0f2438;--tag-amber-bg:#33230f;--tag-green-bg:#0e2b20;--tag-red-bg:#331519;--tag-dim-bg:#1a232e;
+--btn-hover-border:#33465a;--on-accent:#06101c;--del-bg:#2a1418;--del-border:#5a2a30;--on-red:#0d0d0f;
+--placeholder:#556575;--modal-scrim:rgba(4,7,11,.66);--login-grad:#141e2b;
 font-size:15px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
@@ -35,7 +39,7 @@ nav#mainnav button.active svg{stroke:var(--accent)}
 .sb-actions button svg{width:14px;height:14px;stroke:currentColor}
 
 .content{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto}
-.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:15px 32px;background:rgba(11,15,21,.82);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:15px 32px;background:var(--topbar-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
 .topbar h1{font-size:1.15rem;font-weight:650;letter-spacing:-.01em}
 .topbar-right{display:flex;align-items:center;gap:16px;font-size:.76rem;color:var(--dim)}
 .topbar .health{display:flex;align-items:center;gap:6px}
@@ -47,7 +51,7 @@ main{display:grid;gap:20px;max-width:1200px;margin:0 auto;padding:26px 32px;widt
 .panel h2{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-weight:600}
 .panel h2 .spacer{flex:1}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(224px,1fr));gap:16px}
-.card{background:linear-gradient(180deg,var(--panel),#0f151c);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+.card{background:linear-gradient(180deg,var(--panel),var(--card-grad-to));border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
 .card .lbl2{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
 .card .big{font-size:1.7rem;font-weight:680;letter-spacing:-.02em}
 .card .sub{font-size:.78rem;color:var(--dim);margin-top:7px}
@@ -57,23 +61,23 @@ table{width:100%;border-collapse:collapse;font-size:.88rem}
 th{text-align:left;color:var(--dim);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--border);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em}
 td{padding:12px;border-bottom:1px solid var(--panel2);vertical-align:middle}
 tbody tr{transition:background .1s}
-tbody tr:hover td{background:rgba(255,255,255,.014)}
+tbody tr:hover td{background:var(--row-hover)}
 tr:last-child td{border-bottom:none}
 
 .tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:600;letter-spacing:.03em}
-.tag.authentik{background:#241a33;color:var(--violet)}.tag.okta{background:#0f2438;color:var(--accent)}.tag.auth0{background:#33230f;color:var(--amber)}
-.tag.admin{background:#0f2438;color:var(--accent)}.tag.user{background:#1a232e;color:var(--dim)}
-.tag.ok{background:#0e2b20;color:var(--green)}.tag.off{background:#331519;color:var(--red)}.tag.pending{background:#33270f;color:var(--amber)}
+.tag.authentik{background:var(--tag-violet-bg);color:var(--violet)}.tag.okta{background:var(--tag-blue-bg);color:var(--accent)}.tag.auth0{background:var(--tag-amber-bg);color:var(--amber)}
+.tag.admin{background:var(--tag-blue-bg);color:var(--accent)}.tag.user{background:var(--tag-dim-bg);color:var(--dim)}
+.tag.ok{background:var(--tag-green-bg);color:var(--green)}.tag.off{background:var(--tag-red-bg);color:var(--red)}.tag.pending{background:var(--tag-amber-bg);color:var(--amber)}
 
 button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;font-size:.82rem;font-weight:500;transition:all .12s}
-button:hover{background:var(--panel3);border-color:#33465a}
-button.primary{background:var(--accent);border-color:var(--accent);color:#06101c;font-weight:600}
-button.primary:hover{background:var(--accent2);border-color:var(--accent2);color:#06101c}
+button:hover{background:var(--panel3);border-color:var(--btn-hover-border)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+button.primary:hover{background:var(--accent2);border-color:var(--accent2);color:var(--on-accent)}
 button.ghost{background:none;border:1px solid transparent}
 button.ghost:hover{background:var(--panel2);border-color:var(--border)}
 button.danger:hover{border-color:var(--red);color:var(--red);background:var(--panel2)}
-#f_delete,.del{background:#2a1418;border:1px solid #5a2a30;color:var(--red);font-weight:600}
-#f_delete:hover,.del:hover{background:var(--red);color:#0d0d0f;border-color:var(--red)}
+#f_delete,.del{background:var(--del-bg);border:1px solid var(--del-border);color:var(--red);font-weight:600}
+#f_delete:hover,.del:hover{background:var(--red);color:var(--on-red);border-color:var(--red)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .docprose h3{margin:20px 0 8px;font-size:1.02rem}
 .docprose h3:first-child{margin-top:0}
@@ -91,7 +95,7 @@ input,select{background:var(--bg);border:1px solid var(--border);border-radius:v
 input[type=checkbox],input[type=radio]{width:auto;padding:0;accent-color:var(--accent)}
 input:focus,select:focus{outline:none;border-color:var(--accent)}
 input:disabled{opacity:.5}
-input::placeholder{color:#556575}
+input::placeholder{color:var(--placeholder)}
 .formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
 .formgrid label,.lbl{display:block;font-size:.68rem;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
 
@@ -106,7 +110,7 @@ td button{padding:6px 11px;font-size:.79rem}
 #toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--green);padding:14px 18px;border-radius:var(--radius-sm);font-size:.85rem;max-width:460px;box-shadow:var(--shadow);z-index:99;word-break:break-word}
 #toast.err{border-left-color:var(--red)}
 .snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
-.snaprow.sel td{background:#0f2438}
+.snaprow.sel td{background:var(--tag-blue-bg)}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow:auto;font-size:.78rem;max-height:480px;line-height:1.55}
 .diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}
 .diffstat .add{color:var(--green)}.diffstat .rem{color:var(--red)}.diffstat .chg{color:var(--amber)}
@@ -115,7 +119,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .restore-item{display:grid;grid-template-columns:34px 100px 1fr 170px;gap:10px;padding:8px 10px;border-bottom:1px solid var(--panel2);font-size:.84rem;align-items:center}
 .act-create{color:var(--green)}.act-update{color:var(--amber)}.act-identical{color:var(--dim)}
 .st-created,.st-updated{color:var(--green)}.st-failed,.st-unsupported{color:var(--red)}.st-skipped,.st-skipped_managed{color:var(--dim)}.st-planned{color:var(--accent)}
-.modal{position:fixed;inset:0;background:rgba(4,7,11,.66);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:80}
+.modal{position:fixed;inset:0;background:var(--modal-scrim);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:80}
 .modal .box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;width:820px;max-width:94vw;max-height:88vh;overflow:auto;box-shadow:var(--shadow)}
 .chk{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
 .chk label{display:flex;gap:6px;align-items:center;font-size:.8rem;background:var(--bg);border:1px solid var(--border);padding:6px 11px;border-radius:var(--radius-sm);cursor:pointer}
@@ -126,10 +130,20 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .ulist .nm{font-weight:500}
 .ulist .em{color:var(--dim);font-size:.78rem}
 
-#loginview{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,#141e2b,var(--bg))}
+#loginview{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,var(--login-grad),var(--bg))}
 .logincard{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:38px;width:390px;display:grid;gap:14px;box-shadow:var(--shadow)}
 .logincard img{height:110px;width:auto;justify-self:center;margin-bottom:4px;max-width:100%;object-fit:contain}
 .logincard h3{text-align:center;font-size:1rem;color:var(--dim);font-weight:500}
+a{color:var(--accent)}a:hover{color:var(--accent2)}
+[data-theme="light"]{
+--bg:#eef1f5;--panel:#ffffff;--panel2:#f0f3f7;--panel3:#e4eaf1;--border:#d7dfe8;
+--text:#1c2733;--dim:#5f6d7d;--accent:#2170d4;--accent2:#1a5cb3;
+--green:#15805a;--red:#c94040;--amber:#a86e0e;--violet:#7345c8;
+--shadow:0 8px 30px rgba(38,54,78,.14);
+--topbar-bg:rgba(238,241,245,.85);--card-grad-to:#f6f8fb;--row-hover:rgba(20,40,70,.03);
+--tag-violet-bg:#ece4fa;--tag-blue-bg:#dfecfb;--tag-amber-bg:#f6ead2;--tag-green-bg:#d9f0e5;--tag-red-bg:#f9e0e0;--tag-dim-bg:#e7ecf2;
+--btn-hover-border:#b6c4d3;--on-accent:#ffffff;--del-bg:#f9e7e8;--del-border:#e3b3b8;--on-red:#ffffff;
+--placeholder:#8fa0b0;--modal-scrim:rgba(35,48,66,.4);--login-grad:#dde6f0}
 @media(max-width:820px){.sidebar{position:fixed;z-index:60;transform:translateX(-100%);transition:transform .2s}.content{width:100%}}
 </style>
 </head>
@@ -186,6 +200,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
       <div class="who"><span id="whoami"></span><span class="role" id="whoamirole"></span></div>
       <div class="sb-actions">
         <button class="ghost" onclick="openProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Profile</button>
+        <button class="ghost" id="themebtn" onclick="toggleTheme()"><svg id="themeicon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="themeicon-sun" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span id="themelabel">Light mode</span></button>
         <button class="ghost" onclick="doLogout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Log out</button>
       </div>
     </div>
@@ -214,7 +229,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
         <div><label>Backup schedule</label><div id="sched_fs"></div></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
         <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
-        <div id="fd_ident"><label>Users &amp; Access backup (users, memberships, app assignments)</label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+        <div id="fd_ident"><label title="Backs up users, group memberships, and app assignments">Users &amp; Access backup</label><select id="f_ident" title="Backs up users, group memberships, and app assignments"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
         <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
         <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
@@ -426,6 +441,27 @@ const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'applica
 
 let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null, _license = null;
 
+/* ---------- theme ---------- */
+function applyTheme(t){
+  t = t === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('idpv_theme', t); } catch {}
+  // dark theme uses the light-on-dark logo; light theme the dark-on-light one
+  document.querySelectorAll('img[src*="IdPVault_"]').forEach(img=>{
+    img.src = t === 'light' ? '/IdPVault_logo.png' : '/IdPVault_light_logo.png';
+  });
+  const moon = document.getElementById('themeicon-moon'), sun = document.getElementById('themeicon-sun'),
+        lbl = document.getElementById('themelabel');
+  if(moon){ moon.classList.toggle('hidden', t==='light'); sun.classList.toggle('hidden', t!=='light');
+            lbl.textContent = t === 'light' ? 'Dark mode' : 'Light mode'; }
+}
+async function toggleTheme(){
+  const next = (document.documentElement.dataset.theme === 'light') ? 'dark' : 'light';
+  applyTheme(next);
+  if(me){ try{ await api('/auth/profile', {method:'POST', body: JSON.stringify({theme:next})}); me.theme = next; }catch{} }
+}
+try { applyTheme(localStorage.getItem('idpv_theme') || 'dark'); } catch { applyTheme('dark'); }
+
 
 const EI = {
   db:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>',
@@ -609,6 +645,7 @@ function showApp(){
   const isAdmin = me.role === 'admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  if(me.theme) applyTheme(me.theme);
   initSchedPickers();
   health(); loadTenants(); setInterval(health, 30000);
   setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);

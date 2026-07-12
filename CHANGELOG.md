@@ -3,6 +3,18 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.9] - 2026-07-12
+### Added
+- Light/dark theme toggle (sun/moon button in the sidebar user area). Preference
+  is saved per user in their profile, with a local fallback so the login screen
+  remembers it. Logos swap automatically per theme; the entire palette is
+  CSS-variable driven, dark remains the default.
+### Fixed
+- Links now use the accent color (were browser-default blue, unreadable on the
+  dark background).
+- Tenant form: "Users & Access backup" label no longer wraps to two lines and
+  misaligns the grid (detail moved to a hover tooltip).
+
 ## [0.8.8] - 2026-07-12
 ### Added
 - Zero-config deployment: `docker compose up -d` is the entire install. A new
