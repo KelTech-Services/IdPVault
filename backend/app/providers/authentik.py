@@ -75,7 +75,13 @@ class AuthentikAdapter(ProviderAdapter):
     def compare_form(self, resource_type: str, obj: dict) -> dict:
         # Compare with references remapped, so a binding pointing at a recreated
         # app's OLD id is identical to the live binding pointing at the NEW id.
-        return self._remap_refs(dict(obj))
+        # Scalar lists (providers, property_mappings, ...) are semantically SETS —
+        # Authentik returns them in arbitrary order — so sort them for comparison.
+        out = self._remap_refs(dict(obj))
+        for k, v in out.items():
+            if isinstance(v, list) and v and all(isinstance(x, (str, int)) for x in v):
+                out[k] = sorted(v, key=str)
+        return out
 
     def _remap_refs(self, payload: dict) -> dict:
         if not self._pk_remap:

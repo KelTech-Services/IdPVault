@@ -3,6 +3,12 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.7.20] — 2026-07-12
+### Fixed
+- Authentik scalar list fields (e.g. an outpost's `providers`, `property_mappings`)
+  are compared as SETS — Authentik returns them in arbitrary order, which made the
+  Embedded Outpost show a permanent phantom "update" (same 15 providers, shuffled).
+
 ## [0.7.19] — 2026-07-12
 ### Fixed
 - Restore comparison is now **remap-aware**: snapshot objects have their internal
