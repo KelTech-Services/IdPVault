@@ -100,7 +100,7 @@ or email **admin@idpvault.com**. Security reports: email only, per [SECURITY.md]
 - `frontend/` — web UI (single-file SPA) + in-app docs
 - `docker/` — Dockerfile, example compose stack, env template
 - `docs/` — architecture and operations notes
-- `.gitea/workflows/` — CI: build image, push to registry
+- `.github/workflows/` — CI: tests gate the image build; releases auto-publish
 
 ## Status
 

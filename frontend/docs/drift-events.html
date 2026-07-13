@@ -1,3 +1,4 @@
+<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Drift-and-Events". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
 <h3>How drift detection works</h3>
 <p>Every backup is compared to the previous snapshot, object by object. Runtime noise (timestamps, internal ids, server-managed fields) is excluded, so a detected change means <b>real configuration changed</b>, not API churn.</p>
 <h3>Events</h3>

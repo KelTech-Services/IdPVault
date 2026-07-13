@@ -1,3 +1,4 @@
+<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Config-Restore". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
 <h3>How restore works</h3>
 <p>Restore compares a snapshot against the <b>live</b> tenant and builds a plan: each object is <i>create</i> (missing live), <i>update</i> (differs), or <i>identical</i>. You always run a read-only <b>preview</b> first; nothing is written until you click Apply and confirm.</p>
 <ul>
