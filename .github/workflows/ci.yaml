@@ -32,19 +32,21 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract app version
+      - name: Compute image tags (version tag is write-once)
         id: v
         run: |
           v=$(grep -oE 'version="[0-9.]+"' backend/app/main.py | head -1 | cut -d'"' -f2)
-          echo "version=${v:-dev}" >> "$GITHUB_OUTPUT"
+          if [ -n "$v" ] && ! git ls-remote --tags origin "refs/tags/v$v" | grep -q .; then
+            echo "tags=ghcr.io/keltech-services/idpvault:latest,ghcr.io/keltech-services/idpvault:v$v" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=ghcr.io/keltech-services/idpvault:latest" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           push: true
-          tags: |
-            ghcr.io/keltech-services/idpvault:latest
-            ghcr.io/keltech-services/idpvault:v${{ steps.v.outputs.version }}
+          tags: ${{ steps.v.outputs.tags }}
 
   release:
     needs: build
