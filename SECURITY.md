@@ -5,7 +5,7 @@ take reports seriously and respond fast.
 
 ## Reporting a vulnerability
 
-Email **security@keltech.services** with a description and reproduction steps.
+Email **admin@idpvault.com** with a description and reproduction steps.
 Please do not open a public issue for security reports. You'll get an
 acknowledgment within 48 hours and a fix or mitigation plan within 7 days for
 confirmed issues.

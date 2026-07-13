@@ -89,6 +89,11 @@ volumes:
   idpvault_postgres:
 ```
 
+## Support & contact
+
+Bugs and feature requests: [open a GitHub issue](https://github.com/KelTech-Services/IdPVault/issues)
+or email **admin@idpvault.com**. Security reports: email only, per [SECURITY.md](SECURITY.md).
+
 ## Repo layout
 
 - `backend/` — FastAPI application
