@@ -1,0 +1,58 @@
+name: Bug report
+description: Something isn't working right
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: IdPVault version
+      description: Bottom-right of the app (e.g. v0.8.13), or `curl /healthz`.
+      placeholder: v0.8.13
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider(s) involved
+      multiple: true
+      options: [Authentik, Okta, Auth0, "Not provider-specific"]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Backups & snapshots, Config restore, "Users & Access (identity)",
+                Drift & events, Alerts & email, Scheduling, "Auth / users / MFA",
+                Licensing, "Deployment / Docker", "UI / theme", Other]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`docker logs idpvault` around the failure. REDACT tokens, URLs, and user data."
+      render: shell
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: Deployment style
+      options: ["Docker Compose (named volumes)", "Docker Compose (bind mounts)",
+                "Portainer stack", Other]
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I'm on the latest image (or noted my version above)
+          required: true
+        - label: This report contains no secrets, tokens, or real user data
+          required: true

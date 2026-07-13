@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement or new capability
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where IdPVault falls short today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider(s) it applies to
+      multiple: true
+      options: [Authentik, Okta, Auth0, "All / not provider-specific", "A new provider (name it above)"]
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Which plan are you on / evaluating?
+      options: [Community (free), Business, MSP, "Just evaluating"]
