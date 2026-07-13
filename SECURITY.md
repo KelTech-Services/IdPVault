@@ -5,10 +5,13 @@ take reports seriously and respond fast.
 
 ## Reporting a vulnerability
 
-Email **admin@idpvault.com** with a description and reproduction steps.
-Please do not open a public issue for security reports. You'll get an
-acknowledgment within 48 hours and a fix or mitigation plan within 7 days for
-confirmed issues.
+Use GitHub's private vulnerability reporting:
+[**Report a vulnerability**](https://github.com/KelTech-Services/IdPVault/security/advisories/new)
+(also reachable via Security → Advisories → Report a vulnerability, or the
+"Security vulnerability (private)" card on the new-issue chooser). Include a
+description and reproduction steps. Please do not open a public issue for
+security reports. You'll get an acknowledgment within 48 hours and a fix or
+mitigation plan within 7 days for confirmed issues.
 
 ## Scope notes
 
