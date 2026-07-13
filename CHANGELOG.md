@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.1] - 2026-07-13
+### Security
+- Org CSV import: row-level error messages for malformed input no longer
+  include raw exception text (which could expose internal details). Our own
+  validation messages (bad cadence, bad date, missing name) are unchanged.
+  Resolves the CodeQL "information exposure through an exception" finding.
+
 ## [1.1.0] - 2026-07-13
 ### Added
 - Org bulk CSV tools on the Orgs page (MSP): Export CSV (all orgs, all

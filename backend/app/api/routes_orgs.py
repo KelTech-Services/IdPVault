@@ -170,8 +170,8 @@ def parse_orgs_csv(text: str) -> tuple[list[OrgIn], list[str]]:
             rows.append(body)
         except HTTPException as e:
             errors.append(f"row {i}: {e.detail}")
-        except Exception as e:  # pydantic or oddball input
-            errors.append(f"row {i}: {e}")
+        except Exception:  # pydantic or oddball input - never echo internals
+            errors.append(f"row {i}: invalid row (check column values against the template)")
     return rows, errors
 
 
