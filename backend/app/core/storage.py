@@ -33,8 +33,18 @@ def _safe_ts(ts: str) -> str:
     return ts
 
 
+def _contained(path: str) -> str:
+    """Resolve and require the path to stay inside the data dir (anti-traversal)."""
+    base = os.path.realpath(get_settings().data_dir)
+    full = os.path.realpath(path)
+    if full != base and not full.startswith(base + os.sep):
+        raise ValueError("path escapes the data directory")
+    return full
+
+
 def snapshot_dir(tenant_slug: str, ts: str) -> str:
-    return os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), _safe_ts(ts))
+    return _contained(os.path.join(get_settings().data_dir,
+                                   _safe_slug(tenant_slug), _safe_ts(ts)))
 
 
 def write_snapshot(tenant_slug: str, data_key: bytes, export: dict) -> dict:
@@ -96,7 +106,8 @@ def has_dbdump(tenant_slug: str, ts: str) -> bool:
 
 
 def identity_dir(tenant_slug: str, ts: str) -> str:
-    return os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), "identities", _safe_ts(ts))
+    return _contained(os.path.join(get_settings().data_dir, _safe_slug(tenant_slug),
+                                   "identities", _safe_ts(ts)))
 
 
 def write_identities(tenant_slug: str, data_key: bytes, payload: dict) -> dict:

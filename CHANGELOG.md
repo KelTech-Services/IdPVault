@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.15] - 2026-07-13
+### Security
+- Follow-up to 0.8.14: snapshot paths now also pass a realpath containment
+  check (resolved path must stay inside the data directory), and the webhook
+  test response is built exclusively from untainted values. Defense in depth,
+  and shaped so static analysis can verify it.
+
 ## [0.8.14] - 2026-07-13
 ### Security
 Hardening pass resolving all findings from the first public CodeQL scan:

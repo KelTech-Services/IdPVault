@@ -108,9 +108,16 @@ def test_alert() -> dict:
     if not r.get("ok"):
         import logging
         logging.getLogger(__name__).warning("test webhook failed: %s", r.get("error") or r.get("status"))
-        detail = (f"webhook returned HTTP {r['status']}" if r.get("status")
+        # build the response ONLY from untainted values (int cast / constant match)
+        try:
+            status = int(r.get("status") or 0)
+        except (TypeError, ValueError):
+            status = 0
+        fmt = next((x for x in ("slack", "ntfy", "discord", "mattermost", "auto")
+                    if x == r.get("format")), "unknown")
+        detail = (f"webhook returned HTTP {status}" if status
                   else "webhook connection failed (details in server logs)")
-        raise HTTPException(502, f"{detail} (format: {r.get('format')})")
+        raise HTTPException(502, f"{detail} (format: {fmt})")
     return r
 
 
