@@ -105,20 +105,21 @@ def test_alert() -> dict:
     r = test_webhook()
     if not r.get("configured"):
         raise HTTPException(422, "no alert webhook configured")
+    # Everything sent back to the client is rebuilt from untainted values only
+    # (int cast / constant match) - r may carry exception text in its error key.
+    try:
+        status = int(r.get("status") or 0)
+    except (TypeError, ValueError):
+        status = 0
+    fmt = next((x for x in ("slack", "ntfy", "discord", "mattermost", "auto")
+                if x == r.get("format")), "unknown")
     if not r.get("ok"):
         import logging
         logging.getLogger(__name__).warning("test webhook failed: %s", r.get("error") or r.get("status"))
-        # build the response ONLY from untainted values (int cast / constant match)
-        try:
-            status = int(r.get("status") or 0)
-        except (TypeError, ValueError):
-            status = 0
-        fmt = next((x for x in ("slack", "ntfy", "discord", "mattermost", "auto")
-                    if x == r.get("format")), "unknown")
         detail = (f"webhook returned HTTP {status}" if status
                   else "webhook connection failed (details in server logs)")
         raise HTTPException(502, f"{detail} (format: {fmt})")
-    return r
+    return {"configured": True, "ok": True, "status": status, "format": fmt}
 
 
 @router.post("/settings/test-email")
