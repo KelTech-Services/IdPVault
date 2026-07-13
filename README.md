@@ -1,5 +1,10 @@
 # IdPVault
 
+[![CI](https://github.com/KelTech-Services/IdPVault/actions/workflows/ci.yaml/badge.svg)](https://github.com/KelTech-Services/IdPVault/actions/workflows/ci.yaml)
+[![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-blue)](LICENSE)
+[![Image](https://img.shields.io/badge/image-ghcr.io%2Fkeltech--services%2Fidpvault-2496ed?logo=docker&logoColor=white)](https://github.com/KelTech-Services/IdPVault/pkgs/container/idpvault)
+[![Website](https://img.shields.io/badge/website-idpvault.com-0080f0)](https://idpvault.com)
+
 Self-hosted backup, drift detection, and restore for **Authentik**, **Okta**, and **Auth0** tenants.
 
 Point IdPVault at your identity providers and it takes scheduled, encrypted snapshots of every
@@ -46,7 +51,7 @@ only reachable inside the stack's private network).
 ```yaml
 services:
   idpvault:
-    image: gitea.keltech.ai/keltech/idpvault:latest
+    image: ghcr.io/keltech-services/idpvault:latest
     container_name: idpvault
     restart: unless-stopped
     ports:

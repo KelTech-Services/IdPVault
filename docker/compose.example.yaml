@@ -14,7 +14,7 @@
 # fixes ownership itself on boot. Nothing else changes.
 services:
   idpvault:
-    image: gitea.keltech.ai/keltech/idpvault:latest
+    image: ghcr.io/keltech-services/idpvault:latest
     container_name: idpvault
     restart: unless-stopped
     ports:
