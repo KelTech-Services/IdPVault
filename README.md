@@ -91,8 +91,8 @@ volumes:
 
 ## Support & contact
 
-Bugs and feature requests: [open a GitHub issue](https://github.com/KelTech-Services/IdPVault/issues)
-or email **admin@idpvault.com**. Security reports: email only, per [SECURITY.md](SECURITY.md).
+Bugs, feature requests, and questions: [open a GitHub issue](https://github.com/KelTech-Services/IdPVault/issues/new/choose).
+Security reports: privately only, per [SECURITY.md](SECURITY.md).
 
 ## Repo layout
 

@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability (private)
     url: https://github.com/KelTech-Services/IdPVault/security/advisories/new
-    about: Please report security issues privately - never as a public issue. Email works too, see SECURITY.md.
+    about: Please report security issues privately - never as a public issue. See SECURITY.md.
   - name: Documentation
     url: https://github.com/KelTech-Services/IdPVault/wiki
-    about: Guides for every feature. Questions welcome as issues, or email admin@idpvault.com.
+    about: Guides for every feature. For anything else, open an issue.
