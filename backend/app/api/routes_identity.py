@@ -1,14 +1,25 @@
-"""Identity backup + dry-run restore preview + duration estimate.
-Backup/preview are admin-only (they read decrypted user data)."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+"""Users & Access (identity) backup + restore preview/apply + estimates.
+Write paths need write-level access (admin, or org_admin in own org);
+snapshot listings need read access to the tenant."""
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.identity import (apply_identity_restore, estimate_next,
                                 plan_identity_restore, run_identity_backup)
-from app.core.security import require_admin
+from app.core.security import require_tenant_read, require_tenant_write
 from app.models.db import IdentitySnapshot, SessionLocal, Tenant
 
-router = APIRouter(tags=["identity"], dependencies=[Depends(require_admin)])
+router = APIRouter(tags=["identity"])
+
+
+def _read(request: Request, tenant_id: int) -> None:
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+
+
+def _write(request: Request, tenant_id: int) -> None:
+    with SessionLocal() as db:
+        require_tenant_write(request, db, tenant_id)
 
 
 def _require_identity_license(tenant_id: int) -> None:
@@ -29,7 +40,8 @@ def _require_identity_supported(tenant_id: int) -> None:
 
 
 @router.post("/tenants/{tenant_id}/identity/backup")
-def backup(tenant_id: int) -> dict:
+def backup(tenant_id: int, request: Request) -> dict:
+    _write(request, tenant_id)
     _require_identity_license(tenant_id)
     _require_identity_supported(tenant_id)
     try:
@@ -39,7 +51,8 @@ def backup(tenant_id: int) -> dict:
 
 
 @router.get("/tenants/{tenant_id}/identity/snapshots")
-def snapshots(tenant_id: int) -> list[dict]:
+def snapshots(tenant_id: int, request: Request) -> list[dict]:
+    _read(request, tenant_id)
     with SessionLocal() as db:
         if db.get(Tenant, tenant_id) is None:
             raise HTTPException(404, "tenant not found")
@@ -51,7 +64,8 @@ def snapshots(tenant_id: int) -> list[dict]:
 
 
 @router.get("/tenants/{tenant_id}/identity/estimate")
-def estimate(tenant_id: int) -> dict:
+def estimate(tenant_id: int, request: Request) -> dict:
+    _read(request, tenant_id)
     try:
         return estimate_next(tenant_id)
     except ValueError as e:
@@ -64,6 +78,7 @@ class IdRestoreIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/identity/restore/preview")
 def restore_preview(tenant_id: int, body: IdRestoreIn, request: Request) -> dict:
+    _write(request, tenant_id)
     _require_identity_license(tenant_id)
     try:
         return plan_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
@@ -81,6 +96,7 @@ class IdApplyIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
 def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
+    _write(request, tenant_id)
     _require_identity_license(tenant_id)
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")

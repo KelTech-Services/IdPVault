@@ -42,7 +42,8 @@ def main() -> int:
     ap.add_argument("--max-users", type=int, default=None,
                     help="user/seat cap (omit for unlimited)")
     ap.add_argument("--features", nargs="*", default=["identity"],
-                    help="feature flags (default: identity)")
+                    help="feature flags (default: identity). Business = identity; "
+                         "MSP = identity msp (unlocks client orgs + org-scoped roles)")
     ap.add_argument("--extend-from", type=float, default=None,
                     help="epoch seconds of the PREVIOUS expiry — renewal term is "
                          "added to it so early renewal never loses time")

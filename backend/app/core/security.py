@@ -58,3 +58,44 @@ def require_admin(request: Request) -> None:
     user = getattr(request.state, "user", None)
     if not user or user.get("role") != "admin":
         raise HTTPException(403, "admin role required")
+
+
+# ---------- MSP org scoping ----------
+# Roles: admin (global, everything) / user (global, read-only) /
+#        org_admin (backup, restore, edit tenants inside own org) /
+#        org_viewer (read-only inside own org).
+ORG_ROLES = ("org_admin", "org_viewer")
+MSP_CONTACT_MSG = "contact your MSP administrator to take this action"
+
+
+def visible_tenant_ids(db, user) -> set[int] | None:
+    """None = unrestricted (global roles). For org-scoped users, the set of
+    tenant ids inside their org (empty set if no org assigned)."""
+    if not user or user.get("role") not in ORG_ROLES:
+        return None
+    if not user.get("org_id"):
+        return set()
+    from app.models.db import Tenant
+    return {t.id for t in db.query(Tenant).filter(Tenant.org_id == user["org_id"]).all()}
+
+
+def require_tenant_read(request: Request, db, tenant_id: int) -> None:
+    """Global roles pass; org users must have the tenant in their org.
+    404 (not 403) so tenant existence isn't leaked across orgs."""
+    vis = visible_tenant_ids(db, getattr(request.state, "user", None))
+    if vis is not None and tenant_id not in vis:
+        raise HTTPException(404, "tenant not found")
+
+
+def require_tenant_write(request: Request, db, tenant_id: int) -> None:
+    """admin: always. org_admin: inside own org. Everyone else: 403."""
+    user = getattr(request.state, "user", None) or {}
+    role = user.get("role")
+    if role == "admin":
+        return
+    if role == "org_admin":
+        vis = visible_tenant_ids(db, user)
+        if vis is None or tenant_id in vis:
+            return
+        raise HTTPException(404, "tenant not found")
+    raise HTTPException(403, MSP_CONTACT_MSG)

@@ -68,64 +68,45 @@ restore matching, auth, alerts) wired into CI so a failing test blocks the image
 reaching the registry; user-facing copy style pass; "Set password now" option when
 creating users (no SMTP required).
 
+**v0.8.5–0.8.13** — UX & platform: clickable unbacked-changes breakdown, Users & Access
+restore UI matching config restore, timezone-aware schedule pickers with per-user
+12/24h preference, serial backup queue (one tenant at a time), light/dark themes,
+zero-config deployment (auto-generated master.key with never-regenerate guard, named
+volumes, generated DB password), Auth0 Users & Access support, VChart dashboard
+(events / runs / storage charts) and a design pass.
+
+**v0.8.14–0.8.15** — public GitHub move: full history published at
+KelTech-Services/IdPVault, GHCR image, Actions CI (tests gate builds, write-once
+version tags, auto-releases from CHANGELOG), CodeQL/secret-scanning/dependabot at
+zero open alerts, issue forms, wiki mirroring in-app docs.
+
+**v0.9.0** — MSP tier (license `msp` feature): client orgs with light CRM fields
+(contact, notes, billing memo/cadence, renewal date) and an Orgs admin page;
+tenants and users assignable to orgs; org-scoped roles org_admin (backup/browse/
+restore within own org) and org_viewer (read-only, "contact your MSP administrator"
+messaging); server-side scoping on every endpoint with 404 for out-of-org tenants;
+dashboard renewals card (next 60 days + overdue); MSP doc page gated by license;
+/auth/me exposes the feature list for UI gating. Additive-only schema (no
+migration needed); admin/user roles and existing installs unchanged.
+
 ## Planned
-
-### v0.9 — MSP tier (orgs & scoped access)
-
-License matrix (all enforcement via existing signed-key fields + `features` flags):
-
-| Tier | Price model | Tenants | Users | Features |
-|---|---|---|---|---|
-| Community | free | 1 | 1 (first-run admin) | config backup & restore |
-| Business | annual | 4 | unlimited | + identity backup & restore |
-| MSP | annual subscription | 4 included, per-tenant add-ons | unlimited | + orgs, scoped users |
-
-Sold terms are **annual only** (adding longer terms later is trivial; removing them
-is not). Renewal keys extend from previous expiry. Existing 3-day grace and
-strict-but-non-destructive downgrade apply unchanged; on MSP expiry org-scoped users
-keep read-only sign-in and all write actions pause with license messaging.
-
-MSP mechanics: license is minted from the Stripe subscription state (subscription =
-source of truth, key = signed receipt). Tenant count is a Stripe quantity; customers
-add tenants any time via the Stripe customer portal ("Manage license" link in
-Settings → License) — quantity change prorates, webhook mints a replacement key with
-the same expiry and higher max_tenants, emailed instantly. No sales calls, flat
-published pricing.
-
-Feature work (gated behind `msp` feature flag):
-- **Orgs page**: new menu item. Org = name, primary contact (name/email/phone),
-  free-form notes, lightweight billing memo (what the MSP charges, monthly/annual
-  cadence, next renewal date) → "renewals coming up" dashboard card. Deliberately
-  NOT a PSA — no invoicing/payment tracking.
-- **Tenant → org**: nullable org field on tenants, dropdown of defined orgs in the
-  tenant form; dashboard groupable by org.
-- **Scoped users**: grants live at org level (auto-covers tenants added to the org
-  later). Role matrix: global **admin**, global **user** (read-only everything),
-  **org admin** (backup/restore/edit tenants within own org only), **org viewer**
-  (read-only within own org; action buttons grayed with "Contact your MSP to take
-  this action"). Enforced server-side on every tenant-scoped endpoint, lists
-  filtered to granted orgs. Requires Alembic first (largest schema change to date).
-- Later MSP upsells: per-org alert routing (client's own webhook/email), client-facing
-  monthly backup report per org.
-- **MSP docs gating**: MSP-only doc pages (Orgs, scoped users) must carry
-  `feature:'msp'` in DOC_TOPICS so they only appear when an MSP license is
-  installed (filter shipped in v0.8.7). Prereq: expose the installed license's
-  feature list to non-admin sessions (GET /license is admin-only today) — add a
-  lightweight `features` field to /auth/me or a public-ish /license/summary.
-- UI naming: the identity feature is presented as **"Users & Access"** everywhere
-  user-facing (since "identity" is overloaded in IAM); the license feature key
-  stays `identity` for compatibility with already-minted keys.
 
 ### v1.0 — public ship
 
-- Zero-config deployment (compose up only: master.key auto-generated on first boot
-  with never-regenerate guard, named volumes default, generated DB password)
-- Public GitHub repo (clean history, README, GitHub Actions CI), full CHANGELOG
-  published — transparent build history
-- Marketing site (idpvault.com) + Stripe checkout, flat public pricing
-- Dashboard/UX polish (clickable unbacked-changes card, identity restore UI matching
-  config restore, timezone-aware scheduling dropdowns, org timezone + per-user
-  12/24h preference)
+Remaining before the 1.0 tag (everything else on the original list has shipped):
+
+- Marketing site (idpvault.com) + Stripe checkout, flat public pricing.
+  MSP mechanics: license minted from the Stripe subscription state (subscription =
+  source of truth, key = signed receipt). Tenant count is a Stripe quantity;
+  customers add tenants any time via the Stripe customer portal ("Manage license"
+  link in Settings → License) — quantity change prorates, webhook mints a
+  replacement key with the same expiry and higher max_tenants, emailed instantly.
+  No sales calls, flat published pricing. Sold terms are annual only; on MSP
+  expiry org-scoped users keep read-only sign-in and write actions pause with
+  license messaging (existing grace/downgrade logic).
+- Later MSP upsells (post-1.0): per-org alert routing (client's own
+  webhook/email), client-facing monthly backup report per org.
+
 
 ## Next
 

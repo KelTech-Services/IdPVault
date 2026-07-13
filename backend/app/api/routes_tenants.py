@@ -1,5 +1,5 @@
 """Tenant CRUD. Credentials are encrypted immediately on ingest, never stored plain."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core import crypto
@@ -22,6 +22,7 @@ class TenantIn(BaseModel):
     identity_enabled: bool = False
     identity_schedule_cron: str | None = None
     identity_retention_keep: int = 14
+    org_id: int | None = None  # MSP: client org assignment
 
 
 _SLUG_RE = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -52,6 +53,7 @@ def create_tenant(body: TenantIn) -> dict:
             identity_enabled=body.identity_enabled,
             identity_schedule_cron=body.identity_schedule_cron,
             identity_retention_keep=body.identity_retention_keep,
+            org_id=body.org_id if lic.has_feature("msp") else None,
         )
         db.add(t)
         db.add(AuditLog(action="tenant.create", detail={"slug": body.slug}))
@@ -60,10 +62,14 @@ def create_tenant(body: TenantIn) -> dict:
 
 
 @router.get("/tenants")
-def list_tenants() -> list[dict]:
+def list_tenants(request: Request) -> list[dict]:
     from app.core import license as lic
+    from app.core.security import visible_tenant_ids
+    from app.models.db import Org
     entitled = lic.entitled_tenant_ids()          # None = all entitled
     with SessionLocal() as db:
+        vis = visible_tenant_ids(db, request.state.user)   # None = unrestricted
+        org_names = {o.id: o.name for o in db.query(Org).all()}
         return [
             {"id": t.id, "name": t.name, "slug": t.slug, "provider": t.provider,
              "active": entitled is None or t.id in entitled,
@@ -73,8 +79,9 @@ def list_tenants() -> list[dict]:
              "supports_identity": identity_supported(t.provider),
              "identity_enabled": t.identity_enabled,
              "identity_schedule_cron": t.identity_schedule_cron,
-             "identity_retention_keep": t.identity_retention_keep}
-            for t in db.query(Tenant).all()
+             "identity_retention_keep": t.identity_retention_keep,
+             "org_id": t.org_id, "org_name": org_names.get(t.org_id)}
+            for t in db.query(Tenant).all() if vis is None or t.id in vis
         ]
 
 
@@ -107,22 +114,29 @@ class TenantUpdate(BaseModel):
     identity_enabled: bool | None = None
     identity_schedule_cron: str | None = None
     identity_retention_keep: int | None = None
+    org_id: int | None = None  # MSP org assignment; global admin only
 
 
-@router.patch("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
-def update_tenant(tenant_id: int, body: TenantUpdate) -> dict:
+@router.patch("/tenants/{tenant_id}")
+def update_tenant(tenant_id: int, body: TenantUpdate, request: Request) -> dict:
     from apscheduler.triggers.cron import CronTrigger
     from app.core import license as lic
     from app.core.scheduler import scheduler, run_backup
+    from app.core.security import require_tenant_write
     if body.identity_enabled and not lic.has_feature("identity"):
         raise HTTPException(402, "identity backup requires a paid license — "
                                  "add one in Settings → License")
 
     fields = body.model_dump(exclude_unset=True)
     with SessionLocal() as db:
+        require_tenant_write(request, db, tenant_id)     # admin, or org_admin in-org
+        if request.state.user.get("role") != "admin":
+            fields.pop("org_id", None)                   # org assignment is admin-only
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
+        if "org_id" in fields:
+            t.org_id = fields["org_id"] if lic.has_feature("msp") else None
         if "name" in fields and fields["name"]:
             t.name = fields["name"]
         if "base_url" in fields and fields["base_url"]:

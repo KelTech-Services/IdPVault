@@ -201,6 +201,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
     <button data-view="events" onclick="switchView('events')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Events</span></button>
     <button data-view="audit" class="adminonly" onclick="switchView('audit')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg><span>Audit</span></button>
     <button data-view="users" class="adminonly" onclick="switchView('users')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Users</span></button>
+    <button data-view="orgs" class="adminonly mspnav" onclick="switchView('orgs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><span>Orgs</span></button>
     <button data-view="docs" onclick="switchView('docs')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Docs</span></button>
     <button data-view="settings" class="adminonly" onclick="switchView('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg><span>Settings</span></button>
   </nav>
@@ -228,8 +229,9 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
     <div class="card"><div class="lbl2">Storage by tenant</div><div class="chart" id="ch_storage"></div></div>
   </section>
   <div id="unbackedpanel" class="hidden"></div>
+  <div id="renewalpanel" class="hidden"></div>
   <section class="panel">
-    <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary mutating" onclick="toggleAdd()">+ Add tenant</button></h2>
+    <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary adminonly" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="addform" class="hidden">
       <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
@@ -237,6 +239,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
         <div><label>Name</label><input id="f_name" placeholder="Acme Authentik"></div>
         <div><label>Slug</label><input id="f_slug" placeholder="acme-authentik"></div>
         <div><label>Base URL</label><input id="f_url" placeholder="https://auth.acme.com"></div>
+        <div id="fd_org" class="hidden"><label>Client org (MSP)</label><select id="f_org"></select></div>
         <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
         <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
         <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
@@ -362,7 +365,8 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
       <div class="formgrid">
         <div><label>Username</label><input id="u_name"></div>
         <div><label>Email</label><input id="u_email" type="email"></div>
-        <div><label>Role</label><select id="u_role"><option value="user">User (read-only)</option><option value="admin">Admin</option></select></div>
+        <div><label>Role</label><select id="u_role" onchange="onUserRoleChange()"><option value="user">User (read-only, all tenants)</option><option value="admin">Admin (full control)</option><option value="org_viewer">Org viewer (read-only, one org)</option><option value="org_admin">Org admin (backup &amp; restore, one org)</option></select></div>
+        <div id="ud_org" class="hidden"><label>Client org</label><select id="u_org"></select></div>
         <div><label>Password setup</label><select id="u_mode" onchange="document.getElementById('u_pwwrap').classList.toggle('hidden', this.value!=='password')"><option value="invite">Send invite link</option><option value="password">Set password now</option></select></div>
         <div id="u_pwwrap" class="hidden"><label>Password (min 8 characters)</label><input id="u_pw" type="password" placeholder="they can change it later in their profile"></div>
       </div>
@@ -373,6 +377,31 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
       <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th style="width:300px">Actions</th></tr></thead>
       <tbody id="userbody"></tbody>
     </table>
+  </section>
+</main>
+<main id="view-orgs" class="hidden">
+  <section class="panel">
+    <h2>Client organizations <span class="spacer"></span><button id="addorgbtn" class="primary" onclick="toggleOrgForm()">+ Add org</button></h2>
+    <div id="orgform" class="hidden">
+      <p id="orgformtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
+      <div class="formgrid">
+        <div><label>Org name</label><input id="o_name" placeholder="Acme Corp"></div>
+        <div><label>Contact name</label><input id="o_cname" placeholder="Jane Doe"></div>
+        <div><label>Contact email</label><input id="o_cemail" type="email" placeholder="jane@acme.com"></div>
+        <div><label>Contact phone</label><input id="o_cphone" placeholder="+1 555 010 0100"></div>
+        <div><label>Billing memo (what you charge them)</label><input id="o_bmemo" placeholder="$150/mo identity protection"></div>
+        <div><label>Billing cadence</label><select id="o_bcad"><option value="">Not set</option><option value="monthly">Monthly</option><option value="annual">Annual</option></select></div>
+        <div><label>Next renewal date</label><input id="o_renew" type="date"></div>
+        <div style="grid-column:span 2"><label>Notes</label><input id="o_notes" placeholder="anything worth remembering about this client"></div>
+      </div>
+      <button class="primary" onclick="saveOrg()">Save org</button>
+      <button onclick="toggleOrgForm()">Cancel</button>
+    </div>
+    <table>
+      <thead><tr><th>Org</th><th>Contact</th><th>Tenants</th><th>Users</th><th>Billing</th><th>Renewal</th><th style="width:150px">Actions</th></tr></thead>
+      <tbody id="orgbody"></tbody>
+    </table>
+    <p class="muted" style="font-size:.78rem;margin-top:10px">Assign tenants to an org in the tenant form. Org-scoped users (Users page) see only their own org's tenants - org admins can back up and restore them, org viewers are read-only.</p>
   </section>
 </main>
 <main id="view-docs" class="hidden">
@@ -455,6 +484,7 @@ const api = (p, opts={}) => fetch('/api/v1'+p, {headers:{'Content-Type':'applica
   });
 
 let me = null, _tenants = [], editingId = null, selectedSnaps = [], snapTenantId = null, _license = null;
+let _orgs = [], _editOrgId = null;
 
 /* ---------- theme ---------- */
 function applyTheme(t){
@@ -659,8 +689,10 @@ function showApp(){
   document.getElementById('whoami').textContent = me.username;
   document.getElementById('whoamirole').textContent = me.role;
   const isAdmin = me.role === 'admin';
+  const canWrite = isAdmin || me.role === 'org_admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
-  document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !isAdmin));
+  document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !canWrite));
+  document.querySelectorAll('.mspnav').forEach(el => el.classList.toggle('hidden', !(isAdmin && (me.features||[]).includes('msp'))));
   if(me.theme) applyTheme(me.theme);
   initSchedPickers();
   health(); loadTenants(); setInterval(health, 30000);
@@ -670,11 +702,11 @@ function showApp(){
     if(location.hash.startsWith('#/')) switchView(currentRoute(), true);   // back/forward nav
   });
 }
-const VIEWS = ['dashboard','events','audit','users','docs','settings'];
+const VIEWS = ['dashboard','events','audit','users','orgs','docs','settings'];
 function switchView(name, skipHash){
   if(!VIEWS.includes(name)) name = 'dashboard';
   // read-only users can't reach admin-only pages
-  if(me && me.role !== 'admin' && ['audit','users','settings'].includes(name)) name = 'dashboard';
+  if(me && me.role !== 'admin' && ['audit','users','orgs','settings'].includes(name)) name = 'dashboard';
   VIEWS.forEach(x => {
     document.getElementById('view-'+x).classList.toggle('hidden', x !== name);
     const btn = document.querySelector(`nav button[data-view=${x}]`);
@@ -686,7 +718,8 @@ function switchView(name, skipHash){
   if(name === 'users') loadUsers();
   if(name === 'settings') loadSettings();
   if(name === 'docs') loadDocs();
-  const T={dashboard:'Dashboard',events:'Events',audit:'Audit log',users:'Users',docs:'Docs',settings:'Settings'};
+  if(name === 'orgs') loadOrgs();
+  const T={dashboard:'Dashboard',events:'Events',audit:'Audit log',users:'Users',orgs:'Client orgs',docs:'Docs',settings:'Settings'};
   const pt=document.getElementById('pagetitle'); if(pt) pt.textContent=T[name]||name;
   if(!skipHash && location.hash !== '#/'+name) location.hash = '#/'+name;
 }
@@ -707,6 +740,7 @@ async function health(){
 function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
 const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Settings &gt; License';
+const MSP_TIP = 'Contact your MSP administrator to take this action';
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
   const isAdmin = me.role === 'admin';
@@ -719,23 +753,27 @@ async function loadTenants(){
     if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
       addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Settings > License' : ''; }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
-    const identOk = !_license || (_license.features||[]).includes('identity');
+    const identOk = ((me && me.features) || []).includes('identity');
+    const canW = me.role==='admin' || me.role==='org_admin';
+    const isViewer = me.role==='org_viewer';
     tb.innerHTML = ts.map(t => {
       const inactive = t.active === false;
       const lockT = inactive ? `disabled title="${LIC_TIP_TENANT}"` : '';
       const lockI = inactive ? `disabled title="${LIC_TIP_TENANT}"`
                   : (!identOk ? `disabled title="${LIC_TIP_IDENTITY}"` : '');
       return `<tr>
-      <td>${esc(t.name)}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
+      <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '-'}</td>
       <td class="muted">${t.retention_keep}</td>
-      <td style="white-space:nowrap">${isAdmin ? `
+      <td style="white-space:nowrap">${canW ? `
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
-        <button onclick="editTenant(${t.id})">Edit</button>` : ''}
+        <button onclick="editTenant(${t.id})">Edit</button>` : isViewer ? `
+        <button disabled title="${MSP_TIP}">Backup now</button>
+        <button disabled title="${MSP_TIP}">Edit</button>` : ''}
         <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        ${isAdmin ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Users &amp; Access</button>`) : ''}
+        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Users &amp; Access</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access</button>` : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -764,6 +802,7 @@ function editTenant(id){
   document.getElementById('f_slug').disabled = true;
   document.getElementById('f_provider').disabled = true;
   document.getElementById('f_delete').classList.remove('hidden');
+  fillTenantOrg(t.org_id);
 }
 function onProviderChange(){
   const p = document.getElementById('f_provider').value;
@@ -793,6 +832,7 @@ function resetForm(){
   document.getElementById('f_keep').value = 30;
   document.getElementById('f_delete').classList.add('hidden');
   schedSet('fs', null); schedSet('fi', null);
+  fillTenantOrg(null);
   // prefill from org defaults (Settings) for new tenants
   api('/settings').then(s=>{
     if(editingId) return;
@@ -810,6 +850,7 @@ async function saveTenant(){
       schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
       identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
       identity_retention_keep: parseInt(v('f_identkeep')||'14') };
+    if(!document.getElementById('fd_org').classList.contains('hidden')) body.org_id = v('f_org') ? parseInt(v('f_org')) : null;
     const tok = prov==='auth0' ? auth0cred() : v('f_token');
     if(tok) body.api_token = tok;
     if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); }
@@ -829,6 +870,7 @@ async function saveTenant(){
     identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
+  if(!document.getElementById('fd_org').classList.contains('hidden')) body.org_id = v('f_org') ? parseInt(v('f_org')) : null;
   if(!body.name || !body.slug || !body.base_url || !body.api_token) return toast('Name, slug, base URL and credentials are required', true);
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
@@ -866,7 +908,7 @@ async function showSnaps(id, slug){
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
     if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
-    const admin = me.role==='admin';
+    const admin = me.role==='admin' || me.role==='org_admin';
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
       <td onclick="selSnap(this.parentElement)">${fmtTs(ts)} <span class="muted">(${ts})</span></td>
@@ -973,6 +1015,9 @@ async function loadUsers(){
   ub.innerHTML = skelRows(5);
   try {
     const us = await api('/users');
+    const msp = (me.features||[]).includes('msp');
+    if(!msp) document.querySelectorAll("#u_role option[value='org_admin'],#u_role option[value='org_viewer']").forEach(o=>o.remove());
+    if(msp){ try { _orgs = await api('/orgs'); } catch {} }
     try { _license = await api('/license'); } catch {}
     const atUserCap = _license && _license.max_users != null && us.length >= _license.max_users;
     const ab = document.getElementById('adduserbtn');
@@ -982,7 +1027,7 @@ async function loadUsers(){
     ub.innerHTML = us.map(u => `<tr>
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
       <td class="muted">${esc(u.email||'-')}</td>
-      <td><span class="tag ${u.role}">${u.role}</span></td>
+      <td><span class="tag ${u.role}">${u.role}</span>${u.org_name?` <span class="muted" style="font-size:.72rem">${esc(u.org_name)}</span>`:''}</td>
       <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}</td>
       <td style="white-space:nowrap">${u.username===me.username ? '<span class="muted">-</span>' : `
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
@@ -996,6 +1041,10 @@ async function loadUsers(){
 async function createUser(){
   try {
     const body = {username: v('u_name'), email: v('u_email'), role: v('u_role')};
+    if(body.role==='org_admin' || body.role==='org_viewer'){
+      if(!v('u_org')) return toast('Org-scoped roles need a client org - create one on the Orgs page first.', true);
+      body.org_id = parseInt(v('u_org'));
+    }
     if(v('u_mode')==='password'){
       if((v('u_pw')||'').length < 8) return toast('Password must be at least 8 characters.', true);
       body.password = v('u_pw');
@@ -1020,6 +1069,95 @@ async function delUser(id, name){
   if(!confirm(`Delete user "${name}"?`)) return;
   try { await api(`/users/${id}`, {method:'DELETE'}); toast(`User "${name}" deleted.`); loadUsers(); }
   catch(e){ toast(e.message, true); }
+}
+
+/* ---------- client orgs (MSP) ---------- */
+function onUserRoleChange(){
+  const r = v('u_role'), isOrg = r==='org_admin' || r==='org_viewer';
+  const d = document.getElementById('ud_org'); if(!d) return;
+  d.classList.toggle('hidden', !isOrg);
+  if(isOrg) document.getElementById('u_org').innerHTML =
+    _orgs.length ? _orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')
+                 : '<option value="">no orgs yet - create one on the Orgs page</option>';
+}
+async function loadOrgs(){
+  const ob = document.getElementById('orgbody');
+  ob.innerHTML = skelRows(7);
+  try {
+    _orgs = await api('/orgs');
+    if(!_orgs.length){ ob.innerHTML = emptyRow(7, EI.db, 'No client orgs yet - add one to group tenants and users per client.'); return; }
+    ob.innerHTML = _orgs.map(o=>`<tr>
+      <td>${esc(o.name)}${o.notes?` <span class="muted" style="font-size:.72rem" title="${esc(o.notes)}">ⓘ</span>`:''}</td>
+      <td class="muted">${esc(o.contact_name||'-')}${o.contact_email?`<br><span style="font-size:.75rem">${esc(o.contact_email)}</span>`:''}${o.contact_phone?`<br><span style="font-size:.75rem">${esc(o.contact_phone)}</span>`:''}</td>
+      <td>${o.tenant_count}</td><td>${o.user_count}</td>
+      <td class="muted">${esc(o.billing_memo||'-')}${o.billing_cadence?` · ${o.billing_cadence}`:''}</td>
+      <td>${o.renewal_date||'<span class="muted">-</span>'}</td>
+      <td style="white-space:nowrap"><button onclick="editOrg(${o.id})">Edit</button> <button class="del" onclick="delOrg(${o.id}, '${esc(o.name)}')">Delete</button></td></tr>`).join('');
+  } catch(e){ ob.innerHTML = `<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
+}
+function toggleOrgForm(){
+  const f = document.getElementById('orgform'); f.classList.toggle('hidden');
+  if(f.classList.contains('hidden')){
+    _editOrgId = null;
+    ['o_name','o_cname','o_cemail','o_cphone','o_bmemo','o_renew','o_notes'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('o_bcad').value=''; document.getElementById('orgformtitle').textContent='';
+  }
+}
+function editOrg(id){
+  const o = _orgs.find(x=>x.id===id); if(!o) return;
+  _editOrgId = id;
+  document.getElementById('orgform').classList.remove('hidden');
+  document.getElementById('orgformtitle').textContent = `Editing "${o.name}"`;
+  document.getElementById('o_name').value = o.name;
+  document.getElementById('o_cname').value = o.contact_name||'';
+  document.getElementById('o_cemail').value = o.contact_email||'';
+  document.getElementById('o_cphone').value = o.contact_phone||'';
+  document.getElementById('o_bmemo').value = o.billing_memo||'';
+  document.getElementById('o_bcad').value = o.billing_cadence||'';
+  document.getElementById('o_renew').value = o.renewal_date||'';
+  document.getElementById('o_notes').value = o.notes||'';
+}
+async function saveOrg(){
+  const body = { name: v('o_name'), contact_name: v('o_cname'), contact_email: v('o_cemail'),
+    contact_phone: v('o_cphone'), billing_memo: v('o_bmemo'), billing_cadence: v('o_bcad'),
+    renewal_date: v('o_renew'), notes: v('o_notes') };
+  if(!body.name) return toast('Org name is required', true);
+  try {
+    if(_editOrgId) await api(`/orgs/${_editOrgId}`, {method:'PATCH', body: JSON.stringify(body)});
+    else await api('/orgs', {method:'POST', body: JSON.stringify(body)});
+    toast(_editOrgId ? 'Org updated.' : `Org "${body.name}" created.`);
+    toggleOrgForm(); loadOrgs();
+  } catch(e){ toast('Save failed: '+e.message, true); }
+}
+async function delOrg(id, name){
+  if(!confirm(`Delete org "${name}"? Its tenants and users are kept but unassigned.`)) return;
+  try { await api(`/orgs/${id}`, {method:'DELETE'}); toast(`Org "${name}" deleted.`); loadOrgs(); }
+  catch(e){ toast(e.message, true); }
+}
+async function fillTenantOrg(val){
+  const d = document.getElementById('fd_org'); if(!d) return;
+  if(!(me && me.role==='admin' && (me.features||[]).includes('msp'))){ d.classList.add('hidden'); return; }
+  try { _orgs = await api('/orgs'); } catch { d.classList.add('hidden'); return; }
+  if(!_orgs.length){ d.classList.add('hidden'); return; }
+  document.getElementById('f_org').innerHTML = '<option value="">No org (internal tenant)</option>' +
+    _orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  document.getElementById('f_org').value = val ? String(val) : '';
+  d.classList.remove('hidden');
+}
+async function loadRenewals(){
+  const el = document.getElementById('renewalpanel'); if(!el) return;
+  if(!(me && me.role==='admin' && (me.features||[]).includes('msp'))){ el.classList.add('hidden'); return; }
+  try {
+    const r = await api('/orgs/renewals?days=60');
+    if(!r.length){ el.classList.add('hidden'); return; }
+    el.innerHTML = `<section class="panel"><h2>Client renewals - next 60 days</h2>
+      <table><thead><tr><th>Org</th><th>Renewal date</th><th>Billing</th></tr></thead><tbody>` +
+      r.map(o=>`<tr><td>${esc(o.name)}</td>
+        <td>${o.overdue?`<span class="st-failed">${o.renewal_date} (overdue)</span>`:o.renewal_date}</td>
+        <td class="muted">${esc(o.billing_memo||'-')}${o.billing_cadence?` · ${o.billing_cadence}`:''}</td></tr>`).join('') +
+      `</tbody></table></section>`;
+    el.classList.remove('hidden');
+  } catch { el.classList.add('hidden'); }
 }
 
 /* ---------- settings ---------- */
@@ -1083,13 +1221,14 @@ const DOC_TOPICS = [
   {key:'alerts',          title:'Alerts & notifications'},
   {key:'users-security',  title:'Users & security'},
   {key:'licensing',       title:'Licensing & tiers'},
+  {key:'msp-orgs',        title:'MSP & client orgs', feature:'msp'},
   {key:'deployment',      title:'Deployment & proxy'},
 ];
 let _docKey = null;
 function loadDocs(){
   // Topics may carry a `feature` key (e.g. 'msp'): those pages only appear when
   // the installed license includes that feature. Untagged topics show for everyone.
-  const feats = (_license && _license.features) || [];
+  const feats = (me && me.features) || (_license && _license.features) || [];
   const topics = DOC_TOPICS.filter(t=>!t.feature || feats.includes(t.feature));
   const tn = document.getElementById('doctopics');
   tn.innerHTML = topics.map(t=>`<button data-doc="${t.key}" onclick="openDoc('${t.key}')">${t.title}</button>`).join('');
@@ -1190,6 +1329,7 @@ async function loadDashboard(){
       <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
     if(!document.getElementById('unbackedpanel').classList.contains('hidden')) renderUnbacked();
     loadCharts();
+    loadRenewals();
   } catch(e){ el.innerHTML = `<div class="card bad"><div class="lbl2">Dashboard</div><div class="sub">${esc(e.message)}</div></div>`; }
 }
 let _trends = null, _charts = [];
@@ -1255,7 +1395,7 @@ function renderUnbacked(){
     const cnt = t.unbacked_changes;
     const cntCell = cnt==null ? '<span class="muted" title="No successful backup yet, or the provider does not report admin events">n/a</span>' : (cnt>0?`<span class="ev-update"><b>${cnt}</b></span>`:'0');
     const lastCell = t.last_run ? `${fmtTs(t.last_run.ts)}${t.last_run.status!=='ok'?` <span class="st-failed">(${t.last_run.status})</span>`:''}` : '<span class="muted">never</span>';
-    const btn = (me && me.role==='admin') ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now</button>` : '';
+    const btn = (me && (me.role==='admin' || me.role==='org_admin')) ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now</button>` : '';
     return `<tr><td>${esc(t.name)}</td><td><span class="tag ${t.provider}">${t.provider}</span></td><td>${cntCell}</td><td class="muted">${lastCell}</td><td>${btn}</td></tr>`;
   }).join('');
   el.innerHTML = `<section class="panel"><h2>Unbacked changes by tenant <span class="spacer"></span><button onclick="document.getElementById('unbackedpanel').classList.add('hidden')">Close</button></h2>

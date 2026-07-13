@@ -1,13 +1,20 @@
-"""Restore endpoints. Preview (dry-run) needs any authenticated user is too broad —
-both preview and apply are admin-only since preview reads decrypted snapshots."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+"""Restore endpoints. Restores WRITE to live tenants, so every route requires
+write-level access: global admin, or org_admin within their own org (MSP)."""
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.restore import run_restore
-from app.core.security import require_admin
+from app.core.security import require_tenant_write
 from app.models.db import RestoreRun, SessionLocal, Tenant
 
-router = APIRouter(tags=["restore"], dependencies=[Depends(require_admin)])
+router = APIRouter(tags=["restore"])
+
+
+def _require_access(request: Request, *tenant_ids) -> None:
+    with SessionLocal() as db:
+        for tid in tenant_ids:
+            if tid is not None:
+                require_tenant_write(request, db, tid)
 
 
 def _require_entitled(*tenant_ids) -> None:
@@ -32,6 +39,7 @@ class RestoreIn(BaseModel):
 
 @router.post("/tenants/{tenant_id}/restore/preview")
 def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
+    _require_access(request, tenant_id, body.target_tenant_id)
     _require_entitled(tenant_id, body.target_tenant_id)
     try:
         return run_restore(tenant_id, body.snapshot_ts,
@@ -46,6 +54,7 @@ def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
 
 @router.post("/tenants/{tenant_id}/restore/apply")
 def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
+    _require_access(request, tenant_id, body.target_tenant_id)
     _require_entitled(tenant_id, body.target_tenant_id)
     try:
         return run_restore(tenant_id, body.snapshot_ts,
@@ -59,8 +68,10 @@ def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
 
 
 @router.get("/tenants/{tenant_id}/restore/runs")
-def runs(tenant_id: int) -> list[dict]:
+def runs(tenant_id: int, request: Request) -> list[dict]:
+    from app.core.security import require_tenant_read
     with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
         if db.get(Tenant, tenant_id) is None:
             raise HTTPException(404, "tenant not found")
         rows = db.query(RestoreRun).filter(RestoreRun.tenant_id == tenant_id)\
@@ -71,8 +82,10 @@ def runs(tenant_id: int) -> list[dict]:
 
 
 @router.get("/tenants/{tenant_id}/restore/runs/{run_id}")
-def run_detail(tenant_id: int, run_id: int) -> dict:
+def run_detail(tenant_id: int, run_id: int, request: Request) -> dict:
+    from app.core.security import require_tenant_read
     with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
         r = db.get(RestoreRun, run_id)
         if r is None or r.tenant_id != tenant_id:
             raise HTTPException(404, "restore run not found")

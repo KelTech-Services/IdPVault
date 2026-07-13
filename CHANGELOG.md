@@ -3,6 +3,29 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.9.0] - 2026-07-13
+### Added
+- MSP tier (requires a license with the `msp` feature):
+  - Client orgs: group tenants per client, with contact info, notes, billing
+    memo, billing cadence, and next renewal date. New Orgs page (admin only).
+  - Org-scoped roles: `org_admin` (backup, browse, restore within their org's
+    tenants) and `org_viewer` (read-only within their org). One org per
+    scoped user.
+  - Server-side scoping on every endpoint: tenants, snapshots, diffs, backups,
+    restores, Users & Access, dashboard summary/trends, events, and recent
+    runs are all filtered by the user's org. Tenants outside the org return
+    404 so other clients are never enumerable.
+  - Dashboard renewals card: orgs with a renewal date in the next 60 days
+    (or overdue) surface for admins.
+  - New doc page "MSP & client orgs", shown only when an MSP license is
+    installed.
+- `/auth/me` now returns the license feature list so the UI can gate
+  features for non-admin users without exposing license details.
+### Changed
+- Deleting an org keeps its tenants and users (they are unassigned, not
+  removed). Roles admin/user continue to behave exactly as before; existing
+  installs are unaffected until an MSP license is installed.
+
 ## [0.8.15] - 2026-07-13
 ### Security
 - Follow-up to 0.8.14: snapshot paths now also pass a realpath containment

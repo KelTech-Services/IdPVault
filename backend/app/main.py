@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_license, routes_metrics, routes_restore, routes_settings, routes_tenants, routes_users
+from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_license, routes_metrics, routes_orgs, routes_restore, routes_settings, routes_tenants, routes_users
 from app.config import get_settings
 from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="0.8.15", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="0.9.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -80,7 +80,8 @@ async def session_auth(request: Request, call_next):
         user = resolve_session(db, request.cookies.get("idpvault_session", ""))
     if user is None:
         return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    request.state.user = {"id": user.id, "username": user.username, "role": user.role, "email": user.email}
+    request.state.user = {"id": user.id, "username": user.username, "role": user.role,
+                          "email": user.email, "org_id": user.org_id}
     return await call_next(request)
 
 
@@ -96,4 +97,5 @@ app.include_router(routes_identity.router, prefix="/api/v1")
 app.include_router(routes_metrics.router)
 app.include_router(routes_settings.router, prefix="/api/v1")
 app.include_router(routes_license.router, prefix="/api/v1")
+app.include_router(routes_orgs.router, prefix="/api/v1")
 app.mount("/", StaticFiles(directory="frontend", html=True), name="ui")

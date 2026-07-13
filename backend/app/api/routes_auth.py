@@ -142,12 +142,20 @@ def logout(request: Request, response: Response) -> dict:
 
 @router.get("/auth/me")
 def me(request: Request) -> dict:
+    from app.core import license as lic
+    from app.models.db import Org
     u = request.state.user
     with SessionLocal() as db:
         row = db.get(User, u["id"])
+        org = db.get(Org, row.org_id) if (row and row.org_id) else None
         return {**u, "mfa_enabled": bool(row and row.mfa_enabled),
                 "time_format": (row.time_format if row else None) or "auto",
-                "theme": (row.theme if row else None) or "dark"}
+                "theme": (row.theme if row else None) or "dark",
+                "org_id": row.org_id if row else None,
+                "org_name": org.name if org else None,
+                # feature list only (no license details) so any signed-in user's
+                # UI can gate MSP/identity views correctly
+                "features": lic.current_license().get("features") or []}
 
 
 # ---------- self-service password ----------

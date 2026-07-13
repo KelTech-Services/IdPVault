@@ -1,6 +1,13 @@
 <!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Users-and-Security". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
 <h3>Roles</h3>
-<p>Two roles, enforced server-side on every endpoint (not just hidden buttons): <b>admin</b> (everything) and <b>user</b> (read-only: dashboard, events, snapshots browse). The free Community tier includes the single admin created at first run; adding users requires a paid license.</p>
+<p>Four roles, enforced server-side on every endpoint (not just hidden buttons):</p>
+<ul>
+<li><b>admin</b> - everything, across all tenants.</li>
+<li><b>user</b> - read-only across all tenants: dashboard, events, snapshots browse.</li>
+<li><b>org_admin</b> (MSP license) - scoped to one client org: can run backups, browse snapshots, and apply restores for that org's tenants only. Cannot add or edit tenants, users, orgs, or settings.</li>
+<li><b>org_viewer</b> (MSP license) - scoped to one client org, read-only. Action buttons show "contact your MSP administrator".</li>
+</ul>
+<p>Org-scoped users never see tenants outside their org - those tenants return 404, not 403, so their existence is not leaked. The free Community tier includes the single admin created at first run; adding users requires a paid license, and org roles require the MSP feature (see the MSP &amp; client orgs page).</p>
 <h3>Adding users</h3>
 <p>Two ways to create a user. <b>Send invite link</b>: the account starts as a pending invite and a one-time link lets them set their own password; if SMTP is configured the invite is emailed, and either way you get a copyable link. <b>Set password now</b>: the admin sets an initial password and the account is active immediately - no email required. Share it securely; the user can change it in their profile.</p>
 <h3>Passwords &amp; MFA</h3>

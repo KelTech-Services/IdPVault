@@ -26,6 +26,25 @@ class Tenant(Base):
     identity_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     identity_schedule_cron: Mapped[str | None] = mapped_column(String(60), nullable=True)
     identity_retention_keep: Mapped[int] = mapped_column(Integer, default=14)
+    org_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # MSP: client org
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class Org(Base):
+    """MSP client organization: light CRM (contact + notes + billing memo),
+    the grouping key for tenants, and the scope for org_admin/org_viewer users."""
+    __tablename__ = "orgs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    contact_name: Mapped[str] = mapped_column(String(120), default="")
+    contact_email: Mapped[str] = mapped_column(String(255), default="")
+    contact_phone: Mapped[str] = mapped_column(String(60), default="")
+    notes: Mapped[str] = mapped_column(String(4000), default="")
+    billing_memo: Mapped[str] = mapped_column(String(200), default="")   # what the MSP charges
+    billing_cadence: Mapped[str] = mapped_column(String(10), default="")  # monthly | annual | ""
+    renewal_date: Mapped[str] = mapped_column(String(10), default="")     # YYYY-MM-DD or ""
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -70,12 +89,15 @@ _COLUMN_MIGRATIONS = [
     ("users", "theme", "VARCHAR(10) DEFAULT 'dark'"),
     ("users", "failed_logins", "INTEGER DEFAULT 0"),
     ("users", "locked_until", "TIMESTAMPTZ"),
+    ("tenants", "org_id", "INTEGER"),
+    ("users", "org_id", "INTEGER"),
 ]
 
 
 # Idempotent column-type widenings for columns that outgrew their original length.
 _TYPE_MIGRATIONS = [
     ("restore_runs", "mode", "VARCHAR(20)"),
+    ("users", "role", "VARCHAR(20)"),   # org_admin / org_viewer need > 10 chars
 ]
 
 
@@ -97,7 +119,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(255), default="")
     password_hash: Mapped[str] = mapped_column(String(300), default="")  # scrypt salt$hash
-    role: Mapped[str] = mapped_column(String(10), default="user")  # admin | user
+    role: Mapped[str] = mapped_column(String(20), default="user")  # admin | user | org_admin | org_viewer
+    org_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # scope for org_* roles
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     invite_token: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
