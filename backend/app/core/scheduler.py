@@ -95,7 +95,9 @@ def run_backup(tenant_id: int) -> dict:
                     size = storage.write_dbdump(t.slug, manifest["timestamp"], data_key, pg_dump(db_url))
                     manifest["db_dump"] = {"status": "ok", "size_encrypted": size}
                 except Exception as de:
-                    manifest["db_dump"] = {"status": "failed", "error": str(de)[:300]}
+                    # exception text goes to logs only; API/manifest gets a generic marker
+                    manifest["db_dump"] = {"status": "failed",
+                                           "error": "pg_dump failed - see server logs"}
                     log.warning("pg_dump failed tenant=%s: %s", t.slug, de)
 
             prev = storage.list_snapshots(t.slug)

@@ -106,8 +106,11 @@ def test_alert() -> dict:
     if not r.get("configured"):
         raise HTTPException(422, "no alert webhook configured")
     if not r.get("ok"):
-        raise HTTPException(502, f"webhook returned {r.get('status') or r.get('error')} "
-                                 f"(format: {r.get('format')})")
+        import logging
+        logging.getLogger(__name__).warning("test webhook failed: %s", r.get("error") or r.get("status"))
+        detail = (f"webhook returned HTTP {r['status']}" if r.get("status")
+                  else "webhook connection failed (details in server logs)")
+        raise HTTPException(502, f"{detail} (format: {r.get('format')})")
     return r
 
 
@@ -118,5 +121,7 @@ def test_email(body: TestMailIn) -> dict:
         send_mail(body.to, "IdPVault test email",
                   "SMTP is configured correctly — this is a test message from IdPVault.")
     except Exception as e:
-        raise HTTPException(502, f"send failed: {e}")
+        import logging
+        logging.getLogger(__name__).warning("test email failed: %s", e)
+        raise HTTPException(502, "send failed - check host/port/credentials (details in server logs)")
     return {"sent": True}

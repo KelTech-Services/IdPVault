@@ -14,8 +14,27 @@ from app.config import get_settings
 from app.core import crypto
 
 
+# Path-safety: slugs and timestamps come from API input and become path
+# components. Validate their exact shape so traversal is structurally impossible.
+import re
+_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_TS_RE = re.compile(r"^\d{8}T\d{6}Z$")
+
+
+def _safe_slug(slug: str) -> str:
+    if not _SLUG_RE.fullmatch(slug or ""):
+        raise ValueError("invalid tenant slug")
+    return slug
+
+
+def _safe_ts(ts: str) -> str:
+    if not _TS_RE.fullmatch(ts or ""):
+        raise ValueError("invalid snapshot timestamp")
+    return ts
+
+
 def snapshot_dir(tenant_slug: str, ts: str) -> str:
-    return os.path.join(get_settings().data_dir, tenant_slug, ts)
+    return os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), _safe_ts(ts))
 
 
 def write_snapshot(tenant_slug: str, data_key: bytes, export: dict) -> dict:
@@ -45,7 +64,7 @@ def read_snapshot(tenant_slug: str, ts: str, data_key: bytes) -> dict:
 
 
 def list_snapshots(tenant_slug: str) -> list[str]:
-    base = os.path.join(get_settings().data_dir, tenant_slug)
+    base = os.path.join(get_settings().data_dir, _safe_slug(tenant_slug))
     if not os.path.isdir(base):
         return []
     # Only real config snapshots (dirs holding an objects.json.enc payload). This
@@ -77,7 +96,7 @@ def has_dbdump(tenant_slug: str, ts: str) -> bool:
 
 
 def identity_dir(tenant_slug: str, ts: str) -> str:
-    return os.path.join(get_settings().data_dir, tenant_slug, "identities", ts)
+    return os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), "identities", _safe_ts(ts))
 
 
 def write_identities(tenant_slug: str, data_key: bytes, payload: dict) -> dict:
@@ -105,7 +124,7 @@ def read_identities(tenant_slug: str, ts: str, data_key: bytes) -> dict:
 
 
 def list_identity_snapshots(tenant_slug: str) -> list[str]:
-    base = os.path.join(get_settings().data_dir, tenant_slug, "identities")
+    base = os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), "identities")
     if not os.path.isdir(base):
         return []
     return sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))

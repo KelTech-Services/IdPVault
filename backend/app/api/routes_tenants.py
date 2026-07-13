@@ -24,11 +24,16 @@ class TenantIn(BaseModel):
     identity_retention_keep: int = 14
 
 
+_SLUG_RE = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
 @router.post("/tenants", dependencies=[Depends(require_admin)])
 def create_tenant(body: TenantIn) -> dict:
     from app.core import license as lic
     if body.provider not in ("authentik", "okta", "auth0"):
         raise HTTPException(422, "provider must be authentik, okta, or auth0")
+    if not _SLUG_RE.fullmatch(body.slug or ""):
+        raise HTTPException(422, "slug must be 1-64 letters, numbers, hyphens, or underscores")
     if body.identity_enabled and not lic.has_feature("identity"):
         raise HTTPException(402, "identity backup requires a paid license — "
                                  "add one in Settings → License")

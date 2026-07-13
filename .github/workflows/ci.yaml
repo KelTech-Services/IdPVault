@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Default to read-only; jobs that need more (packages, releases) declare it themselves.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

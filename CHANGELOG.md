@@ -3,6 +3,17 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [0.8.14] - 2026-07-13
+### Security
+Hardening pass resolving all findings from the first public CodeQL scan:
+- Path-safety: tenant slugs and snapshot timestamps are strictly validated at
+  the storage boundary (and slug format at tenant creation), making path
+  traversal structurally impossible even for authenticated admins.
+- Exception details no longer flow into HTTP responses (webhook/email test
+  errors, pg_dump failure text) - full detail goes to server logs instead.
+- CI workflow GITHUB_TOKEN now defaults to read-only permissions; jobs that
+  need more declare it explicitly.
+
 ## [0.8.13] - 2026-07-12
 ### Added
 - **Dashboard charts** (VisActor VChart, vendored - no CDN): changes over the
