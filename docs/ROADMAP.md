@@ -89,11 +89,14 @@ dashboard renewals card (next 60 days + overdue); MSP doc page gated by license;
 /auth/me exposes the feature list for UI gating. Additive-only schema (no
 migration needed); admin/user roles and existing installs unchanged.
 
+**v1.0.0** — milestone release: full product surface shipped and validated in
+production (config + Users & Access backup/restore for Authentik, Okta, Auth0;
+MSP orgs and scoped roles; zero-config deploy; offline licensing). No functional
+changes from 0.9.0.
+
 ## Planned
 
-### v1.0 — public ship
-
-Remaining before the 1.0 tag (everything else on the original list has shipped):
+### Go-to-market
 
 - Marketing site (idpvault.com) + Stripe checkout, flat public pricing.
   MSP mechanics: license minted from the Stripe subscription state (subscription =

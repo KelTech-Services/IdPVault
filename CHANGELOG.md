@@ -3,6 +3,26 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.0.0] - 2026-07-13
+
+IdPVault 1.0. The full product surface is shipped and validated in production:
+
+- Config backup, drift detection, and restore (with dry-run) for Authentik,
+  Okta, and Auth0.
+- Users & Access backup and restore (users, group memberships, app
+  assignments) for all three providers.
+- Client orgs and org-scoped roles for MSPs (v0.9.0), validated live:
+  org-scoped users see only their own org's tenants, org admins can back up
+  and restore them, org viewers are read-only.
+- Envelope encryption at rest, offline Ed25519 license verification, no
+  telemetry, no phone-home.
+- Zero-config deployment: `docker compose up` with no required configuration,
+  self-seeding master key with a never-regenerate guard.
+- VChart dashboard, light/dark themes, timezone-aware scheduling, serial
+  backup queue, alerts (email/webhook), audit log, TOTP MFA.
+
+No functional changes from 0.9.0; this release marks the version milestone.
+
 ## [0.9.0] - 2026-07-13
 ### Added
 - MSP tier (requires a license with the `msp` feature):

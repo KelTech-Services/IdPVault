@@ -104,7 +104,7 @@ Security reports: privately only, per [SECURITY.md](SECURITY.md).
 
 ## Status
 
-Active development toward v1.0. See `CHANGELOG.md` for the full version history and `docs/ROADMAP.md` for shipped versions and what's next.
+v1.0 shipped. See `CHANGELOG.md` for the full version history and `docs/ROADMAP.md` for shipped versions and what's next.
 
 ## What a backup contains — and what it doesn't
 
