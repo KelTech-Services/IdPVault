@@ -45,3 +45,29 @@ jobs:
           tags: |
             ghcr.io/keltech-services/idpvault:latest
             ghcr.io/keltech-services/idpvault:v${{ steps.v.outputs.version }}
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version, existing-tag check, and notes from CHANGELOG
+        id: rel
+        run: |
+          v=$(grep -oE 'version="[0-9.]+"' backend/app/main.py | head -1 | cut -d'"' -f2)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git ls-remote --tags origin "refs/tags/v$v" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+          awk -v v="$v" 'index($0, "## ["v"]")==1 {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See CHANGELOG.md." > notes.md
+      - name: Publish release
+        if: steps.rel.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v${{ steps.rel.outputs.version }}" --title "v${{ steps.rel.outputs.version }}" --notes-file notes.md
