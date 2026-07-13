@@ -381,7 +381,12 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 </main>
 <main id="view-orgs" class="hidden">
   <section class="panel">
-    <h2>Client organizations <span class="spacer"></span><button id="addorgbtn" class="primary" onclick="toggleOrgForm()">+ Add org</button></h2>
+    <h2>Client organizations <span class="spacer"></span>
+      <button onclick="exportOrgs()" title="Download all orgs as CSV">Export CSV</button>
+      <button onclick="orgTemplate()" title="Empty CSV with the right columns plus one example row">Template</button>
+      <button onclick="document.getElementById('orgcsvfile').click()" title="Bulk-add orgs from a CSV - existing names are skipped, never overwritten">Import CSV</button>
+      <input type="file" id="orgcsvfile" accept=".csv,text/csv" class="hidden" onchange="importOrgsFile(this)">
+      <button id="addorgbtn" class="primary" onclick="toggleOrgForm()">+ Add org</button></h2>
     <div id="orgform" class="hidden">
       <p id="orgformtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
       <div class="formgrid">
@@ -1133,6 +1138,30 @@ async function delOrg(id, name){
   if(!confirm(`Delete org "${name}"? Its tenants and users are kept but unassigned.`)) return;
   try { await api(`/orgs/${id}`, {method:'DELETE'}); toast(`Org "${name}" deleted.`); loadOrgs(); }
   catch(e){ toast(e.message, true); }
+}
+async function _dlCsv(path, name){
+  try {
+    const r = await fetch('/api/v1'+path);
+    if(!r.ok){ const b = await r.json().catch(()=>({})); throw new Error(b.detail || 'HTTP '+r.status); }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob()); a.download = name;
+    a.click(); URL.revokeObjectURL(a.href);
+  } catch(e){ toast('Download failed: '+e.message, true); }
+}
+function exportOrgs(){ _dlCsv('/orgs/export', 'idpvault-orgs.csv'); }
+function orgTemplate(){ _dlCsv('/orgs/template', 'idpvault-orgs-template.csv'); }
+async function importOrgsFile(inp){
+  const f = inp.files[0]; inp.value = ''; if(!f) return;
+  if(f.size > 1000000) return toast('CSV too large (1 MB max)', true);
+  const text = await f.text();
+  try {
+    const r = await api('/orgs/import', {method:'POST', body: JSON.stringify({csv: text})});
+    let msg = `${r.imported} org(s) imported`;
+    if(r.skipped.length) msg += `, ${r.skipped.length} skipped (name already exists)`;
+    if(r.errors.length) msg += `. ${r.errors.slice(0,3).join('; ')}` + (r.errors.length>3 ? ` (+${r.errors.length-3} more)` : '');
+    toast(msg, r.errors.length > 0);
+    if(r.imported) loadOrgs();
+  } catch(e){ toast('Import failed: '+e.message, true); }
 }
 async function fillTenantOrg(val){
   const d = document.getElementById('fd_org'); if(!d) return;

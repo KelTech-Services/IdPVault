@@ -2,7 +2,7 @@
 Admin-only management, gated behind the `msp` license feature."""
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.core.security import require_admin
@@ -136,3 +136,100 @@ def delete_org(org_id: int, request: Request) -> dict:
                         detail={"name": name}))
         db.commit()
         return {"deleted": name}
+
+
+# ---------- bulk CSV export / import ----------
+
+CSV_COLUMNS = ("name", "contact_name", "contact_email", "contact_phone",
+               "billing_memo", "billing_cadence", "renewal_date", "notes")
+
+
+def _csv_response(text: str, filename: str) -> Response:
+    return Response(text, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def parse_orgs_csv(text: str) -> tuple[list[OrgIn], list[str]]:
+    """Parse CSV text into validated OrgIn rows. Returns (rows, errors);
+    error strings reference the 1-based data row number. Pure - no DB."""
+    import csv
+    import io
+    rows: list[OrgIn] = []
+    errors: list[str] = []
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames or "name" not in [f.strip().lower() for f in reader.fieldnames]:
+        return [], ["missing header row - download the template and keep its first line"]
+    for i, raw in enumerate(reader, start=1):
+        clean = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+        data = {c: clean.get(c, "") for c in CSV_COLUMNS}
+        if not any(data.values()):
+            continue  # blank line
+        try:
+            body = OrgIn(**data)
+            _validate(body)
+            rows.append(body)
+        except HTTPException as e:
+            errors.append(f"row {i}: {e.detail}")
+        except Exception as e:  # pydantic or oddball input
+            errors.append(f"row {i}: {e}")
+    return rows, errors
+
+
+@router.get("/orgs/export")
+def export_orgs() -> Response:
+    _require_msp()
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(CSV_COLUMNS)
+    with SessionLocal() as db:
+        for o in db.query(Org).order_by(Org.name).all():
+            w.writerow([o.name, o.contact_name or "", o.contact_email or "",
+                        o.contact_phone or "", o.billing_memo or "",
+                        o.billing_cadence or "", o.renewal_date or "", o.notes or ""])
+    return _csv_response(buf.getvalue(), "idpvault-orgs.csv")
+
+
+@router.get("/orgs/template")
+def orgs_template() -> Response:
+    _require_msp()
+    lines = [",".join(CSV_COLUMNS),
+             "Acme Corp,Jane Doe,jane@acme.com,+1 555 010 0100,"
+             "$150/mo identity protection,monthly,2027-01-15,"
+             "example row - replace with your clients"]
+    return _csv_response("\n".join(lines) + "\n", "idpvault-orgs-template.csv")
+
+
+class ImportIn(BaseModel):
+    csv: str
+
+
+@router.post("/orgs/import")
+def import_orgs(body: ImportIn, request: Request) -> dict:
+    """Bulk-create orgs from CSV text (as produced by export or the template).
+    Rows whose name already exists are skipped, never overwritten."""
+    _require_msp()
+    if len(body.csv) > 1_000_000:
+        raise HTTPException(413, "CSV too large (1 MB max)")
+    rows, errors = parse_orgs_csv(body.csv)
+    imported, skipped = [], []
+    with SessionLocal() as db:
+        existing = {o.name.lower() for o in db.query(Org).all()}
+        for r in rows:
+            name = r.name.strip()
+            if name.lower() in existing:
+                skipped.append(name)
+                continue
+            existing.add(name.lower())
+            db.add(Org(name=name, contact_name=r.contact_name,
+                       contact_email=r.contact_email, contact_phone=r.contact_phone,
+                       notes=r.notes, billing_memo=r.billing_memo,
+                       billing_cadence=r.billing_cadence, renewal_date=r.renewal_date))
+            imported.append(name)
+        if imported:
+            db.add(AuditLog(actor=request.state.user["username"], action="org.import",
+                            detail={"imported": len(imported), "skipped": len(skipped),
+                                    "errors": len(errors)}))
+        db.commit()
+    return {"imported": len(imported), "skipped": skipped, "errors": errors}

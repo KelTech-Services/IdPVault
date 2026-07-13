@@ -89,6 +89,35 @@ volumes:
   idpvault_postgres:
 ```
 
+## Platform support (Linux, macOS, Windows)
+
+IdPVault runs anywhere Docker runs. The image is published for **linux/amd64 and
+linux/arm64** as a single tag, so `docker compose up` pulls the right build
+automatically - no per-platform compose files, the stack above works unchanged on
+every platform.
+
+- **Linux servers and NAS boxes** (Debian/Ubuntu/RHEL, Synology, QNAP, Unraid,
+  TrueNAS, Proxmox): the primary target. Works with Docker Engine or Portainer.
+  On Synology/QNAP, install Docker/Container Manager from the package center and
+  paste the stack into Portainer or a compose project.
+- **macOS** (Docker Desktop, OrbStack, or Colima): works on both Intel and Apple
+  Silicon - Apple Silicon gets the native arm64 image. Fine for evaluation and
+  small setups; for always-on production use a server, since a sleeping laptop
+  means missed backup schedules.
+- **Windows** (Docker Desktop with the WSL2 backend, the default on Windows
+  10/11): works out of the box. Keep the default named volumes; if you switch to
+  bind mounts, put them on the Linux side of WSL2 (not a `C:\` path) for correct
+  permissions and much better performance.
+- **ARM boards** (Raspberry Pi 4/5 and other arm64 SBCs): supported via the
+  arm64 image. 64-bit OS required; 2 GB+ RAM recommended.
+
+Notes that apply everywhere: the app listens on port 8080 inside the container
+(remap the host side freely if 8480 is taken); data lives in the three named
+volumes, so `docker compose down` never loses anything; back up the
+`idpvault_secrets` volume (master key) and `idpvault_postgres` with your host
+backup tool; put a reverse proxy with HTTPS in front for anything beyond
+localhost (see the Deployment doc in-app or on the wiki).
+
 ## Support & contact
 
 Bugs, feature requests, and questions: [open a GitHub issue](https://github.com/KelTech-Services/IdPVault/issues/new/choose).

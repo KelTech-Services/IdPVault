@@ -11,6 +11,8 @@
 <h3>What org-scoped users can do</h3>
 <p><b>org_admin</b>: sees only their org's tenants; can run backups, browse snapshots and diffs, and apply config and Users &amp; Access restores on those tenants. Cannot create or edit tenants, users, orgs, schedules, or settings. <b>org_viewer</b>: same visibility, strictly read-only - disabled action buttons carry a "contact your MSP administrator" hint.</p>
 <p>Scoping is enforced server-side. A tenant outside the user's org returns 404 (not 403), so org users cannot discover what other clients exist. The dashboard, events feed, and recent runs are filtered the same way.</p>
+<h3>Bulk import &amp; export</h3>
+<p>The Orgs page has three CSV buttons. <b>Export CSV</b> downloads every org with all fields - useful as a backup or for editing in a spreadsheet. <b>Template</b> downloads an empty CSV with the correct columns and one example row. <b>Import CSV</b> bulk-creates orgs from a file: each row is validated like the form (name required, cadence monthly/annual/empty, renewal date YYYY-MM-DD), rows whose name already exists are skipped and never overwritten, and the result message tells you how many were imported, skipped, or had errors. Onboarding 40 clients is one upload instead of 40 forms.</p>
 <h3>Renewals card</h3>
 <p>When any org has a renewal date within the next 60 days (or already past), admins see a <b>Client renewals</b> panel on the dashboard listing the org, the date (overdue dates are flagged), and the billing memo.</p>
 <h3>Deleting an org</h3>

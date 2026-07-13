@@ -112,3 +112,35 @@ def test_msp_feature_flag_in_license(monkeypatch):
     body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     data = lic.verify(f"{b64u(body)}.{b64u(priv.sign(body))}")
     assert data and "msp" in data["features"] and "identity" in data["features"]
+
+
+def test_orgs_csv_parse_roundtrip():
+    from app.api.routes_orgs import CSV_COLUMNS, parse_orgs_csv
+    text = (",".join(CSV_COLUMNS) + "\n"
+            "Acme Corp,Jane Doe,jane@acme.com,+1 555,memo,monthly,2027-01-15,note\n"
+            "\n"  # blank line ignored
+            "Bare Minimum,,,,,,,\n")
+    rows, errors = parse_orgs_csv(text)
+    assert not errors
+    assert [r.name for r in rows] == ["Acme Corp", "Bare Minimum"]
+    assert rows[0].billing_cadence == "monthly" and rows[0].renewal_date == "2027-01-15"
+
+
+def test_orgs_csv_parse_errors():
+    from app.api.routes_orgs import CSV_COLUMNS, parse_orgs_csv
+    text = (",".join(CSV_COLUMNS) + "\n"
+            "Good Co,,,,,annual,2027-02-01,\n"
+            ",,,,,,,\n"  # counted blank? no - all empty = skipped
+            "Bad Cadence,,,,,weekly,,\n"
+            "Bad Date,,,,,monthly,tomorrow,\n")
+    rows, errors = parse_orgs_csv(text)
+    assert [r.name for r in rows] == ["Good Co"]
+    assert len(errors) == 2
+    assert "row 3" in errors[0] and "cadence" in errors[0]
+    assert "row 4" in errors[1] and "renewal_date" in errors[1]
+
+
+def test_orgs_csv_missing_header():
+    from app.api.routes_orgs import parse_orgs_csv
+    rows, errors = parse_orgs_csv("Acme,Jane\nFoo,Bar\n")
+    assert rows == [] and errors and "header" in errors[0]

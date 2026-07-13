@@ -31,6 +31,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+      # Multi-arch: amd64 (Intel/AMD servers, most NAS boxes) + arm64
+      # (Apple Silicon via Docker Desktop, Raspberry Pi, ARM servers).
+      # One manifest tag; docker pulls the right arch automatically.
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -50,6 +55,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.v.outputs.tags }}
 
   release:

@@ -3,6 +3,20 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.0] - 2026-07-13
+### Added
+- Org bulk CSV tools on the Orgs page (MSP): Export CSV (all orgs, all
+  fields), Template (correct columns plus an example row), and Import CSV.
+  Import validates each row like the form, skips rows whose org name
+  already exists (never overwrites), and reports imported / skipped /
+  error counts with row numbers.
+- Multi-architecture image: builds now publish linux/amd64 and linux/arm64
+  under the same tag. Apple Silicon Macs, Raspberry Pi, and other ARM hosts
+  pull a native image instead of running under emulation. The compose stack
+  is unchanged and works on Linux, macOS, and Windows (Docker Desktop/WSL2).
+- README: platform support section covering Linux/NAS, macOS, Windows, and
+  ARM boards, with named-volume and reverse-proxy guidance.
+
 ## [1.0.0] - 2026-07-13
 
 IdPVault 1.0. The full product surface is shipped and validated in production:
