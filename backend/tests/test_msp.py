@@ -87,6 +87,9 @@ def test_org_input_validation():
     from app.api.routes_orgs import OrgIn, _validate
     _validate(OrgIn(name="Acme", billing_cadence="monthly",
                     renewal_date="2026-09-01"))
+    b = OrgIn(name="Acme", renewal_date="09/01/2026")
+    _validate(b)
+    assert b.renewal_date == "2026-09-01"  # US input normalized to ISO storage
     with pytest.raises(HTTPException):
         _validate(OrgIn(name="Acme", billing_cadence="weekly"))
     with pytest.raises(HTTPException):

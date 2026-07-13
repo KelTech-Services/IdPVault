@@ -921,6 +921,7 @@ async function showSnaps(id, slug){
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
+function fmtUS(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return m && d ? `${m}/${d}/${y}` : iso; }
 function fmtTs(ts){ return ts.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, '$1-$2-$3 $4:$5:$6'); }
 function hour12Pref(){ const tf=(me&&me.time_format)||'auto'; return tf==='12'?true : tf==='24'?false : undefined; }
 function fmtLocal(iso){ const o=hour12Pref(); return new Date(iso).toLocaleString([], o===undefined?{}:{hour12:o}); }
@@ -1096,7 +1097,7 @@ async function loadOrgs(){
       <td class="muted">${esc(o.contact_name||'-')}${o.contact_email?`<br><span style="font-size:.75rem">${esc(o.contact_email)}</span>`:''}${o.contact_phone?`<br><span style="font-size:.75rem">${esc(o.contact_phone)}</span>`:''}</td>
       <td>${o.tenant_count}</td><td>${o.user_count}</td>
       <td class="muted">${esc(o.billing_memo||'-')}${o.billing_cadence?` · ${o.billing_cadence}`:''}</td>
-      <td>${o.renewal_date||'<span class="muted">-</span>'}</td>
+      <td>${o.renewal_date?fmtUS(o.renewal_date):'<span class="muted">-</span>'}</td>
       <td style="white-space:nowrap"><button onclick="editOrg(${o.id})">Edit</button> <button class="del" onclick="delOrg(${o.id}, '${esc(o.name)}')">Delete</button></td></tr>`).join('');
   } catch(e){ ob.innerHTML = `<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -1182,7 +1183,7 @@ async function loadRenewals(){
     el.innerHTML = `<section class="panel"><h2>Client renewals - next 60 days</h2>
       <table><thead><tr><th>Org</th><th>Renewal date</th><th>Billing</th></tr></thead><tbody>` +
       r.map(o=>`<tr><td>${esc(o.name)}</td>
-        <td>${o.overdue?`<span class="st-failed">${o.renewal_date} (overdue)</span>`:o.renewal_date}</td>
+        <td>${o.overdue?`<span class="st-failed">${fmtUS(o.renewal_date)} (overdue)</span>`:fmtUS(o.renewal_date)}</td>
         <td class="muted">${esc(o.billing_memo||'-')}${o.billing_cadence?` · ${o.billing_cadence}`:''}</td></tr>`).join('') +
       `</tbody></table></section>`;
     el.classList.remove('hidden');

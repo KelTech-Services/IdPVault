@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.2] - 2026-07-13
+### Changed
+- Dates are US-format (MM/DD/YYYY) everywhere users see them: org renewal
+  dates in the Orgs table and dashboard renewals card, the CSV template
+  example, and CSV export. The org CSV import accepts MM/DD/YYYY (and the
+  previous YYYY-MM-DD for compatibility); storage stays ISO internally.
+
 ## [1.1.1] - 2026-07-13
 ### Security
 - Org CSV import: row-level error messages for malformed input no longer

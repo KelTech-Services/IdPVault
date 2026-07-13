@@ -29,16 +29,38 @@ class OrgIn(BaseModel):
     renewal_date: str = ""      # YYYY-MM-DD or ""
 
 
+def _norm_date(s: str) -> str:
+    """Accept MM/DD/YYYY (US) or YYYY-MM-DD; return ISO for storage."""
+    s = (s or "").strip()
+    if not s:
+        return ""
+    if "/" in s:
+        try:
+            m, d, y = s.split("/")
+            return date(int(y), int(m), int(d)).isoformat()
+        except (ValueError, TypeError):
+            raise HTTPException(422, "renewal_date must be MM/DD/YYYY")
+    try:
+        return date.fromisoformat(s).isoformat()
+    except ValueError:
+        raise HTTPException(422, "renewal_date must be MM/DD/YYYY")
+
+
+def _us_date(iso: str) -> str:
+    """ISO from storage -> MM/DD/YYYY for humans."""
+    try:
+        d = date.fromisoformat(iso)
+        return f"{d.month:02d}/{d.day:02d}/{d.year}"
+    except (ValueError, TypeError):
+        return iso or ""
+
+
 def _validate(body: OrgIn) -> None:
     if not (body.name or "").strip():
         raise HTTPException(422, "org name is required")
     if body.billing_cadence not in ("", "monthly", "annual"):
         raise HTTPException(422, "billing_cadence must be monthly, annual, or empty")
-    if body.renewal_date:
-        try:
-            date.fromisoformat(body.renewal_date)
-        except ValueError:
-            raise HTTPException(422, "renewal_date must be YYYY-MM-DD")
+    body.renewal_date = _norm_date(body.renewal_date)
 
 
 def _row(db, o: Org) -> dict:
@@ -187,7 +209,8 @@ def export_orgs() -> Response:
         for o in db.query(Org).order_by(Org.name).all():
             w.writerow([o.name, o.contact_name or "", o.contact_email or "",
                         o.contact_phone or "", o.billing_memo or "",
-                        o.billing_cadence or "", o.renewal_date or "", o.notes or ""])
+                        o.billing_cadence or "", _us_date(o.renewal_date or ""),
+                        o.notes or ""])
     return _csv_response(buf.getvalue(), "idpvault-orgs.csv")
 
 
@@ -196,7 +219,7 @@ def orgs_template() -> Response:
     _require_msp()
     lines = [",".join(CSV_COLUMNS),
              "Acme Corp,Jane Doe,jane@acme.com,+1 555 010 0100,"
-             "$150/mo identity protection,monthly,2027-01-15,"
+             "$150/mo identity protection,monthly,01/15/2027,"
              "example row - replace with your clients"]
     return _csv_response("\n".join(lines) + "\n", "idpvault-orgs-template.csv")
 
