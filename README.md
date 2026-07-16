@@ -8,7 +8,7 @@
 Self-hosted backup, drift detection, and restore for **Authentik**, **Okta**, and **Auth0** tenants.
 
 Point IdPVault at your identity providers and it takes scheduled, encrypted snapshots of every
-configuration object — apps, flows, policies, groups, mappings, and more. Browse snapshot history,
+configuration object - apps, flows, policies, groups, mappings, and more. Browse snapshot history,
 diff any two points in time, get alerted on config drift, and restore objects when something breaks.
 
 ## Features
@@ -20,9 +20,11 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 - Snapshot-to-snapshot diff, drift detection, and a per-object change events feed
 - Restore engine: dry-run preview, dependency-ordered apply (Authentik), per-object
   restore reports
+- Clone / promote: restore a snapshot into another same-provider tenant to push a
+  perfected app from preprod to prod
 - Multi-user: session login, admin / read-only roles, email invites, SMTP settings
 - Dashboard: coverage, unbacked-changes (live IdP event polling), storage stats
-- Snapshot object browser — inspect any object in any snapshot
+- Snapshot object browser - inspect any object in any snapshot
 - Retention policies per tenant; audit log with viewer
 - Alerts on drift or failed backups: webhook (ntfy / Slack) + email
 - Prometheus metrics endpoint (set IDPVAULT_METRICS_TOKEN to enable)
@@ -33,18 +35,18 @@ diff any two points in time, get alerted on config drift, and restore objects wh
 ## Quick deploy (Docker Compose / Portainer stack)
 
 See `docker/compose.example.yaml`. Single app image + Postgres, no other
-dependencies — and **zero configuration**: `docker compose up -d` is the whole
+dependencies - and **zero configuration**: `docker compose up -d` is the whole
 install. On first boot the app generates its master encryption key inside the
 `idpvault_secrets` volume, fixes volume ownership, and drops to a non-root
 user. **Back the key up right after first boot**
-(`docker cp idpvault:/secrets/master.key ./master.key.backup`) — without it,
+(`docker cp idpvault:/secrets/master.key ./master.key.backup`) - without it,
 encrypted snapshots are unrecoverable, and there is no escrow or phone-home.
 The app refuses to boot into either dangerous state (key missing with data
 present, or a wrong key against an existing database) rather than corrupt
 anything.
 
 Named volumes are the default; to use host bind mounts instead, swap the
-volume names for host paths in the stack — the app handles ownership itself.
+volume names for host paths in the stack - the app handles ownership itself.
 Setting `POSTGRES_PASSWORD` in the stack environment is recommended (the DB is
 only reachable inside the stack's private network).
 
@@ -125,17 +127,17 @@ Security reports: privately only, per [SECURITY.md](SECURITY.md).
 
 ## Repo layout
 
-- `backend/` — FastAPI application
-- `frontend/` — web UI (single-file SPA) + in-app docs
-- `docker/` — Dockerfile, example compose stack, env template
-- `docs/` — architecture and operations notes
-- `.github/workflows/` — CI: tests gate the image build; releases auto-publish
+- `backend/` - FastAPI application
+- `frontend/` - web UI (single-file SPA) + in-app docs
+- `docker/` - Dockerfile, example compose stack, env template
+- `docs/` - architecture and operations notes
+- `.github/workflows/` - CI: tests gate the image build; releases auto-publish
 
 ## Status
 
 v1.0 shipped. See `CHANGELOG.md` for the full version history and `docs/ROADMAP.md` for shipped versions and what's next.
 
-## What a backup contains — and what it doesn't
+## What a backup contains - and what it doesn't
 
 IdPVault backs up your IdP's **configuration** via its API: applications, providers, flows,
 stages, policies, groups, property mappings, and the rest of the objects listed per provider.
@@ -145,7 +147,7 @@ Snapshots are encrypted, versioned, and diffable, and support selective config r
 
 1. **Secrets are redacted by the IdP, not by us.** Identity providers deliberately never return
    OAuth2 client secrets, certificate private keys, SMTP passwords, or signing keys through
-   their export/read APIs. A restored object may therefore come back with its secret missing —
+   their export/read APIs. A restored object may therefore come back with its secret missing -
    you will need to re-enter or rotate those secrets after a restore. This is true of every
    backup product in this space, for Okta and Auth0 as much as Authentik.
 
@@ -153,7 +155,7 @@ Snapshots are encrypted, versioned, and diffable, and support selective config r
    bare-metal recovery additionally needs, backed up by your own infrastructure tooling:
    - a `pg_dump` of the Authentik Postgres database (the actual source of truth),
    - its bind mounts (`/data`, `/certs`, `/custom-templates`, `/media`),
-   - the compose file / environment, especially `AUTHENTIK_SECRET_KEY` — without the same
+   - the compose file / environment, especially `AUTHENTIK_SECRET_KEY` - without the same
      secret key, a restored database cannot decrypt the secrets it holds.
 
    A planned "full DR" mode (see `docs/ROADMAP.md`) will optionally capture an encrypted
@@ -174,16 +176,18 @@ The app itself is open-core:
 
 - **Community (free, no key needed):** 1 tenant, full config backup, drift
   detection & events, alerts, and config restore.
-- **Business:** 4 tenants, unlimited users, and Users & Access backup & restore
-  (users, group memberships, app assignments).
-- **MSP** (upcoming): tenant add-ons whenever you need them, client orgs, and
-  org-scoped users. Flat published pricing at https://idpvault.com.
+- **Business:** 2 tenants (with tenant add-ons available), unlimited users, and
+  Users & Access backup & restore (users, group memberships, app assignments).
+- **MSP:** everything in Business plus client orgs, org-scoped users, and renewal
+  tracking. Tenant add-ons whenever you need them.
+
+Flat, published pricing at https://idpvault.com.
 
 License keys are Ed25519-signed tokens verified **entirely offline** against a
-public key embedded in the app — IdPVault never phones home and sends no
+public key embedded in the app - IdPVault never phones home and sends no
 telemetry. Install/manage keys in **Settings → License**. If a license expires
 (after a 3-day grace window) or is removed, nothing is deleted: your oldest
 tenant stays fully operational, other tenants keep all their data and snapshots
-but pause backup/restore, and identity features pause — everything resumes as
+but pause backup/restore, and identity features pause - everything resumes as
 soon as a valid key is installed. Renewal keys can be installed early; their
 term extends from the previous expiry.
