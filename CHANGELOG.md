@@ -14,7 +14,11 @@ All notable changes to IdPVault are documented here. Format loosely follows
   installs automatically.
 - Community tier: the tenant form no longer offers Users & Access backup when
   the installed license lacks it. The control is disabled with a short note
-  instead of failing at save time with an error.
+  instead of failing at save time with an error. (Applies on every path into
+  the form, including the first "+ Add tenant" open.)
+- The UI shell (HTML) is served with Cache-Control: no-cache, so browsers pick
+  up a new version immediately after an image update instead of running stale
+  JS against a newer API.
 ### Added
 - `PUID` / `PGID` environment variables: run the app under your own user/group
   ids (defaults stay 10001/10001). Removes bind-mount ownership friction on

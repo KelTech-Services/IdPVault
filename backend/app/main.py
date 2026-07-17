@@ -98,4 +98,15 @@ app.include_router(routes_metrics.router)
 app.include_router(routes_settings.router, prefix="/api/v1")
 app.include_router(routes_license.router, prefix="/api/v1")
 app.include_router(routes_orgs.router, prefix="/api/v1")
-app.mount("/", StaticFiles(directory="frontend", html=True), name="ui")
+class UIStaticFiles(StaticFiles):
+    """Serve HTML with no-cache so browsers revalidate on every load (304s still
+    apply via ETag). A stale cached index.html against a newer API once made a
+    just-shipped UI fix invisible - never let the shell be cached."""
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if str(response.headers.get("content-type", "")).startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", UIStaticFiles(directory="frontend", html=True), name="ui")

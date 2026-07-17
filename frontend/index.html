@@ -742,7 +742,7 @@ async function health(){
 }
 
 /* ---------- tenants ---------- */
-function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); }
+function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); else onProviderChange(); }
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
 const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Settings &gt; License';
 const MSP_TIP = 'Contact your MSP administrator to take this action';
