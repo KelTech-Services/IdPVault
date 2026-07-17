@@ -50,7 +50,7 @@ def _html_body(subject: str, body: str) -> str:
     <tr><td style="padding:26px 30px 6px;"><img src="cid:idpvaultlogo" alt="IdPVault" height="34" style="height:34px;"></td></tr>
     <tr><td style="padding:6px 30px 2px;"><div style="font-size:18px;font-weight:650;color:#141c28;">{_html.escape(subject)}</div></td></tr>
     <tr><td style="padding:10px 30px 26px;color:#3b4757;font-size:14px;line-height:1.65;">{safe}</td></tr>
-    <tr><td style="padding:16px 30px;background:#f6f8fb;border-top:1px solid #eceff4;color:#93a0b1;font-size:12px;">IdPVault — self-hosted identity backup &amp; restore</td></tr>
+    <tr><td style="padding:16px 30px;background:#f6f8fb;border-top:1px solid #eceff4;color:#93a0b1;font-size:12px;">IdPVault - self-hosted identity backup &amp; restore</td></tr>
   </table>
   <div style="color:#aeb8c6;font-size:11px;padding-top:14px;">This is an automated message from IdPVault.</div>
 </td></tr></table></body></html>"""

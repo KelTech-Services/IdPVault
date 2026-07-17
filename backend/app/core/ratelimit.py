@@ -44,7 +44,7 @@ class AdaptiveRateLimiter:
             if self.remaining <= self.limit * self.reserve_pct:
                 wait = max(0.0, self.reset - time.time()) + 1.0
                 if wait > 0:
-                    log.info("okta rate reserve reached (%s/%s left) — pausing %.1fs",
+                    log.info("okta rate reserve reached (%s/%s left) - pausing %.1fs",
                              self.remaining, self.limit, wait)
                     time.sleep(min(wait, MAX_SINGLE_SLEEP))
                     self.remaining = None  # force re-read after the window rolls
@@ -60,7 +60,7 @@ class AdaptiveRateLimiter:
             if resp.status_code != 429:
                 return resp
             wait = max(1.0, (self.reset - time.time()) if self.reset else 2.0) + 1.0
-            log.warning("okta 429 — backing off %.1fs (retry %d/%d)",
+            log.warning("okta 429 - backing off %.1fs (retry %d/%d)",
                         wait, attempt + 1, self.max_retries)
             time.sleep(min(wait, MAX_SINGLE_SLEEP))
         return resp

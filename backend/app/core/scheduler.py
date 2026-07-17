@@ -73,7 +73,7 @@ def run_backup(tenant_id: int) -> dict:
     started = time.monotonic()
     from app.core import license as lic
     if not lic.is_tenant_entitled(tenant_id):
-        log.warning("backup skipped tenant=%s — over the license tenant limit", tenant_id)
+        log.warning("backup skipped tenant=%s - over the license tenant limit", tenant_id)
         return {"manifest": None, "drift": None, "skipped": "license"}
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)

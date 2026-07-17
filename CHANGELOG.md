@@ -3,6 +3,26 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.3] - 2026-07-17
+### Fixed
+- First-boot umask leak: generating the master key set a restrictive umask that
+  leaked into the app process, so every directory the app created before the
+  first container restart was unwritable by its own owner (0500) and first
+  backups failed with a permission error. The umask is now scoped to the key
+  write only, and the entrypoint self-heals any dirs or files left
+  owner-unwritable by earlier versions - updating the image fixes affected
+  installs automatically.
+- Community tier: the tenant form no longer offers Users & Access backup when
+  the installed license lacks it. The control is disabled with a short note
+  instead of failing at save time with an error.
+### Added
+- `PUID` / `PGID` environment variables: run the app under your own user/group
+  ids (defaults stay 10001/10001). Removes bind-mount ownership friction on
+  NAS setups and matches the common self-hosted convention.
+### Changed
+- Alert titles, API error messages, and email text use "-" instead of an
+  em-dash, matching the project style rule for user-facing text.
+
 ## [1.1.2] - 2026-07-13
 ### Changed
 - Dates are US-format (MM/DD/YYYY) everywhere users see them: org renewal

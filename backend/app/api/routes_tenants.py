@@ -36,13 +36,13 @@ def create_tenant(body: TenantIn) -> dict:
     if not _SLUG_RE.fullmatch(body.slug or ""):
         raise HTTPException(422, "slug must be 1-64 letters, numbers, hyphens, or underscores")
     if body.identity_enabled and not lic.has_feature("identity"):
-        raise HTTPException(402, "identity backup requires a paid license — "
-                                 "add one in Settings → License")
+        raise HTTPException(402, "identity backup requires a paid license - "
+                                 "add one in Settings -> License")
     data_key = crypto.new_data_key()
     with SessionLocal() as db:
         if not lic.can_add_tenant(db.query(Tenant).count()):
-            raise HTTPException(402, "tenant limit reached for your license tier — "
-                                     "upgrade in Settings → License to add more tenants")
+            raise HTTPException(402, "tenant limit reached for your license tier - "
+                                     "upgrade in Settings -> License to add more tenants")
         t = Tenant(
             name=body.name, slug=body.slug, provider=body.provider,
             base_url=body.base_url,
@@ -124,8 +124,8 @@ def update_tenant(tenant_id: int, body: TenantUpdate, request: Request) -> dict:
     from app.core.scheduler import scheduler, run_backup
     from app.core.security import require_tenant_write
     if body.identity_enabled and not lic.has_feature("identity"):
-        raise HTTPException(402, "identity backup requires a paid license — "
-                                 "add one in Settings → License")
+        raise HTTPException(402, "identity backup requires a paid license - "
+                                 "add one in Settings -> License")
 
     fields = body.model_dump(exclude_unset=True)
     with SessionLocal() as db:

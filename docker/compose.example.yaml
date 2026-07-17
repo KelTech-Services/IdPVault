@@ -24,6 +24,10 @@ services:
       IDPVAULT_DATA_DIR: /data
       IDPVAULT_MASTER_KEY_FILE: /secrets/master.key
       IDPVAULT_LOG_LEVEL: INFO
+      # Run as your own user/group ids instead of the default 10001 - handy when
+      # bind mounts are owned by your NAS user:
+      # PUID: "1026"
+      # PGID: "100"
       # Backups run one at a time by default (safe for modest hosts).
       # IDPVAULT_BACKUP_WORKERS: "4"
       # First run shows a browser setup wizard to create the admin - no creds needed here.

@@ -21,7 +21,7 @@ def _require_entitled(*tenant_ids) -> None:
     from app.core import license as lic
     for tid in tenant_ids:
         if tid is not None and not lic.is_tenant_entitled(tid):
-            raise HTTPException(402, "this tenant is over your license's tenant limit — "
+            raise HTTPException(402, "this tenant is over your license's tenant limit - "
                                      "restore is paused for it until a license is added "
                                      "in Settings → License")
 

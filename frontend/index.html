@@ -246,7 +246,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
         <div><label>Backup schedule</label><div id="sched_fs"></div></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
         <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only)</label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
-        <div id="fd_ident"><label title="Backs up users, group memberships, and app assignments">Users &amp; Access backup</label><select id="f_ident" title="Backs up users, group memberships, and app assignments"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+        <div id="fd_ident"><label title="Backs up users, group memberships, and app assignments">Users &amp; Access backup</label><select id="f_ident" title="Backs up users, group memberships, and app assignments"><option value="false">Disabled</option><option value="true">Enabled</option></select><div id="f_ident_note" class="hidden" style="font-size:12px;opacity:.7;margin-top:4px">Requires a Business or MSP license (Settings -&gt; License)</div></div>
         <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
         <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
@@ -800,7 +800,7 @@ function editTenant(id){
   schedSet('fs', t.schedule_cron || null);
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
-  document.getElementById('f_ident').value = t.identity_enabled ? 'true' : 'false';
+  document.getElementById('f_ident').value = (t.identity_enabled && !document.getElementById('f_ident').disabled) ? 'true' : 'false';
   schedSet('fi', t.identity_schedule_cron || null);
   document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
   document.getElementById('f_dburl').placeholder = t.db_dr ? 'full-DR configured - blank keeps it, a space clears it' : 'postgresql://… - optional, self-hosted only';
@@ -815,7 +815,15 @@ function onProviderChange(){
   const isAuth0 = p==='auth0', hasIdentity = true;  // all providers support Users & Access now
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
   show('fd_dburl', p==='authentik');
-  show('fd_ident', hasIdentity); show('fd_identcron', hasIdentity); show('fd_identkeep', hasIdentity);
+  show('fd_ident', hasIdentity); 
+  // License gate: Community has no 'identity' feature - lock the control instead
+  // of letting the save fail with a 402.
+  const licIdent = ((me && me.features) || []).includes('identity');
+  const identSel = document.getElementById('f_ident');
+  identSel.disabled = !licIdent;
+  if(!licIdent) identSel.value = 'false';
+  document.getElementById('f_ident_note').classList.toggle('hidden', licIdent);
+  show('fd_identcron', hasIdentity && licIdent); show('fd_identkeep', hasIdentity && licIdent);
   document.getElementById('f_url').placeholder = isAuth0 ? 'https://acme.us.auth0.com' : p==='okta' ? 'https://acme.okta.com' : 'https://auth.acme.com';
   if(!editingId){
     document.getElementById('f_token').placeholder = p==='okta' ? 'paste SSWS API token - encrypted at rest' : 'paste token - encrypted at rest';

@@ -79,7 +79,7 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
 
         if u and u.locked_until and u.locked_until > now:
             mins = int((u.locked_until - now).total_seconds()) // 60 + 1
-            raise HTTPException(429, f"account temporarily locked — try again in {mins} min")
+            raise HTTPException(429, f"account temporarily locked - try again in {mins} min")
 
         def _register_fail():
             if u is None:
@@ -259,7 +259,7 @@ def mfa_enable(body: MfaCode, request: Request) -> dict:
             raise HTTPException(422, "run MFA setup first")
         secret = crypto.decrypt(bytes.fromhex(u.mfa_secret_enc), crypto._master_key()).decode()
         if not totp.verify(secret, body.code):
-            raise HTTPException(401, "code did not verify — try again")
+            raise HTTPException(401, "code did not verify - try again")
         u.mfa_enabled = True
         db.add(AuditLog(actor=u.username, action="auth.mfa_enabled", detail={}))
         db.commit()

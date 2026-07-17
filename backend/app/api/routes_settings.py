@@ -127,7 +127,7 @@ def test_email(body: TestMailIn) -> dict:
     from app.core.mailer import send_mail
     try:
         send_mail(body.to, "IdPVault test email",
-                  "SMTP is configured correctly — this is a test message from IdPVault.")
+                  "SMTP is configured correctly - this is a test message from IdPVault.")
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning("test email failed: %s", e)

@@ -15,7 +15,7 @@ def trigger_backup(tenant_id: int, request: Request) -> dict:
     with SessionLocal() as db:
         require_tenant_write(request, db, tenant_id)
     if not lic.is_tenant_entitled(tenant_id):
-        raise HTTPException(402, "this tenant is over your license's tenant limit — "
+        raise HTTPException(402, "this tenant is over your license's tenant limit - "
                                  "backups are paused for it until a license is added "
                                  "in Settings → License")
     result = run_backup(tenant_id)

@@ -16,7 +16,7 @@ def run_identity_backup(tenant_id: int) -> dict:
     from app.providers import get_adapter
 
     if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
-        log.warning("identity backup skipped tenant=%s — requires a paid license", tenant_id)
+        log.warning("identity backup skipped tenant=%s - requires a paid license", tenant_id)
         return {"skipped": "license"}
 
     started = time.monotonic()
@@ -179,7 +179,7 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
         created = report["users"]["created"]
         manual = []
         if created:
-            manual.append(f"{created} user(s) recreated — send PASSWORD RESET / activation "
+            manual.append(f"{created} user(s) recreated - send PASSWORD RESET / activation "
                           f"(credentials are not restorable via API).")
             manual.append(f"{created} recreated user(s) must RE-ENROLL MFA.")
 
@@ -218,7 +218,7 @@ def estimate_next(tenant_id: int) -> dict:
             secs = None
         rec = "Daily is fine."
         if secs is not None and secs > 900:
-            rec = ("Backup exceeds ~15 min — schedule off-hours, consider a Workforce "
+            rec = ("Backup exceeds ~15 min - schedule off-hours, consider a Workforce "
                    "rate-limit multiplier or support increase, and confirm daily is needed.")
         return {"basis": basis, "last_duration_s": secs, "last_api_calls": calls,
                 "recommendation": rec}

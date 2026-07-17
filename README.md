@@ -47,6 +47,9 @@ anything.
 
 Named volumes are the default; to use host bind mounts instead, swap the
 volume names for host paths in the stack - the app handles ownership itself.
+The app runs as uid 10001 by default; set `PUID` and `PGID` in the stack
+environment to run under your own user/group ids instead (the usual NAS
+convention) - ownership fixes follow whichever ids you choose.
 Setting `POSTGRES_PASSWORD` in the stack environment is recommended (the DB is
 only reachable inside the stack's private network).
 
@@ -158,8 +161,9 @@ Snapshots are encrypted, versioned, and diffable, and support selective config r
    - the compose file / environment, especially `AUTHENTIK_SECRET_KEY` - without the same
      secret key, a restored database cannot decrypt the secrets it holds.
 
-   A planned "full DR" mode (see `docs/ROADMAP.md`) will optionally capture an encrypted
-   `pg_dump` alongside config snapshots for self-hosted tenants.
+   IdPVault's Full-DR mode covers the first of these: give a self-hosted Authentik
+   tenant its Postgres URL and an encrypted `pg_dump` is captured alongside config
+   snapshots on every backup.
 
 Use IdPVault for what it is: configuration versioning, drift detection, and config-level
 restore. Pair it with host-level backups of your self-hosted IdP for full disaster recovery.

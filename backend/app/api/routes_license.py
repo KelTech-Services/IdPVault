@@ -31,7 +31,7 @@ class LicenseIn(BaseModel):
 def install_license(body: LicenseIn, request: Request) -> dict:
     data = lic.verify(body.token)
     if not data:
-        raise HTTPException(422, "license key is invalid or expired — check that it "
+        raise HTTPException(422, "license key is invalid or expired - check that it "
                                  "was pasted completely")
     with SessionLocal() as db:
         row = db.get(Setting, "license")

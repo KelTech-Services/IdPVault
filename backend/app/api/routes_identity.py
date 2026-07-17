@@ -27,7 +27,7 @@ def _require_identity_license(tenant_id: int) -> None:
     stay viewable regardless."""
     from app.core import license as lic
     if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
-        raise HTTPException(402, "identity backup & restore requires a paid license — "
+        raise HTTPException(402, "identity backup & restore requires a paid license - "
                                  "add one in Settings → License")
 
 

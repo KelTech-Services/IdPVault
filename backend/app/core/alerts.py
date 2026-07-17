@@ -126,22 +126,22 @@ def alert_backup_completed(tenant_name: str, snapshot_ts: str, total_objects: in
         except Exception:
             enabled = [k for k, v in ALERT_EVENTS.items() if v["default"]]
         category = "drift_detected" if "drift_detected" in enabled else "backup_success"
-        send_alert(category, f"Backup complete — changes detected — {tenant_name}",
+        send_alert(category, f"Backup complete - changes detected - {tenant_name}",
                    body, fields)
     else:
-        send_alert("backup_success", f"Backup complete — {tenant_name}",
+        send_alert("backup_success", f"Backup complete - {tenant_name}",
                    "A backup completed successfully. No changes since the previous snapshot.",
                    fields)
 
 
 def alert_failure(tenant_name: str, error: str) -> None:
-    send_alert("backup_failed", f"Backup FAILED — {tenant_name}",
+    send_alert("backup_failed", f"Backup FAILED - {tenant_name}",
                "A backup did not complete. Check tenant credentials and IdP availability.",
                {"Tenant": tenant_name, "Error": error[:400]})
 
 
 def alert_restore(tenant_name: str, kind: str, summary: dict) -> None:
-    send_alert("restore_applied", f"Restore applied — {tenant_name}",
+    send_alert("restore_applied", f"Restore applied - {tenant_name}",
                f"A {kind} restore was applied to the live tenant.",
                {"Tenant": tenant_name, "Type": kind, "Summary": str(summary)[:400]})
 
@@ -164,7 +164,7 @@ def test_webhook() -> dict:
 
 
 def alert_stale(tenant_name: str, hours: float) -> None:
-    send_alert("backup_stale", f"Backup OVERDUE — {tenant_name}",
+    send_alert("backup_stale", f"Backup OVERDUE - {tenant_name}",
                "This tenant has a schedule but no recent successful backup. The scheduler "
                "or the tenant connection may be failing silently.",
                {"Tenant": tenant_name, "Last success": f"{hours:.0f}h ago"})
