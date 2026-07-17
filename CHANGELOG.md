@@ -5,6 +5,13 @@ All notable changes to IdPVault are documented here. Format loosely follows
 
 ## [1.1.3] - 2026-07-17
 ### Fixed
+- Master key read no longer strips an exact 32-byte key. Key material is
+  random bytes, so about 1 in 22 fresh installs generated a key starting or
+  ending with a whitespace byte that the reader then stripped, and the app
+  rejected its own key ("must be exactly 32 bytes") on every encrypt. Keys in
+  files longer than 32 bytes (hand-made, trailing newline) are still trimmed.
+  Existing working installs are unaffected: a key that read correctly before
+  reads identically now.
 - First-boot umask leak: generating the master key set a restrictive umask that
   leaked into the app process, so every directory the app created before the
   first container restart was unwritable by its own owner (0500) and first

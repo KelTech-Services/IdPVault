@@ -16,7 +16,12 @@ _NONCE = 12
 def _master_key() -> bytes:
     path = get_settings().master_key_file
     with open(path, "rb") as f:
-        key = f.read().strip()
+        raw = f.read()
+    # An exact 32-byte file IS the key - never strip it. Random key material can
+    # legitimately start or end with whitespace bytes, and stripping those once
+    # bricked ~1 in 22 fresh installs. strip() only applies to longer files
+    # (hand-made keys with a trailing newline).
+    key = raw if len(raw) == 32 else raw.strip()
     if len(key) != 32:
         raise RuntimeError(f"master key at {path} must be exactly 32 bytes")
     return key
