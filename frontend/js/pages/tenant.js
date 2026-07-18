@@ -31,7 +31,7 @@ async function renderTenantOverview(t){
   cards.innerHTML = `
     <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
     <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
-    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtSnap(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
+    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtSnapDay(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
     `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''}</p>` +

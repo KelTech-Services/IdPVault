@@ -224,6 +224,17 @@ function hour12Pref(){ const tf=(me&&me.time_format)||'auto'; return tf==='12'?t
 function fmtLocal(iso){ const o=hour12Pref(); return new Date(iso).toLocaleString([], o===undefined?{}:{hour12:o}); }
 function snapDate(ts){ const m = String(ts).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/); return m ? new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6])) : null; }
 function fmtSnap(ts){ const d = snapDate(ts); return d ? fmtLocal(d.toISOString()) : String(ts); }
+function fmtSnapDay(ts){
+  // "Today, 4:56 PM" / "Yesterday, 4:56 PM" / full local date beyond that
+  const d = snapDate(ts); if(!d) return String(ts);
+  const now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  const o = hour12Pref();
+  const time = d.toLocaleTimeString([], o === undefined ? {} : {hour12: o});
+  if(days === 0) return 'Today, ' + time;
+  if(days === 1) return 'Yesterday, ' + time;
+  return fmtLocal(d.toISOString());
+}
 function cronLabel(cron){
   if(!cron) return 'not scheduled';
   let m;
