@@ -221,6 +221,7 @@ async function clearLicense(){
 const DOC_TOPICS = [
   {key:'getting-started', title:'Getting started'},
   {key:'backups',         title:'Backups & snapshots'},
+  {key:'explorer',        title:'Snapshot Explorer'},
   {key:'drift-events',    title:'Drift & events'},
   {key:'restore',         title:'Config restore'},
   {key:'identity',        title:'Users & Access backup'},

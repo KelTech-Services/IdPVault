@@ -3,6 +3,28 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.6] - 2026-07-18
+### Added
+- Snapshot Explorer (tenant sidebar): open any snapshot and browse it by
+  category, with a status badge on every object vs the latest backup
+  (unchanged / modified / deleted in latest / new in latest), side-by-side
+  object detail with the changed fields called out, and a one-click object
+  Restore that opens the dry-run preview with just that object selected.
+- Backups page: the snapshot table now shows objects captured, snapshot size,
+  Full-DR dump size, and a changes-vs-previous summary per snapshot (computed
+  once and cached). Both backup tables support multi-select with select-all.
+- Backup deletion: admins can bulk-delete config and Users & Access snapshots.
+  Deletion asks for your password (re-auth), and both deletions and denied
+  attempts are recorded in the audit log.
+### Changed
+- "Diff selected" is now "Compare", and results render as a readable table
+  (change, category, object, changed fields) with per-object JSON on demand
+  instead of a raw JSON dump.
+- Builds stamp asset URLs with the commit id, so browsers and CDNs can never
+  serve a stale script or stylesheet after an upgrade.
+- Leftover Close buttons removed from the Backups and Users & Access pages;
+  Delete buttons sit to the right of Compare / Back up now.
+
 ## [1.1.5] - 2026-07-18
 ### Security
 - The snapshot browse and object detail endpoints now enforce tenant scoping

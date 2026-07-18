@@ -147,3 +147,37 @@ def prune_identities(tenant_slug: str, keep: int) -> list[str]:
     for ts in doomed:
         shutil.rmtree(identity_dir(tenant_slug, ts), ignore_errors=True)
     return doomed
+
+
+def read_manifest(tenant_slug: str, ts: str) -> dict | None:
+    """Plaintext manifest for a snapshot, or None if missing/corrupt."""
+    try:
+        with open(os.path.join(snapshot_dir(tenant_slug, ts), "manifest.json")) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def read_changes_cache(tenant_slug: str, ts: str) -> dict | None:
+    try:
+        with open(os.path.join(snapshot_dir(tenant_slug, ts), "changes.json")) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def write_changes_cache(tenant_slug: str, ts: str, data: dict) -> None:
+    try:
+        with open(os.path.join(snapshot_dir(tenant_slug, ts), "changes.json"), "w") as f:
+            json.dump(data, f)
+    except OSError:
+        pass   # cache is best-effort; the diff recomputes next time
+
+
+def delete_snapshot(tenant_slug: str, ts: str) -> None:
+    """Remove a config snapshot dir (objects, manifest, dump, caches)."""
+    shutil.rmtree(snapshot_dir(tenant_slug, ts), ignore_errors=True)
+
+
+def delete_identity_snapshot(tenant_slug: str, ts: str) -> None:
+    shutil.rmtree(identity_dir(tenant_slug, ts), ignore_errors=True)

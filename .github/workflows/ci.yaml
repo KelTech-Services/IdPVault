@@ -31,6 +31,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+      - name: Stamp asset URLs with the build commit (cache busting)
+        run: sed -i "s/?v=[0-9A-Za-z._-]*/?v=${GITHUB_SHA::7}/g" frontend/index.html
       # Multi-arch: amd64 (Intel/AMD servers, most NAS boxes) + arm64
       # (Apple Silicon via Docker Desktop, Raspberry Pi, ARM servers).
       # One manifest tag; docker pulls the right arch automatically.
@@ -67,6 +69,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+      - name: Stamp asset URLs with the build commit (cache busting)
+        run: sed -i "s/?v=[0-9A-Za-z._-]*/?v=${GITHUB_SHA::7}/g" frontend/index.html
       # amd64 only: the dev stack runs on the NAS; skipping arm64/QEMU keeps dev builds fast.
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4

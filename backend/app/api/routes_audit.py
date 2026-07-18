@@ -68,3 +68,93 @@ def object_detail(request: Request, tenant_id: int, ts: str, resource_type: str,
         if obj_id(o) == object_id:
             return {"object": normalize(o)}
     raise HTTPException(404, "object not found")
+
+
+def _load_pair(tenant_id: int, ts: str, request: Request):
+    """Snapshot export + latest export (same object when ts IS latest)."""
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        slug, key = t.slug, crypto.unwrap_data_key(t.wrapped_data_key)
+    from app.core import storage as st
+    snaps = st.list_snapshots(slug)
+    if ts not in snaps:
+        raise HTTPException(404, "snapshot not found")
+    latest = snaps[-1]
+    export = st.read_snapshot(slug, ts, key)
+    cur = export if ts == latest else st.read_snapshot(slug, latest, key)
+    return export, cur, ts == latest
+
+
+@router.get("/tenants/{tenant_id}/snapshots/{ts}/explore")
+def explore(tenant_id: int, ts: str, request: Request,
+            resource_type: str | None = None, q: str | None = None,
+            limit: int = 500) -> dict:
+    """Explorer: category grid (no resource_type) or object list with a status
+    badge per object vs the LATEST snapshot (the offline 'current')."""
+    import json as _json
+    export, cur, is_latest = _load_pair(tenant_id, ts, request)
+    if not resource_type:
+        cats = [{"resource_type": rt,
+                 "count": len(export.get(rt, [])),
+                 "current_count": len(cur.get(rt, []))}
+                for rt in sorted(set(export) | set(cur))]
+        return {"is_latest": is_latest, "categories": cats}
+    if resource_type not in export and resource_type not in cur:
+        raise HTTPException(404, "resource type not in this snapshot")
+    ql = (q or "").lower()
+    cur_idx = {obj_id(o): o for o in cur.get(resource_type, [])}
+    rows, snap_ids = [], set()
+    for o in export.get(resource_type, []):
+        oid = obj_id(o)
+        snap_ids.add(oid)
+        if ql and ql not in obj_name(o).lower() and ql not in oid.lower():
+            continue
+        c = cur_idx.get(oid)
+        if c is None:
+            status = "deleted"
+        elif _json.dumps(normalize(o), sort_keys=True) != _json.dumps(normalize(c), sort_keys=True):
+            status = "modified"
+        else:
+            status = "unchanged"
+        rows.append({"object_id": oid, "object_name": obj_name(o), "status": status})
+    for oid, c in cur_idx.items():
+        if oid in snap_ids:
+            continue
+        if ql and ql not in obj_name(c).lower() and ql not in oid.lower():
+            continue
+        rows.append({"object_id": oid, "object_name": obj_name(c), "status": "new"})
+    return {"resource_type": resource_type, "is_latest": is_latest,
+            "total": len(rows), "objects": rows[:min(limit, 1000)]}
+
+
+@router.get("/tenants/{tenant_id}/snapshots/{ts}/explore/{resource_type}/{object_id}")
+def explore_object(tenant_id: int, ts: str, resource_type: str, object_id: str,
+                   request: Request) -> dict:
+    """Object detail: normalized config from the snapshot AND from the latest
+    snapshot, plus which fields differ."""
+    import json as _json
+    export, cur, is_latest = _load_pair(tenant_id, ts, request)
+    snap_obj = next((o for o in export.get(resource_type, []) if obj_id(o) == object_id), None)
+    cur_obj = next((o for o in cur.get(resource_type, []) if obj_id(o) == object_id), None)
+    if snap_obj is None and cur_obj is None:
+        raise HTTPException(404, "object not found")
+    ns = normalize(snap_obj) if snap_obj else None
+    nc = normalize(cur_obj) if cur_obj else None
+    if snap_obj is None:
+        status = "new"
+    elif cur_obj is None:
+        status = "deleted"
+    elif _json.dumps(ns, sort_keys=True) != _json.dumps(nc, sort_keys=True):
+        status = "modified"
+    else:
+        status = "unchanged"
+    changed = []
+    if ns is not None and nc is not None:
+        for k in sorted(set(ns) | set(nc)):
+            if _json.dumps(ns.get(k), sort_keys=True) != _json.dumps(nc.get(k), sort_keys=True):
+                changed.append(k)
+    return {"status": status, "is_latest": is_latest, "changed_fields": changed,
+            "object": ns, "current": nc}

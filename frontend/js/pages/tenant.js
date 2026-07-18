@@ -27,7 +27,7 @@ async function renderTenantOverview(t){
   const canW = me.role === 'admin' || me.role === 'org_admin';
   const inactive = t.active === false;
   let lastSnap = null, snapCount = null;
-  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1]; } catch {}
+  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1].ts; } catch {}
   cards.innerHTML = `
     <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
     <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
@@ -219,41 +219,144 @@ async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
   document.getElementById('snaptenant').textContent = slug;
   document.getElementById('snappanel').classList.remove('hidden');
-  document.getElementById('diffbtn').disabled = true;
   window._snapSlug = slug;
+  updateSnapButtons();
   const sb = document.getElementById('snapbody');
-  sb.innerHTML = skelRows(3);
+  sb.innerHTML = skelRows(7);
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
-    if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
+    if(!snaps.length){ sb.innerHTML = emptyRow(7, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
     const admin = me.role==='admin' || me.role==='org_admin';
-    sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
-      <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
-      <td onclick="selSnap(this.parentElement)">${fmtSnap(ts)}</td>
-      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
-  } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
+    sb.innerHTML = snaps.slice().reverse().map(s => `<tr class="snaprow" data-ts="${s.ts}">
+      <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
+      <td>${fmtSnap(s.ts)}</td>
+      <td>${s.objects || 0}</td>
+      <td class="muted">${fmtBytes(s.size || 0)}</td>
+      <td class="muted">${s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
+      <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
+      <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
+    fillSnapChanges(id);
+  } catch(e){ sb.innerHTML = `<tr><td colspan="7" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
-function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
-function selSnap(row){
-  const ts = row.dataset.ts, cb = row.querySelector('input');
-  if(selectedSnaps.includes(ts)){ selectedSnaps = selectedSnaps.filter(x=>x!==ts); cb.checked=false; row.classList.remove('sel'); }
-  else if(selectedSnaps.length < 2){ selectedSnaps.push(ts); cb.checked=true; row.classList.add('sel'); }
-  document.getElementById('diffbtn').disabled = selectedSnaps.length !== 2;
+async function fillSnapChanges(id){
+  for(const el of document.querySelectorAll('#snapbody .chgcell')){
+    if(snapTenantId !== id) return;   // navigated away mid-fill
+    try{
+      const c = await api(`/tenants/${id}/snapshots/${el.dataset.ts}/changes`);
+      el.innerHTML = c.first ? '<span class="muted">first snapshot</span>'
+        : (c.added || c.removed || c.changed)
+          ? `<span class="add">+${c.added}</span> <span class="rem">−${c.removed}</span> <span class="chg">~${c.changed}</span>`
+          : '<span class="muted">none</span>';
+    }catch{ el.innerHTML = '<span class="muted">-</span>'; }
+  }
 }
+function updateSnapButtons(){
+  const n = selectedSnaps.length;
+  const diffBtn = document.getElementById('diffbtn');
+  if(diffBtn){ diffBtn.disabled = n !== 2;
+    diffBtn.innerHTML = (n === 2 ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
+  const del = document.getElementById('delsnapsbtn');
+  if(del){ del.classList.toggle('hidden', me.role !== 'admin' || n === 0);
+    del.textContent = `Delete selected (${n})`; }
+  const all = document.getElementById('snapall');
+  if(all){ const rows = document.querySelectorAll('#snapbody .snaprow').length;
+    all.checked = rows > 0 && n === rows; }
+}
+function selAllSnaps(on){
+  selectedSnaps = [];
+  document.querySelectorAll('#snapbody .snaprow').forEach(r => {
+    const cb = r.querySelector('input'); cb.checked = on; r.classList.toggle('sel', on);
+    if(on) selectedSnaps.push(r.dataset.ts);
+  });
+  updateSnapButtons();
+}
+let _delCtx = null;
+function askDelete(msg, fn){
+  _delCtx = fn;
+  document.getElementById('cdm_msg').textContent = msg;
+  document.getElementById('cdm_pw').value = '';
+  document.getElementById('confirmdelmodal').classList.remove('hidden');
+  document.getElementById('cdm_pw').focus();
+}
+function closeConfirmDel(){ document.getElementById('confirmdelmodal').classList.add('hidden'); _delCtx = null; }
+function confirmDelGo(){
+  const pw = v('cdm_pw');
+  if(!pw) return toast('Enter your password to confirm the deletion', true);
+  const fn = _delCtx; closeConfirmDel();
+  if(fn) fn(pw);
+}
+function deleteSnapshots(){
+  const n = selectedSnaps.length; if(!n) return;
+  askDelete(`Permanently delete ${n} selected backup(s) for "${window._snapSlug}"? This removes the snapshot files, including any Full-DR database dumps. This cannot be undone.`, async pw => {
+    try{
+      const r = await api(`/tenants/${snapTenantId}/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedSnaps, password: pw})});
+      toast(`${r.deleted.length} backup(s) deleted.`);
+      showSnaps(snapTenantId, window._snapSlug);
+    }catch(e){ toast('Delete failed: ' + e.message, true); }
+  });
+}
+function selSnap(cb){
+  const row = cb.closest('tr'), ts = row.dataset.ts;
+  if(cb.checked){ if(!selectedSnaps.includes(ts)) selectedSnaps.push(ts); row.classList.add('sel'); }
+  else { selectedSnaps = selectedSnaps.filter(x=>x!==ts); row.classList.remove('sel'); }
+  updateSnapButtons();
+}
+function objLabel(o){ return (o && (o.name || o.slug || o.username || o.label || o.title || o.id || o.pk)) || '-'; }
+function changedFieldList(c){
+  const b = c.before || {}, a = c.after || {}, out = [];
+  new Set([...Object.keys(b), ...Object.keys(a)]).forEach(k => {
+    if(k.endsWith('_obj')) return;
+    if(JSON.stringify(b[k]) !== JSON.stringify(a[k])) out.push(k);
+  });
+  return out;
+}
+const DIFF_TAG = {added:'<span class="tag ok">added</span>', removed:'<span class="tag off">removed</span>', changed:'<span class="tag pending">changed</span>'};
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
   document.getElementById('difflabel').textContent = `${fmtSnap(a)} → ${fmtSnap(b)}`;
   document.getElementById('diffpanel').classList.remove('hidden');
-  document.getElementById('diffout').textContent = 'Computing…';
+  document.getElementById('difftablewrap').classList.remove('hidden');
+  document.getElementById('diffout').classList.add('hidden');
+  document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
+  const rows = document.getElementById('diffrows');
+  rows.innerHTML = skelRows(5);
   try {
     const d = await api(`/tenants/${snapTenantId}/diff?old=${a}&new=${b}`);
-    let add=0, rem=0, chg=0;
-    Object.values(d).forEach(x=>{ add+=x.added.length; rem+=x.removed.length; chg+=x.changed.length; });
-    document.getElementById('diffstat').innerHTML = Object.keys(d).length
+    window._diffData = d;
+    let add=0, rem=0, chg=0; const out=[];
+    const mk = (kind, rt, obj, fields, ref) => `<tr>
+      <td>${DIFF_TAG[kind]}</td><td>${esc(rt.replace(/_/g,' '))}</td>
+      <td>${esc(objLabel(obj))}</td>
+      <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length>8 ? ' …' : '') : '-'}</td>
+      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button></td></tr>`;
+    Object.keys(d).sort().forEach(rt => {
+      const x = d[rt];
+      x.added.forEach((o,i)=>{ add++; out.push(mk('added', rt, o, null, `a:${rt}:${i}`)); });
+      x.removed.forEach((o,i)=>{ rem++; out.push(mk('removed', rt, o, null, `r:${rt}:${i}`)); });
+      x.changed.forEach((c,i)=>{ chg++; out.push(mk('changed', rt, c.after || c.before, changedFieldList(c), `c:${rt}:${i}`)); });
+    });
+    document.getElementById('diffstat').innerHTML = out.length
       ? `<span class="add">+${add} added</span><span class="rem">−${rem} removed</span><span class="chg">~${chg} changed</span>`
-      : '<span class="muted">No differences - configs identical.</span>';
-    document.getElementById('diffout').textContent = Object.keys(d).length ? JSON.stringify(d, null, 2) : '';
-  } catch(e){ document.getElementById('diffout').textContent = 'Diff failed: '+e.message; }
+      : '<span class="muted">No differences - configurations are identical.</span>';
+    rows.innerHTML = out.join('');
+    if(!out.length) document.getElementById('difftablewrap').classList.add('hidden');
+  } catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
+}
+function diffView(ref){
+  const pre0 = document.getElementById('diffout');
+  if(window._diffOpenRef === ref && !pre0.classList.contains('hidden')){
+    pre0.classList.add('hidden'); window._diffOpenRef = null; return;   // second click collapses
+  }
+  window._diffOpenRef = ref;
+  const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
+  const kind = ref.slice(0, i1), rt = ref.slice(i1+1, i2), i = +ref.slice(i2+1);
+  const x = (window._diffData || {})[rt]; if(!x) return;
+  const payload = kind === 'a' ? x.added[i] : kind === 'r' ? x.removed[i]
+    : {before: x.changed[i].before, after: x.changed[i].after};
+  const pre = document.getElementById('diffout');
+  pre.textContent = JSON.stringify(payload, null, 2);
+  pre.classList.remove('hidden');
+  pre.scrollIntoView({behavior:'smooth'});
 }
 
 async function fillTenantOrg(val){
@@ -321,6 +424,14 @@ async function restorePreview(){
     const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
+    if(_restorePreselect){
+      // Explorer one-click restore: preselect exactly the requested object
+      document.querySelectorAll('#r_items .r-sel').forEach(b => {
+        const it = _restoreItems[+b.dataset.i];
+        b.checked = !!it && it.resource_type === _restorePreselect.rt && String(it.object_id) === _restorePreselect.oid;
+      });
+      _restorePreselect = null;
+    }
     updateRestoreCount();
   } catch(e){ document.getElementById('r_summary').textContent = 'Preview failed: '+e.message; }
 }
@@ -382,6 +493,8 @@ async function viewObject(oid){
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects/${encodeURIComponent(_browse.type)}/${encodeURIComponent(oid)}`);
     document.getElementById('difflabel').textContent = `${_browse.type} / ${oid}`;
     document.getElementById('diffstat').innerHTML = '';
+    document.getElementById('difftablewrap').classList.add('hidden');
+    document.getElementById('diffout').classList.remove('hidden');
     document.getElementById('diffout').textContent = JSON.stringify(d.object, null, 2);
     document.getElementById('diffpanel').classList.remove('hidden');
     document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
@@ -411,22 +524,54 @@ async function loadIdentityEstimate(){
       : `No measured run yet. ${esc(e.recommendation)}`;
   }catch(e){ document.getElementById('id_estimate').textContent=''; }
 }
+let selectedIdSnaps = [];
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
-  tb.innerHTML = skelRows(7);
+  selectedIdSnaps = []; updateIdSnapButtons();
+  tb.innerHTML = skelRows(8);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
+    if(!s.length){ tb.innerHTML=emptyRow(8, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
+      const box = `<td><input type="checkbox" class="idsel" data-ts="${r.ts}" tabindex="-1" onchange="selIdSnap(this)"></td>`;
       const asg = _idCtx.provider === 'authentik'
         ? (c.app_policy_bindings != null ? c.app_policy_bindings : '-')
         : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
-        ? `<tr><td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr><td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
+        ? `<tr>${box}<td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
+        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
-  }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
+  }catch(e){ tb.innerHTML=`<tr><td colspan="8" class="muted">${esc(e.message)}</td></tr>`; }
+}
+function selIdSnap(cb){
+  const ts = cb.dataset.ts;
+  if(cb.checked){ if(!selectedIdSnaps.includes(ts)) selectedIdSnaps.push(ts); }
+  else selectedIdSnaps = selectedIdSnaps.filter(x=>x!==ts);
+  updateIdSnapButtons();
+}
+function selAllIdSnaps(on){
+  selectedIdSnaps = [];
+  document.querySelectorAll('#id_snaps .idsel').forEach(cb => { cb.checked = on; if(on) selectedIdSnaps.push(cb.dataset.ts); });
+  updateIdSnapButtons();
+}
+function updateIdSnapButtons(){
+  const d = document.getElementById('delidsnapsbtn');
+  if(d){ d.classList.toggle('hidden', me.role !== 'admin' || selectedIdSnaps.length === 0);
+    d.textContent = `Delete selected (${selectedIdSnaps.length})`; }
+  const all = document.getElementById('idsnapall');
+  if(all){ const rows = document.querySelectorAll('#id_snaps .idsel').length;
+    all.checked = rows > 0 && selectedIdSnaps.length === rows; }
+}
+function deleteIdentitySnapshots(){
+  const n = selectedIdSnaps.length; if(!n) return;
+  askDelete(`Permanently delete ${n} selected Users & Access backup(s) for "${_idCtx.slug}"? This cannot be undone.`, async pw => {
+    try{
+      const r = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedIdSnaps, password: pw})});
+      toast(`${r.deleted.length} Users & Access backup(s) deleted.`);
+      loadIdentitySnaps();
+    }catch(e){ toast('Delete failed: ' + e.message, true); }
+  });
 }
 async function identityBackupNow(){
   document.getElementById('id_estimate').textContent = 'Backing up users & access… (throttled to respect Okta API limits - may take a while on large orgs)';
@@ -535,3 +680,96 @@ async function identityApply(){
   document.getElementById('ir_applybtn').disabled = false;
 }
 
+
+
+/* ---------- explorer (v1.2 Phase 2) ---------- */
+let _ex = null;
+let _restorePreselect = null;
+async function openExplorer(t){
+  _ex = { tenantId: t.id, slug: t.slug, snap: null, cat: null, isLatest: true };
+  snapTenantId = t.id; window._snapSlug = t.slug;
+  document.getElementById('ex_objpanel').classList.add('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  const sel = document.getElementById('ex_snap');
+  sel.innerHTML = '';
+  document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  try{
+    const snaps = await api(`/tenants/${t.id}/snapshots`);
+    if(!snaps.length){ document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="lbl2">No snapshots yet</div><div class="sub">Run a backup, then explore it here.</div></div>'; return; }
+    const rev = snaps.slice().reverse();
+    sel.innerHTML = rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest - ':''}${fmtSnap(s.ts)}</option>`).join('');
+    _ex.snap = rev[0].ts;
+    exLoadCats();
+  }catch(e){ document.getElementById('ex_cats').innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+}
+async function exLoadCats(){
+  const sel = document.getElementById('ex_snap');
+  if(sel.value) _ex.snap = sel.value;
+  document.getElementById('ex_objpanel').classList.add('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  const grid = document.getElementById('ex_cats');
+  grid.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore`);
+    _ex.isLatest = d.is_latest;
+    grid.innerHTML = d.categories.map(c=>{
+      const delta = c.current_count - c.count;
+      const badge = _ex.isLatest || delta === 0 ? ''
+        : ` <span style="font-size:.75rem;color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+'+delta:delta} in latest</span>`;
+      return `<div class="card" style="cursor:pointer" onclick="exOpenCat('${esc(c.resource_type)}')">
+        <div class="lbl2">${esc(c.resource_type.replace(/_/g,' '))}</div>
+        <div class="big">${c.count}${badge}</div>
+        <div class="sub">${_ex.isLatest ? 'objects in the latest backup' : c.current_count + ' in the latest backup'}</div></div>`;
+    }).join('');
+  }catch(e){ grid.innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+}
+function exOpenCat(rt){
+  _ex.cat = rt;
+  document.getElementById('ex_cat_label').textContent = rt.replace(/_/g,' ');
+  document.getElementById('ex_search').value = '';
+  document.getElementById('ex_objpanel').classList.remove('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  exLoadObjects();
+  document.getElementById('ex_objpanel').scrollIntoView({behavior:'smooth'});
+}
+const EX_STATUS = {
+  unchanged: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">unchanged</span>',
+  modified: '<span class="tag pending">modified</span>',
+  deleted: '<span class="tag off">deleted in latest</span>',
+  new: '<span class="tag ok">new in latest</span>',
+};
+async function exLoadObjects(){
+  if(!_ex || !_ex.cat) return;
+  const q = v('ex_search');
+  const tb = document.getElementById('ex_objects');
+  tb.innerHTML = skelRows(4);
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore?resource_type=${encodeURIComponent(_ex.cat)}${q?'&q='+encodeURIComponent(q):''}`);
+    if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
+    const canW = me.role === 'admin' || me.role === 'org_admin';
+    const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
+    tb.innerHTML = d.objects.map(o=>`<tr>
+      <td>${esc(o.object_name||'-')}</td><td class="muted" style="font-size:.78rem">${esc(o.object_id)}</td>
+      <td>${_ex.isLatest ? '<span class="muted">-</span>' : (EX_STATUS[o.status]||esc(o.status))}</td>
+      <td style="white-space:nowrap"><button onclick="exViewObject('${esc(o.object_id)}')">View</button>
+      ${canW && !inactive && o.status !== 'new' ? ` <button onclick="exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this snapshot (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
+  }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function exViewObject(oid){
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore/${encodeURIComponent(_ex.cat)}/${encodeURIComponent(oid)}`);
+    document.getElementById('ex_obj_label').textContent = `${_ex.cat.replace(/_/g,' ')} / ${oid}`;
+    document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(not in this snapshot)';
+    document.getElementById('ex_curjson').textContent = d.current ? JSON.stringify(d.current, null, 2) : '(deleted - not in the latest backup)';
+    document.getElementById('ex_diffinfo').innerHTML = d.status === 'modified' && d.changed_fields.length
+      ? `Changed fields: <b>${d.changed_fields.map(esc).join(', ')}</b>`
+      : (_ex.isLatest ? '' : (EX_STATUS[d.status] || ''));
+    document.getElementById('ex_detailpanel').classList.remove('hidden');
+    document.getElementById('ex_detailpanel').scrollIntoView({behavior:'smooth'});
+  }catch(e){ toast(e.message, true); }
+}
+function exRestoreObject(oid){
+  _restorePreselect = { rt: _ex.cat, oid: String(oid) };
+  openRestore(_ex.snap);
+  restorePreview();
+}

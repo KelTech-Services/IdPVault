@@ -1,0 +1,16 @@
+<!-- SYNC NOTE: this page mirrors the GitHub wiki page "Snapshot Explorer".
+     Editing one REQUIRES updating the other. -->
+<h3>Snapshot Explorer</h3>
+<p>The Explorer (tenant sidebar) lets you open any config snapshot and browse everything in it by category: applications, flows, policies, groups, bindings, and whatever else your provider exports. Pick a snapshot at the top - the newest one is selected by default.</p>
+<h3>Status badges</h3>
+<p>When you open an older snapshot, every object carries a badge comparing it to the <b>latest backup</b>:</p>
+<ul>
+<li><b>unchanged</b> - identical in the latest backup.</li>
+<li><b>modified</b> - exists in the latest backup with different configuration; the object detail lists exactly which fields changed and shows both versions side by side.</li>
+<li><b>deleted in latest</b> - present in this snapshot but gone from the latest backup. This is the one to look for after an accidental deletion.</li>
+<li><b>new in latest</b> - did not exist yet when this snapshot was taken.</li>
+</ul>
+<p>Badges compare snapshots, so they work offline and instantly. Category tiles show a +N / -N delta against the latest backup for the same reason.</p>
+<h3>One-click object restore</h3>
+<p>Every object row has a <b>Restore…</b> button. It opens the restore dialog with a dry-run preview already running and only that object selected - one click to preview, one to apply, never a silent write. Dependencies and manual follow-ups (like credential regeneration) are flagged in the preview, exactly as in a full restore.</p>
+<p>Write actions follow your role: org viewers can browse everything but see no Restore buttons, and the server enforces the same rule regardless.</p>
