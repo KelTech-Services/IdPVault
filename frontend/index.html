@@ -335,6 +335,7 @@
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
       <div><label>Live view refresh interval (minutes, 0 = off)</label><input id="s_statemin" type="number" placeholder="15"></div>
+      <div><label>Live State users cache (minutes) <span class="tipi" title="How long the live user directory stays cached before opening Users fetches fresh data from the provider. Refresh Users from provider always bypasses this cache. Minimum 5.">ⓘ</span></label><input id="s_userscache" type="number" placeholder="60"></div>
       <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
       <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
     </div>

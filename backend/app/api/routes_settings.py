@@ -32,6 +32,7 @@ class SettingsIn(BaseModel):
     login_max_attempts: int | None = None    # failed logins before lockout (default 5)
     login_lockout_minutes: int | None = None  # lockout duration (default 15)
     state_poll_minutes: int | None = None  # live-view refresh cadence (default 15; 0 disables)
+    state_users_cache_minutes: int | None = None  # Live State users cache TTL (default 60, min 5)
     stale_backup_hours: int | None = None     # alert if scheduled backup older than this (default 26)
     public_url: str | None = None             # canonical public URL (links, https, host enforcement)
     enforce_host: bool | None = None          # reject requests whose Host != public_url host
@@ -80,7 +81,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_identity_schedule_cron", "default_retention_keep", "org_timezone", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "state_poll_minutes", "stale_backup_hours", "public_url", "enforce_host"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "default_schedule_cron", "default_identity_schedule_cron", "default_retention_keep", "org_timezone", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "state_poll_minutes", "state_users_cache_minutes", "stale_backup_hours", "public_url", "enforce_host"):
             v = getattr(body, k)
             if v is not None:
                 if k == "org_timezone" and v != general.get("org_timezone", "UTC"):

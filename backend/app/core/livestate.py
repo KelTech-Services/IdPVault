@@ -165,16 +165,28 @@ def sweep() -> None:
 # Users are the rate-limited API surface (Okta rate limits, Auth0 export caps),
 # so this fetch is LAZY: only when the Users category is opened or manually
 # refreshed. Cached in RAM only - user data never touches the database here.
-_LIVE_ID_TTL_S = 300
 _ID_REFRESH_DEBOUNCE_S = 60
 _live_id_cache: dict[int, tuple[float, dict]] = {}
+
+
+def _users_cache_ttl_s() -> int:
+    """Setting `state_users_cache_minutes` (default 60, minimum 5)."""
+    from app.models.db import SessionLocal, Setting
+    try:
+        with SessionLocal() as db:
+            row = db.get(Setting, "general")
+            v = (dict(row.value) if row else {}).get("state_users_cache_minutes")
+        v = int(v) if v is not None else 60
+        return max(5, v) * 60
+    except Exception:
+        return 3600
 
 
 def live_identity_cached(tenant_id: int) -> dict | None:
     """Warm cache hit or None - never triggers a provider fetch."""
     import time as _t
     hit = _live_id_cache.get(tenant_id)
-    if hit and _t.monotonic() - hit[0] < _LIVE_ID_TTL_S:
+    if hit and _t.monotonic() - hit[0] < _users_cache_ttl_s():
         return hit[1]
     return None
 
@@ -189,7 +201,7 @@ def get_live_identity(tenant_id: int, force: bool = False) -> dict:
     hit = _live_id_cache.get(tenant_id)
     if hit:
         age = _t.monotonic() - hit[0]
-        if (not force and age < _LIVE_ID_TTL_S) or (force and age < _ID_REFRESH_DEBOUNCE_S):
+        if (not force and age < _users_cache_ttl_s()) or (force and age < _ID_REFRESH_DEBOUNCE_S):
             return hit[1]
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)

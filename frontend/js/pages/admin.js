@@ -277,6 +277,7 @@ async function loadSettings(){
     document.getElementById('s_lockmin').value = (s.login_lockout_minutes!=null? s.login_lockout_minutes : '');
     document.getElementById('s_stale').value = (s.stale_backup_hours!=null? s.stale_backup_hours : '');
     document.getElementById('s_statemin').value = (s.state_poll_minutes!=null? s.state_poll_minutes : '');
+    document.getElementById('s_userscache').value = (s.state_users_cache_minutes!=null? s.state_users_cache_minutes : '');
     document.getElementById('s_pub').value = s.public_url || '';
     document.getElementById('s_enforce').value = s.enforce_host ? 'true' : 'false';
   } catch(e){ toast(e.message, true); }
@@ -298,6 +299,7 @@ async function saveSettings(){
     login_lockout_minutes: parseInt(v('s_lockmin')||'0') || null,
     stale_backup_hours: parseInt(v('s_stale')||'0') || null,
     state_poll_minutes: v('s_statemin')==='' ? null : parseInt(v('s_statemin')),
+    state_users_cache_minutes: v('s_userscache')==='' ? null : parseInt(v('s_userscache')),
     public_url: v('s_pub') || null,
     enforce_host: v('s_enforce')==='true'
   };
