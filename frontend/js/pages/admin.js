@@ -330,7 +330,7 @@ async function loadEvents(){
       <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>
       <td>${esc(e.resource_type)}</td>
       <td>${esc(e.object_name||e.object_id||'-')}${e.detail&&e.detail.fields&&e.detail.fields.length?` <span class="muted">(${e.detail.fields.slice(0,6).join(', ')})</span>`:''}</td>
-      <td class="muted">${fmtTs(e.snapshot_ts)}</td></tr>`).join('');
+      <td class="muted">${fmtSnap(e.snapshot_ts)}</td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
 }
 

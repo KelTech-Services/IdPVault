@@ -98,12 +98,12 @@ function renderUnbacked(){
     const tt = _tenants.find(x=>x.id===t.id);
     const cnt = t.unbacked_changes;
     const cntCell = cnt==null ? '<span class="muted" title="No successful backup yet, or the provider does not report admin events">n/a</span>' : (cnt>0?`<span class="ev-update"><b>${cnt}</b></span>`:'0');
-    const lastCell = t.last_run ? `${fmtTs(t.last_run.ts)}${t.last_run.status!=='ok'?` <span class="st-failed">(${t.last_run.status})</span>`:''}` : '<span class="muted">never</span>';
+    const lastCell = t.last_run ? `${fmtSnap(t.last_run.ts)}${t.last_run.status!=='ok'?` <span class="st-failed">(${t.last_run.status})</span>`:''}` : '<span class="muted">never</span>';
     const btn = (me && (me.role==='admin' || me.role==='org_admin')) ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now</button>` : '';
     return `<tr><td>${esc(t.name)}</td><td><span class="tag ${t.provider}">${t.provider}</span></td><td>${cntCell}</td><td class="muted">${lastCell}</td><td>${btn}</td></tr>`;
   }).join('');
   el.innerHTML = `<section class="panel"><h2>Unbacked changes by tenant <span class="spacer"></span><button onclick="document.getElementById('unbackedpanel').classList.add('hidden')">Close</button></h2>
     <p class="muted" style="font-size:.8rem;margin-bottom:8px">Changes counted from the provider's own event log since the last successful backup. The exact change list comes from the next backup's diff - run a backup to capture them.</p>
-    <table><thead><tr><th>Tenant</th><th>Provider</th><th>Unbacked changes</th><th>Last backup (UTC)</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`;
+    <table><thead><tr><th>Tenant</th><th>Provider</th><th>Unbacked changes</th><th>Last backup</th><th></th></tr></thead><tbody>${rows}</tbody></table></section>`;
 }
 

@@ -30,11 +30,11 @@ async function renderTenantOverview(t){
   try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1]; } catch {}
   cards.innerHTML = `
     <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
-    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${t.schedule_cron ? esc(t.schedule_cron) : 'not scheduled'}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
-    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtTs(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
+    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
+    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtSnap(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
-    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · schedule ' + esc(t.identity_schedule_cron) : ''}</p>` +
+    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''}</p>` +
     (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
 }
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
@@ -64,7 +64,7 @@ async function loadTenants(){
       <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
-      <td class="muted">${t.schedule_cron ? esc(t.schedule_cron) : '-'}</td>
+      <td class="muted">${esc(cronLabel(t.schedule_cron))}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${canW ? `
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
@@ -190,7 +190,7 @@ async function backupNow(id, btn){
   try {
     const r = await api(`/tenants/${id}/backup`, {method:'POST'});
     const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
-    toast(`Snapshot ${r.manifest.timestamp} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
+    toast(`Snapshot ${fmtSnap(r.manifest.timestamp)} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
     if(snapTenantId === id) showSnaps(id, document.getElementById('snaptenant').textContent);
     loadDashboard();
   } catch(e){ toast('Backup failed: '+e.message, true); }
@@ -225,7 +225,7 @@ async function showSnaps(id, slug){
     const admin = me.role==='admin' || me.role==='org_admin';
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
-      <td onclick="selSnap(this.parentElement)">${fmtTs(ts)} <span class="muted">(${ts})</span></td>
+      <td onclick="selSnap(this.parentElement)">${fmtSnap(ts)}</td>
       <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore…</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
@@ -238,7 +238,7 @@ function selSnap(row){
 }
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
-  document.getElementById('difflabel').textContent = `${a} → ${b}`;
+  document.getElementById('difflabel').textContent = `${fmtSnap(a)} → ${fmtSnap(b)}`;
   document.getElementById('diffpanel').classList.remove('hidden');
   document.getElementById('diffout').textContent = 'Computing…';
   try {
@@ -268,7 +268,7 @@ let _restoreItems = [];
 async function openRestore(ts){
   _restoreCtx = { tenantId: snapTenantId, snap: ts };
   document.getElementById('r_tenant').textContent = window._snapSlug || '';
-  document.getElementById('r_snap').textContent = ts;
+  document.getElementById('r_snap').textContent = fmtSnap(ts);
   document.getElementById('r_summary').textContent = '';
   document.getElementById('r_items').innerHTML = '';
   document.getElementById('r_applybtn').classList.add('hidden');
@@ -349,7 +349,7 @@ async function restoreApply(){
 let _browse = null;
 async function openBrowse(ts){
   _browse = { tenantId: snapTenantId, snap: ts, type: null };
-  document.getElementById('b_label').textContent = `${window._snapSlug} @ ${fmtTs(ts)}`;
+  document.getElementById('b_label').textContent = `${window._snapSlug} @ ${fmtSnap(ts)}`;
   document.getElementById('b_search').value = '';
   document.getElementById('b_objects').innerHTML = '';
   document.getElementById('browsepanel').classList.remove('hidden');
@@ -412,8 +412,8 @@ async function loadIdentitySnaps(){
       const c = r.counts||{};
       const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
-        ? `<tr><td>${fmtTs(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr><td>${fmtTs(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
+        ? `<tr><td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
+        : `<tr><td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
   }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -431,7 +431,7 @@ const IR_HEAD = `<div class="restore-item" style="font-weight:600;border-bottom:
 function openIdentityRestore(ts){
   _irCtx = { ts, preview: null };
   document.getElementById('ir_tenant').textContent = document.getElementById('id_slug').textContent;
-  document.getElementById('ir_snap').textContent = ts;
+  document.getElementById('ir_snap').textContent = fmtSnap(ts);
   document.getElementById('ir_summary').textContent = '';
   document.getElementById('ir_items').innerHTML = '';
   document.getElementById('ir_applybtn').classList.add('hidden');
@@ -513,7 +513,7 @@ async function identityApply(){
                     c.existing!=null?c.existing+' existing':null, c.skipped!=null?c.skipped+' skipped':null]
                    .filter(Boolean).join(' · ');
       return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${c.failed?`<span class="st-failed">${c.failed} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`; };
-    document.getElementById('ir_summary').innerHTML = `<b>Applied:</b> snapshot ${_irCtx.ts}`;
+    document.getElementById('ir_summary').innerHTML = `<b>Applied:</b> snapshot ${fmtSnap(_irCtx.ts)}`;
     document.getElementById('ir_items').innerHTML = IR_HEAD +
       ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(row).join('') +
       (r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
