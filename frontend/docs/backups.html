@@ -8,7 +8,7 @@
 <li><b>Browse</b> - open any snapshot and inspect every object in it (searchable).</li>
 <li><b>Compare</b> - select any two snapshots and see exactly what was added, removed, or changed between them. The snapshot list also shows a per-snapshot change summary vs the previous backup.</li>
 <li><b>Restore…</b> - see the <b>Config restore</b> doc.</li>
-<li><b>Delete</b> - admins can select any number of backups (config or Users &amp; Access, or select all) and permanently delete them. Every deletion is recorded in the audit log.</li>
+<li><b>Delete</b> - admins can select any number of backups (config or Users &amp; Access, or select all) and permanently delete them. Deleting requires re-entering your password, and every deletion (and denied attempt) is recorded in the audit log.</li>
 </ul>
 <h3>What backups can't include</h3>
 <p>Identity providers deliberately redact secret material (client secrets, private keys, SAML signing certificates) from their export APIs; no backup product can capture them. A restored app therefore comes back with regenerated credentials; the restore report flags exactly which ones.</p>

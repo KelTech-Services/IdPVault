@@ -113,6 +113,7 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
 
 class IdentitySnapshotDeleteIn(BaseModel):
     timestamps: list[str]
+    password: str   # re-auth: deleting backups requires the current user's password
 
 
 @router.post("/tenants/{tenant_id}/identity/snapshots/delete")
@@ -124,10 +125,13 @@ def delete_identity_snapshots(tenant_id: int, body: IdentitySnapshotDeleteIn,
     from app.core.security import require_admin
     from app.models.db import AuditLog
     require_admin(request)
+    from app.api.routes_backups import _require_reauth
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
+        _require_reauth(db, request, body.password, t.slug,
+                        "tenant.identity_snapshots_delete")
         for ts in body.timestamps:
             try:
                 storage._safe_ts(ts)

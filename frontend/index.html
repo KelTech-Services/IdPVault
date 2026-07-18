@@ -341,6 +341,14 @@
 </main>
 </div>
 </div>
+<div id="confirmdelmodal" class="modal hidden">
+  <div class="box" style="width:460px">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Confirm deletion</h2>
+    <p id="cdm_msg" class="muted" style="font-size:.85rem;margin-bottom:14px"></p>
+    <div><span class="lbl">Enter your password to confirm</span><input id="cdm_pw" type="password" autocomplete="current-password"></div>
+    <div style="margin-top:16px;text-align:right"><button onclick="closeConfirmDel()">Cancel</button> <button class="del" onclick="confirmDelGo()">Delete permanently</button></div>
+  </div>
+</div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
 <script src="/js/core.js?v=1.1.6a"></script>
@@ -351,6 +359,7 @@
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('cdm_pw').addEventListener('keydown', e => { if(e.key==='Enter') confirmDelGo(); });
 boot();
 </script>
 </body>

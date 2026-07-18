@@ -270,14 +270,30 @@ function selAllSnaps(on){
   });
   updateSnapButtons();
 }
-async function deleteSnapshots(){
+let _delCtx = null;
+function askDelete(msg, fn){
+  _delCtx = fn;
+  document.getElementById('cdm_msg').textContent = msg;
+  document.getElementById('cdm_pw').value = '';
+  document.getElementById('confirmdelmodal').classList.remove('hidden');
+  document.getElementById('cdm_pw').focus();
+}
+function closeConfirmDel(){ document.getElementById('confirmdelmodal').classList.add('hidden'); _delCtx = null; }
+function confirmDelGo(){
+  const pw = v('cdm_pw');
+  if(!pw) return toast('Enter your password to confirm the deletion', true);
+  const fn = _delCtx; closeConfirmDel();
+  if(fn) fn(pw);
+}
+function deleteSnapshots(){
   const n = selectedSnaps.length; if(!n) return;
-  if(!confirm(`Permanently delete ${n} selected backup(s) for "${window._snapSlug}"? This removes the snapshot files, including any Full-DR database dumps. This cannot be undone.`)) return;
-  try{
-    const r = await api(`/tenants/${snapTenantId}/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedSnaps})});
-    toast(`${r.deleted.length} backup(s) deleted.`);
-    showSnaps(snapTenantId, window._snapSlug);
-  }catch(e){ toast('Delete failed: ' + e.message, true); }
+  askDelete(`Permanently delete ${n} selected backup(s) for "${window._snapSlug}"? This removes the snapshot files, including any Full-DR database dumps. This cannot be undone.`, async pw => {
+    try{
+      const r = await api(`/tenants/${snapTenantId}/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedSnaps, password: pw})});
+      toast(`${r.deleted.length} backup(s) deleted.`);
+      showSnaps(snapTenantId, window._snapSlug);
+    }catch(e){ toast('Delete failed: ' + e.message, true); }
+  });
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
 function selSnap(cb){
@@ -496,14 +512,15 @@ function updateIdSnapButtons(){
   if(all){ const rows = document.querySelectorAll('#id_snaps .idsel').length;
     all.checked = rows > 0 && selectedIdSnaps.length === rows; }
 }
-async function deleteIdentitySnapshots(){
+function deleteIdentitySnapshots(){
   const n = selectedIdSnaps.length; if(!n) return;
-  if(!confirm(`Permanently delete ${n} selected Users & Access backup(s) for "${_idCtx.slug}"? This cannot be undone.`)) return;
-  try{
-    const r = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedIdSnaps})});
-    toast(`${r.deleted.length} Users & Access backup(s) deleted.`);
-    loadIdentitySnaps();
-  }catch(e){ toast('Delete failed: ' + e.message, true); }
+  askDelete(`Permanently delete ${n} selected Users & Access backup(s) for "${_idCtx.slug}"? This cannot be undone.`, async pw => {
+    try{
+      const r = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedIdSnaps, password: pw})});
+      toast(`${r.deleted.length} Users & Access backup(s) deleted.`);
+      loadIdentitySnaps();
+    }catch(e){ toast('Delete failed: ' + e.message, true); }
+  });
 }
 async function identityBackupNow(){
   document.getElementById('id_estimate').textContent = 'Backing up users & access… (throttled to respect Okta API limits - may take a while on large orgs)';

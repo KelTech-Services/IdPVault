@@ -84,17 +84,32 @@ def snapshot_changes(tenant_id: int, ts: str, request: Request) -> dict:
 
 class SnapshotDeleteIn(BaseModel):
     timestamps: list[str]
+    password: str   # re-auth: deleting backups requires the current user's password
+
+
+def _require_reauth(db, request: Request, password: str, slug: str, action: str) -> None:
+    """Destructive operations re-verify the caller's password. A wrong password
+    is audit-logged and rejected."""
+    from app.core.security import verify_password
+    from app.models.db import User
+    u = db.get(User, request.state.user["id"])
+    if u is None or not verify_password(password or "", u.password_hash):
+        db.add(AuditLog(action=action + "_denied",
+                        detail={"slug": slug, "reason": "password re-auth failed"}))
+        db.commit()
+        raise HTTPException(403, "password incorrect - deletion requires your password")
 
 
 @router.post("/tenants/{tenant_id}/snapshots/delete", dependencies=[Depends(require_admin)])
-def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn) -> dict:
+def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn, request: Request) -> dict:
     """Admin-only bulk deletion of config snapshots (files incl. Full-DR dumps).
-    Every deletion is audit-logged."""
+    Requires password re-auth; every deletion is audit-logged."""
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
         slug = t.slug
+        _require_reauth(db, request, body.password, slug, "tenant.snapshots_delete")
         for ts in body.timestamps:
             try:
                 storage._safe_ts(ts)
