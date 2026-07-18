@@ -9,11 +9,15 @@ import subprocess
 log = logging.getLogger(__name__)
 
 
-def pg_dump(db_url: str, timeout: int = 300) -> bytes:
-    """Return a plain-SQL dump. Raises on failure."""
-    proc = subprocess.run(
-        ["pg_dump", "--no-owner", "--no-privileges", "--clean", "--if-exists", db_url],
-        capture_output=True, timeout=timeout)
+def pg_dump(db_url: str, timeout: int = 300, exclude_events: bool = False) -> bytes:
+    """Return a plain-SQL dump. Raises on failure. exclude_events skips the ROW
+    DATA of Authentik's event-log tables (authentik_events_*) - the schema stays
+    in the dump so restores boot clean, but historical events are not included."""
+    cmd = ["pg_dump", "--no-owner", "--no-privileges", "--clean", "--if-exists"]
+    if exclude_events:
+        cmd.append("--exclude-table-data=authentik_events_*")
+    cmd.append(db_url)
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
     if proc.returncode != 0:
         raise RuntimeError(f"pg_dump exited {proc.returncode}: "
                            f"{proc.stderr.decode(errors='replace')[:300]}")

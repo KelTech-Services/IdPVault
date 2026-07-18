@@ -147,3 +147,40 @@ def test_orgs_csv_missing_header():
     from app.api.routes_orgs import parse_orgs_csv
     rows, errors = parse_orgs_csv("Acme,Jane\nFoo,Bar\n")
     assert rows == [] and errors and "header" in errors[0]
+
+
+# --- v1.1.5: snapshot browse endpoints must enforce tenant scoping ---
+
+def test_snapshot_browse_enforces_tenant_read(monkeypatch):
+    """browse/object_detail must call require_tenant_read BEFORE touching data
+    (regression: they shipped without scoping, letting org-scoped users read
+    any tenant's snapshot contents by id)."""
+    from app.api import routes_audit as ra
+
+    calls = []
+
+    def fake_require(request, db, tenant_id):
+        calls.append(tenant_id)
+        raise HTTPException(404, "tenant not found")
+
+    class _DB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, *a):
+            raise AssertionError("data access before scoping check")
+
+    monkeypatch.setattr(ra, "require_tenant_read", fake_require)
+    monkeypatch.setattr(ra, "SessionLocal", lambda: _DB())
+    req = _Req({"id": 9, "role": "org_viewer", "org_id": 1})
+
+    with pytest.raises(HTTPException) as e:
+        ra.browse(req, 999, "20260101T000000Z")
+    assert e.value.status_code == 404
+    with pytest.raises(HTTPException) as e:
+        ra.object_detail(req, 999, "20260101T000000Z", "applications", "x")
+    assert e.value.status_code == 404
+    assert calls == [999, 999]

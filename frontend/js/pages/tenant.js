@@ -94,6 +94,7 @@ function editTenant(id){
   schedSet('fs', t.schedule_cron || null);
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
+  document.getElementById('f_dbevents').value = (t.db_dump_exclude_events ? 'true' : 'false');
   document.getElementById('f_ident').value = (t.identity_enabled && !document.getElementById('f_ident').disabled) ? 'true' : 'false';
   schedSet('fi', t.identity_schedule_cron || null);
   document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
@@ -108,7 +109,7 @@ function onProviderChange(){
   const show = (id,on)=>document.getElementById(id).classList.toggle('hidden', !on);
   const isAuth0 = p==='auth0', hasIdentity = true;  // all providers support Users & Access now
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
-  show('fd_dburl', p==='authentik');
+  show('fd_dburl', p==='authentik'); show('fd_dbevents', p==='authentik');
   show('fd_ident', hasIdentity); 
   // License gate: Community has no 'identity' feature - lock the control instead
   // of letting the save fail with a 402.
@@ -135,6 +136,7 @@ function resetForm(){
   ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_dburl'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_provider').value='authentik';
   document.getElementById('f_ident').value='false';
+  document.getElementById('f_dbevents').value='false';
   document.getElementById('f_identkeep').value=14;
   document.getElementById('f_keep').value = 30;
   document.getElementById('f_delete').classList.add('hidden');
@@ -160,7 +162,7 @@ async function saveTenant(){
     if(!document.getElementById('fd_org').classList.contains('hidden')) body.org_id = v('f_org') ? parseInt(v('f_org')) : null;
     const tok = prov==='auth0' ? auth0cred() : v('f_token');
     if(tok) body.api_token = tok;
-    if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); }
+    if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); body.db_dump_exclude_events = v('f_dbevents')==='true'; }
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
       toast('Tenant updated.' + (body.api_token ? ' Credentials rotated.' : ''));
@@ -174,6 +176,7 @@ async function saveTenant(){
     base_url: v('f_url'), api_token: prov==='auth0' ? auth0cred() : v('f_token'),
     schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
     db_url: prov==='authentik' ? (v('f_dburl') || null) : null,
+    db_dump_exclude_events: prov==='authentik' && v('f_dbevents')==='true',
     identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };

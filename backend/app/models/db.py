@@ -21,6 +21,7 @@ class Tenant(Base):
     enc_credentials: Mapped[bytes] = mapped_column(LargeBinary)   # AES-GCM w/ data key
     wrapped_data_key: Mapped[bytes] = mapped_column(LargeBinary)  # data key wrapped by master
     enc_db_url: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # full-DR pg_dump source
+    db_dump_exclude_events: Mapped[bool] = mapped_column(Boolean, default=False)  # full-DR: skip event-log rows
     schedule_cron: Mapped[str | None] = mapped_column(String(60), nullable=True)
     retention_keep: Mapped[int] = mapped_column(Integer, default=30)
     identity_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -90,6 +91,7 @@ _COLUMN_MIGRATIONS = [
     ("users", "failed_logins", "INTEGER DEFAULT 0"),
     ("users", "locked_until", "TIMESTAMPTZ"),
     ("tenants", "org_id", "INTEGER"),
+    ("tenants", "db_dump_exclude_events", "BOOLEAN DEFAULT FALSE"),
     ("users", "org_id", "INTEGER"),
 ]
 
