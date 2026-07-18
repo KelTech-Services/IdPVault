@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.6b">
+<link rel="stylesheet" href="/css/app.css?v=1.1.6c">
 </head>
 <body>
 
@@ -146,6 +146,30 @@
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
+  </section>
+</main>
+<main id="view-t-explorer" class="hidden">
+  <section class="panel">
+    <h2>Explorer <span class="spacer"></span>
+      <select id="ex_snap" onchange="exLoadCats()" style="width:auto"></select>
+    </h2>
+    <p class="muted" style="font-size:.8rem;margin:-6px 0 14px">Pick a snapshot, then browse its objects by category. Badges compare each object against the latest backup.</p>
+    <div class="cards" id="ex_cats"></div>
+  </section>
+  <section class="panel hidden" id="ex_objpanel">
+    <h2><span id="ex_cat_label"></span> <span class="spacer"></span>
+      <input id="ex_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)">
+    </h2>
+    <table><thead><tr><th>Object</th><th>ID</th><th>Status vs latest</th><th style="width:190px"></th></tr></thead>
+    <tbody id="ex_objects"></tbody></table>
+  </section>
+  <section class="panel hidden" id="ex_detailpanel">
+    <h2>Object detail - <span id="ex_obj_label"></span> <span class="spacer"></span><button onclick="document.getElementById('ex_detailpanel').classList.add('hidden')">Close</button></h2>
+    <div id="ex_diffinfo" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div><div class="lbl">In this snapshot</div><pre id="ex_snapjson"></pre></div>
+      <div><div class="lbl">In latest backup</div><pre id="ex_curjson"></pre></div>
+    </div>
   </section>
 </main>
 <main id="view-t-activity" class="hidden">
@@ -351,11 +375,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.6b"></script>
-<script src="/js/router.js?v=1.1.6b"></script>
-<script src="/js/pages/fleet.js?v=1.1.6b"></script>
-<script src="/js/pages/tenant.js?v=1.1.6b"></script>
-<script src="/js/pages/admin.js?v=1.1.6b"></script>
+<script src="/js/core.js?v=1.1.6c"></script>
+<script src="/js/router.js?v=1.1.6c"></script>
+<script src="/js/pages/fleet.js?v=1.1.6c"></script>
+<script src="/js/pages/tenant.js?v=1.1.6c"></script>
+<script src="/js/pages/admin.js?v=1.1.6c"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

@@ -383,6 +383,14 @@ async function restorePreview(){
     const payload = {snapshot_ts:_restoreCtx.snap}; if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/preview`, {method:'POST', body: JSON.stringify(payload)});
     renderRestore(res);
+    if(_restorePreselect){
+      // Explorer one-click restore: preselect exactly the requested object
+      document.querySelectorAll('#r_items .r-sel').forEach(b => {
+        const it = _restoreItems[+b.dataset.i];
+        b.checked = !!it && it.resource_type === _restorePreselect.rt && String(it.object_id) === _restorePreselect.oid;
+      });
+      _restorePreselect = null;
+    }
     updateRestoreCount();
   } catch(e){ document.getElementById('r_summary').textContent = 'Preview failed: '+e.message; }
 }
@@ -629,3 +637,96 @@ async function identityApply(){
   document.getElementById('ir_applybtn').disabled = false;
 }
 
+
+
+/* ---------- explorer (v1.2 Phase 2) ---------- */
+let _ex = null;
+let _restorePreselect = null;
+async function openExplorer(t){
+  _ex = { tenantId: t.id, slug: t.slug, snap: null, cat: null, isLatest: true };
+  snapTenantId = t.id; window._snapSlug = t.slug;
+  document.getElementById('ex_objpanel').classList.add('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  const sel = document.getElementById('ex_snap');
+  sel.innerHTML = '';
+  document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  try{
+    const snaps = await api(`/tenants/${t.id}/snapshots`);
+    if(!snaps.length){ document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="lbl2">No snapshots yet</div><div class="sub">Run a backup, then explore it here.</div></div>'; return; }
+    const rev = snaps.slice().reverse();
+    sel.innerHTML = rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest - ':''}${fmtSnap(s.ts)}</option>`).join('');
+    _ex.snap = rev[0].ts;
+    exLoadCats();
+  }catch(e){ document.getElementById('ex_cats').innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+}
+async function exLoadCats(){
+  const sel = document.getElementById('ex_snap');
+  if(sel.value) _ex.snap = sel.value;
+  document.getElementById('ex_objpanel').classList.add('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  const grid = document.getElementById('ex_cats');
+  grid.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore`);
+    _ex.isLatest = d.is_latest;
+    grid.innerHTML = d.categories.map(c=>{
+      const delta = c.current_count - c.count;
+      const badge = _ex.isLatest || delta === 0 ? ''
+        : ` <span style="font-size:.75rem;color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+'+delta:delta} in latest</span>`;
+      return `<div class="card" style="cursor:pointer" onclick="exOpenCat('${esc(c.resource_type)}')">
+        <div class="lbl2">${esc(c.resource_type.replace(/_/g,' '))}</div>
+        <div class="big">${c.count}${badge}</div>
+        <div class="sub">${_ex.isLatest ? 'objects in the latest backup' : c.current_count + ' in the latest backup'}</div></div>`;
+    }).join('');
+  }catch(e){ grid.innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+}
+function exOpenCat(rt){
+  _ex.cat = rt;
+  document.getElementById('ex_cat_label').textContent = rt.replace(/_/g,' ');
+  document.getElementById('ex_search').value = '';
+  document.getElementById('ex_objpanel').classList.remove('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  exLoadObjects();
+  document.getElementById('ex_objpanel').scrollIntoView({behavior:'smooth'});
+}
+const EX_STATUS = {
+  unchanged: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">unchanged</span>',
+  modified: '<span class="tag pending">modified</span>',
+  deleted: '<span class="tag off">deleted in latest</span>',
+  new: '<span class="tag ok">new in latest</span>',
+};
+async function exLoadObjects(){
+  if(!_ex || !_ex.cat) return;
+  const q = v('ex_search');
+  const tb = document.getElementById('ex_objects');
+  tb.innerHTML = skelRows(4);
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore?resource_type=${encodeURIComponent(_ex.cat)}${q?'&q='+encodeURIComponent(q):''}`);
+    if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
+    const canW = me.role === 'admin' || me.role === 'org_admin';
+    const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
+    tb.innerHTML = d.objects.map(o=>`<tr>
+      <td>${esc(o.object_name||'-')}</td><td class="muted" style="font-size:.78rem">${esc(o.object_id)}</td>
+      <td>${_ex.isLatest ? '<span class="muted">-</span>' : (EX_STATUS[o.status]||esc(o.status))}</td>
+      <td style="white-space:nowrap"><button onclick="exViewObject('${esc(o.object_id)}')">View</button>
+      ${canW && !inactive && o.status !== 'new' ? ` <button onclick="exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this snapshot (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
+  }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function exViewObject(oid){
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore/${encodeURIComponent(_ex.cat)}/${encodeURIComponent(oid)}`);
+    document.getElementById('ex_obj_label').textContent = `${_ex.cat.replace(/_/g,' ')} / ${oid}`;
+    document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(not in this snapshot)';
+    document.getElementById('ex_curjson').textContent = d.current ? JSON.stringify(d.current, null, 2) : '(deleted - not in the latest backup)';
+    document.getElementById('ex_diffinfo').innerHTML = d.status === 'modified' && d.changed_fields.length
+      ? `Changed fields: <b>${d.changed_fields.map(esc).join(', ')}</b>`
+      : (_ex.isLatest ? '' : (EX_STATUS[d.status] || ''));
+    document.getElementById('ex_detailpanel').classList.remove('hidden');
+    document.getElementById('ex_detailpanel').scrollIntoView({behavior:'smooth'});
+  }catch(e){ toast(e.message, true); }
+}
+function exRestoreObject(oid){
+  _restorePreselect = { rt: _ex.cat, oid: String(oid) };
+  openRestore(_ex.snap);
+  restorePreview();
+}
