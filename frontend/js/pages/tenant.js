@@ -56,8 +56,7 @@ function renderTenantOverviewView(t, state, dash){
     <div class="stat"><span class="sl">Schedule</span><span class="sv">${esc(cronLabel(t.schedule_cron))}</span><span class="ss">keep ${t.retention_keep} snapshots</span></div>
     <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
     <div class="stat last"><span class="sl">Unbacked changes</span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
-    <span class="spacer"></span>
-    ${drift && canW && !inactive ? `<button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button>` : ''}`;
+    ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button></span>` : ''}`;
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
     `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''} · <span class="tag ${t.provider}">${t.provider}</span> ${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</p>` +
@@ -913,18 +912,23 @@ function renderTenantCharts(){
     const c = _tChartData.changes[i];
     if(c && !c.first) ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: c[k] || 0}));
   });
-  const ax = intOnly => ([{orient:'left', grid:{visible:false}, tick:{tickCount:4},
-       label:{style:{fontSize:10}, formatMethod: intOnly ? (v => (+v % 1 === 0 ? v : '')) : undefined}},
-      {orient:'bottom', label:{visible:false}, tick:{visible:false}}]);
+  const ax = kind => ([{orient:'left', grid:{visible:false}, tick:{tickCount:4},
+       label:{style:{fontSize:10}, formatMethod: kind === 'mb' ? (v => v + ' MB') : (v => (+v % 1 === 0 ? v : ''))}},
+      {orient:'bottom', label:{style:{fontSize:9}, sampling:true}, tick:{visible:false}}]);
+  const grad = c => ({gradient:'linear', x0:0.5, y0:0, x1:0.5, y1:1,
+       stops:[{offset:0, color:c, opacity:0.35},{offset:1, color:c, opacity:0.03}]});
   const specs = [
     ['ch_t_changes', {...base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
       seriesField:'type', stack:true, color:[G, R, A], barMaxWidth:26,
-      legends:{visible:false}, axes: ax(true)}],
+      bar:{style:{cornerRadius:[3, 3, 0, 0]}},
+      legends:{visible:false}, axes: ax('int')}],
     ['ch_t_objects', {...base, type:'area', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
-      color:[B], point:{visible:false}, area:{style:{fillOpacity:0.12}}, axes: ax(true)}],
+      color:[B], point:{visible:false}, line:{style:{curveType:'monotone'}},
+      area:{style:{fill: grad(B)}}, axes: ax('int')}],
     ['ch_t_size', {...base, type:'area', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
-      color:[GD], point:{visible:false}, area:{style:{fillOpacity:0.12}},
-      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax(false)}],
+      color:[GD], point:{visible:false}, line:{style:{curveType:'monotone'}},
+      area:{style:{fill: grad(GD)}},
+      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax('mb')}],
   ];
   specs.forEach(([id, spec]) => {
     const el = document.getElementById(id); if(!el) return;

@@ -181,13 +181,13 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 @media(max-width:980px){.mdlayout{grid-template-columns:1fr}.mdrail{position:static;max-height:none}}
 
 /* ---------- v1.2 polish: status strip, refined tables, chips, inline legends ---------- */
-.statusbar{display:flex;align-items:center;gap:26px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;flex-wrap:wrap}
-.statusbar .stat{display:flex;flex-direction:column;gap:3px;padding-right:26px;border-right:1px solid var(--border);min-width:130px}
+.statusbar{display:flex;align-items:stretch;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:10px 4px}
+.statusbar .stat{flex:1;display:flex;flex-direction:column;gap:3px;justify-content:center;padding:6px 24px;border-right:1px solid var(--border)}
 .statusbar .stat.last{border-right:none}
+.statusbar .actions{display:flex;align-items:center;padding:0 18px 0 22px}
 .statusbar .sl{font-size:.62rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
 .statusbar .sv{font-size:.98rem;font-weight:650;letter-spacing:-.01em}
 .statusbar .ss{font-size:.72rem;color:var(--dim)}
-.statusbar .spacer{flex:1}
 .rowlink{cursor:pointer}
 .idcell{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rowact button{opacity:0;transition:opacity .12s}
