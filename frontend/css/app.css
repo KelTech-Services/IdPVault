@@ -198,3 +198,11 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 .chartgrid .lbl2 .spacer{flex:1}
 .leg{display:flex;align-items:center;gap:6px;font-size:.66rem;color:var(--dim);text-transform:none;letter-spacing:0}
 .legsw{display:inline-block;width:8px;height:8px;border-radius:2px}
+
+.pager{display:flex;align-items:center;gap:10px;margin-top:12px}
+.pager .spacer{flex:1}
+.lvgroup{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin:14px 0 6px}
+.lvrow{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;font-size:.88rem}
+.lvrow:hover{background:var(--panel2)}
+.lvrow .spacer{flex:1}
+.lvrow .idpart{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.72rem;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

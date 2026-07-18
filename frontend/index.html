@@ -119,6 +119,7 @@
   </section>
   <section class="panel">
     <h2>Live State <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
+      <input id="lv_search" placeholder="search everything…" style="width:230px" oninput="clearTimeout(window._lvs); window._lvs=setTimeout(liveSearch, 350)">
       <button id="t_ov_trends" onclick="ovToggleCharts()" title="Trend charts: changes per backup, object counts, backup size">Show Trends <span class="tipi">ⓘ</span></button>
       <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider <span class="tipi">ⓘ</span></button>
       <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider <span class="tipi">ⓘ</span></button></h2>
@@ -127,9 +128,13 @@
       <div class="mdpane">
         <div id="ex_objpanel" class="hidden">
           <div class="mdpanehead"><span class="mdtitle" id="ex_cat_label"></span><span id="ex_cat_meta" class="muted" style="font-size:.8rem"></span><span class="spacer"></span>
-            <input id="ex_search" placeholder="search objects…" style="width:240px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)"></div>
+            <input id="ex_search" placeholder="search objects…" style="width:240px" oninput="clearTimeout(window._exs); window._exs=setTimeout(()=>{ _ex.page = 0; exLoadObjects(); }, 300)"></div>
           <table><thead><tr><th style="width:26%">Object</th><th>ID</th><th id="ex_status_th" style="width:170px">Backup status</th><th style="width:110px"></th></tr></thead>
           <tbody id="ex_objects"></tbody></table>
+          <div class="pager hidden" id="ex_pager"><span class="muted" id="ex_pageinfo"></span><span class="spacer"></span>
+            <select id="ex_pagesize" onchange="exSetPageSize()" style="width:auto"><option value="50">50 / page</option><option value="100" selected>100 / page</option><option value="250">250 / page</option></select>
+            <button id="ex_prev" onclick="exPage(-1)">&lsaquo; Prev</button>
+            <button id="ex_next" onclick="exPage(1)">Next &rsaquo;</button></div>
         </div>
         <div id="ex_detailpanel" class="hidden">
           <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span><span class="spacer"></span><button id="ex_det_restore" class="hidden" onclick="exRestoreFromDetail()" title="Preview restoring this object (dry-run first, nothing is written until you apply)">Restore this object… <span class="tipi">ⓘ</span></button></div>
@@ -139,6 +144,7 @@
             <div><div class="lbl" id="ex_col_b">In latest backup</div><pre id="ex_curjson"></pre></div>
           </div>
         </div>
+        <div id="lv_results" class="hidden"></div>
         <div id="ex_empty" class="empty">Pick a category on the left to see its objects.</div>
       </div>
     </div>
@@ -186,6 +192,9 @@
     <div class="chk" id="chg_cats"></div>
     <table><thead><tr><th>Change</th><th>Category</th><th>Object</th><th>Changed fields</th><th style="width:170px"></th></tr></thead>
     <tbody id="chg_rows"></tbody></table>
+    <div class="pager hidden" id="chg_pager"><span class="muted" id="chg_pageinfo"></span><span class="spacer"></span>
+      <button onclick="chgPage(-1)">&lsaquo; Prev</button>
+      <button onclick="chgPage(1)">Next &rsaquo;</button></div>
     <pre id="chg_out" class="hidden" style="margin-top:12px"></pre>
   </section>
 </main>

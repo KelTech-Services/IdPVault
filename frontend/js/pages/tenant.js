@@ -758,11 +758,14 @@ let _ex = null;
 let _restorePreselect = null;
 async function openExplorer(t){
   _ex = { tenantId: t.id, slug: t.slug, snap: 'current', cat: null, isLatest: false, mode: 'current',
+          page: 0, pageSize: parseInt(v('ex_pagesize')) || 100,
           identity: _feat('identity') && t.supports_identity !== false };
   snapTenantId = t.id; window._snapSlug = t.slug;
   document.getElementById('ex_objpanel').classList.add('hidden');
   document.getElementById('ex_detailpanel').classList.add('hidden');
   document.getElementById('ex_empty').classList.remove('hidden');
+  const lvs = document.getElementById('lv_search'); if(lvs) lvs.value = '';
+  const lvr = document.getElementById('lv_results'); if(lvr) lvr.classList.add('hidden');
   const rb = document.getElementById('t_ov_refreshu');
   if(rb) rb.classList.toggle('hidden', !_ex.identity);
   const rail = document.getElementById('ex_cats');
@@ -811,11 +814,12 @@ async function exLoadCats(){
   }catch(e){ rail.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 function exOpenCat(rt){
-  _ex.cat = rt;
+  _ex.cat = rt; _ex.page = 0;
   document.querySelectorAll('#ex_cats .mdrow').forEach(b => b.classList.toggle('active', b.dataset.rt === rt));
   document.getElementById('ex_cat_label').textContent = ovLabel(rt);
   document.getElementById('ex_search').value = '';
   document.getElementById('ex_empty').classList.add('hidden');
+  document.getElementById('lv_results').classList.add('hidden');
   document.getElementById('ex_detailpanel').classList.add('hidden');
   document.getElementById('ex_objpanel').classList.remove('hidden');
   exLoadObjects();
@@ -843,22 +847,24 @@ async function exLoadObjects(){
   const tb = document.getElementById('ex_objects');
   tb.innerHTML = skelRows(4);
   try{
-    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore?resource_type=${encodeURIComponent(_ex.cat)}${q?'&q='+encodeURIComponent(q):''}`);
-    if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
-    const canW = me.role === 'admin' || me.role === 'org_admin';
-    const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
-    const counts = {new:0, modified:0, deleted:0};
-    d.objects.forEach(o => { if(counts[o.status] != null) counts[o.status]++; });
+    const off = (_ex.page || 0) * _ex.pageSize;
+    const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore?resource_type=${encodeURIComponent(_ex.cat)}&limit=${_ex.pageSize}&offset=${off}${q?'&q='+encodeURIComponent(q):''}`);
+    _ex.total = d.total;
+    exUpdatePager(d.total, off, d.objects.length);
     const meta = document.getElementById('ex_cat_meta');
     if(meta){
-      const bits = [`${d.objects.length} object${d.objects.length === 1 ? '' : 's'}`];
+      const sc = d.status_counts || {};
+      const bits = [`${d.total} object${d.total === 1 ? '' : 's'}`];
       if(!_ex.isLatest){
         const lbl = _ex.mode === 'current' ? {modified:'changed since backup', deleted:'deleted since backup', new:'not backed up yet'}
                                            : {modified:'modified', deleted:'deleted in latest', new:'new in latest'};
-        ['modified','deleted','new'].forEach(k => { if(counts[k]) bits.push(`${counts[k]} ${lbl[k]}`); });
+        ['modified','deleted','new'].forEach(k => { if(sc[k]) bits.push(`${sc[k]} ${lbl[k]}`); });
       }
       meta.textContent = '· ' + bits.join(' · ');
     }
+    if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
+    const canW = me.role === 'admin' || me.role === 'org_admin';
+    const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
       <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
@@ -1004,8 +1010,11 @@ async function exLoadUsersObjects(){
   const tb = document.getElementById('ex_objects');
   tb.innerHTML = skelRows(4);
   try{
-    const d = await api(`/tenants/${_ex.tenantId}/live/users${q ? '?q=' + encodeURIComponent(q) : ''}`);
+    const off = (_ex.page || 0) * _ex.pageSize;
+    const d = await api(`/tenants/${_ex.tenantId}/live/users?limit=${_ex.pageSize}&offset=${off}${q ? '&q=' + encodeURIComponent(q) : ''}`);
     _ex.idLatest = d.latest_identity_snapshot;
+    _ex.total = d.total;
+    exUpdatePager(d.total, off, d.objects.length);
     const rowBtn = document.querySelector('#ex_cats .mdrow[data-rt="users"]');
     if(rowBtn){
       const c = d.counts || {};
@@ -1115,7 +1124,7 @@ async function runChanges(){
   rows.innerHTML = skelRows(5);
   try{
     const d = await api(`/tenants/${_chg.tenantId}/diff?old=${encodeURIComponent(a)}&new=${encodeURIComponent(b)}`);
-    _chg.data = d; _chg.from = a; _chg.to = b; _chg.cat = null;
+    _chg.data = d; _chg.from = a; _chg.to = b; _chg.cat = null; _chg.page = 0;
     renderChanges();
   }catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
 }
@@ -1152,9 +1161,27 @@ function renderChanges(){
     x.removed.forEach((o, i) => out.push(mk('removed', rt, o, null, `r:${rt}:${i}`)));
     x.changed.forEach((c, i) => out.push(mk('changed', rt, c.after || c.before, changedFieldList(c), `c:${rt}:${i}`)));
   });
-  document.getElementById('chg_rows').innerHTML = out.join('') || '<tr><td colspan="5" class="muted">No changes in this category.</td></tr>';
+  const SIZE = 100, page = _chg.page || 0;
+  _chg.rowTotal = out.length;
+  const slice = out.slice(page * SIZE, page * SIZE + SIZE);
+  document.getElementById('chg_rows').innerHTML = slice.join('') || '<tr><td colspan="5" class="muted">No changes in this category.</td></tr>';
+  const pager = document.getElementById('chg_pager');
+  if(pager){
+    if(out.length <= SIZE && page === 0) pager.classList.add('hidden');
+    else{
+      pager.classList.remove('hidden');
+      document.getElementById('chg_pageinfo').textContent = out.length
+        ? `Showing ${page * SIZE + 1}-${Math.min(out.length, (page + 1) * SIZE)} of ${out.length}` : '';
+    }
+  }
 }
-function chgFilter(rt){ _chg.cat = rt; renderChanges(); }
+function chgPage(dir){
+  if(!_chg) return;
+  const SIZE = 100, np = (_chg.page || 0) + dir;
+  if(np < 0 || np * SIZE >= (_chg.rowTotal || 0)) return;
+  _chg.page = np; renderChanges();
+}
+function chgFilter(rt){ _chg.cat = rt; _chg.page = 0; renderChanges(); }
 function chgView(ref){
   const pre = document.getElementById('chg_out');
   if(window._chgOpenRef === ref && !pre.classList.contains('hidden')){ pre.classList.add('hidden'); window._chgOpenRef = null; return; }
@@ -1179,4 +1206,64 @@ function chgRestore(rt, ref){
   _restorePreselect = { rt, oid };
   openRestore(_chg.from);
   restorePreview();
+}
+
+/* ---------- v1.2: right-pane paging + global Live State search ---------- */
+function exUpdatePager(total, off, shown){
+  const p = document.getElementById('ex_pager');
+  if(!p || !_ex) return;
+  const size = _ex.pageSize || 100;
+  if(total <= size && (_ex.page || 0) === 0){ p.classList.add('hidden'); return; }
+  p.classList.remove('hidden');
+  document.getElementById('ex_pageinfo').textContent = shown
+    ? `Showing ${off + 1}-${off + shown} of ${total}` : `0 of ${total}`;
+  document.getElementById('ex_prev').disabled = (_ex.page || 0) <= 0;
+  document.getElementById('ex_next').disabled = off + shown >= total;
+}
+function exPage(dir){
+  if(!_ex) return;
+  const size = _ex.pageSize || 100;
+  const np = (_ex.page || 0) + dir;
+  if(np < 0 || np * size >= (_ex.total || 0)) return;
+  _ex.page = np; exLoadObjects();
+}
+function exSetPageSize(){
+  if(!_ex) return;
+  _ex.pageSize = parseInt(v('ex_pagesize')) || 100;
+  _ex.page = 0; exLoadObjects();
+}
+async function liveSearch(){
+  if(!_ex) return;
+  const q = (v('lv_search') || '').trim();
+  const box = document.getElementById('lv_results');
+  if(!q){
+    box.classList.add('hidden');
+    if(document.getElementById('ex_detailpanel').classList.contains('hidden'))
+      document.getElementById(_ex.cat ? 'ex_objpanel' : 'ex_empty').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('ex_objpanel').classList.add('hidden');
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  document.getElementById('ex_empty').classList.add('hidden');
+  box.classList.remove('hidden');
+  box.innerHTML = '<div class="empty">Searching…</div>';
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/live/search?q=${encodeURIComponent(q)}`);
+    const groups = {};
+    d.results.forEach(r => { (groups[r.category] = groups[r.category] || []).push(r); });
+    let html = '';
+    Object.keys(groups).sort().forEach(cat => {
+      html += `<div class="lvgroup">${esc(ovLabel(cat))} (${groups[cat].length})</div>` +
+        groups[cat].map(r => `<div class="lvrow" onclick="lvOpen('${esc(cat)}', '${esc(r.object_id)}')"><span>${esc(r.object_name || '-')}</span><span class="spacer"></span><span class="idpart">${esc(r.object_id)}</span></div>`).join('');
+    });
+    if(_ex.identity && !d.users_included)
+      html += '<p class="muted" style="font-size:.8rem;margin-top:12px">Users are not searched yet - open the Users category (or Refresh Users from provider) to load the directory, then search again.</p>';
+    box.innerHTML = html || '<div class="empty">No matches.</div>';
+  }catch(e){ box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function lvOpen(rt, oid){
+  document.getElementById('lv_results').classList.add('hidden');
+  const lvs = document.getElementById('lv_search'); if(lvs) lvs.value = '';
+  exOpenCat(rt);
+  if(rt === 'users') exViewUser(oid); else exViewObject(oid);
 }

@@ -97,7 +97,7 @@ def _load_pair(tenant_id: int, ts: str, request: Request):
 @router.get("/tenants/{tenant_id}/snapshots/{ts}/explore")
 def explore(tenant_id: int, ts: str, request: Request,
             resource_type: str | None = None, q: str | None = None,
-            limit: int = 500) -> dict:
+            limit: int = 500, offset: int = 0) -> dict:
     """Explorer: category grid (no resource_type) or object list with a status
     badge per object vs the LATEST snapshot (the offline 'current')."""
     import json as _json
@@ -143,8 +143,15 @@ def explore(tenant_id: int, ts: str, request: Request,
         swap = {"deleted": "new", "new": "deleted"}
         for r in rows:
             r["status"] = swap.get(r["status"], r["status"])
-    return {"resource_type": resource_type, **info,
-            "total": len(rows), "objects": rows[:min(limit, 1000)]}
+    sc = {"new": 0, "modified": 0, "deleted": 0}
+    for r in rows:
+        if r["status"] in sc:
+            sc[r["status"]] += 1
+    rows.sort(key=lambda r: (r["object_name"] or "").lower())
+    lim = min(limit, 1000)
+    off = max(0, offset)
+    return {"resource_type": resource_type, **info, "total": len(rows),
+            "offset": off, "status_counts": sc, "objects": rows[off:off + lim]}
 
 
 @router.get("/tenants/{tenant_id}/snapshots/{ts}/explore/{resource_type}/{object_id}")
@@ -238,7 +245,7 @@ def _users_pair(tenant_id: int, request: Request, force: bool = False):
 
 @router.get("/tenants/{tenant_id}/live/users")
 def live_users(tenant_id: int, request: Request, q: str | None = None,
-               limit: int = 500) -> dict:
+               limit: int = 500, offset: int = 0) -> dict:
     """Live State > Users: the current directory with a status per user vs the
     latest Users & Access snapshot (backed up / changed / not backed up yet /
     deleted since backup)."""
@@ -272,9 +279,12 @@ def live_users(tenant_id: int, request: Request, q: str | None = None,
     if ql:
         rows = [r for r in rows if ql in (r["object_name"] or "").lower()
                 or ql in (r["email"] or "").lower() or ql in r["object_id"].lower()]
+    rows.sort(key=lambda r: (r["object_name"] or "").lower())
+    lim = min(limit, 1000)
+    off = max(0, offset)
     return {"mode": "current", "latest_identity_snapshot": latest,
-            "count": len(lus), "counts": counts,
-            "total": len(rows), "objects": rows[:min(limit, 1000)]}
+            "count": len(lus), "counts": counts, "offset": off,
+            "total": len(rows), "objects": rows[off:off + lim]}
 
 
 @router.post("/tenants/{tenant_id}/live/users/refresh")
@@ -311,3 +321,38 @@ def live_user_detail(tenant_id: int, user_id: str, request: Request) -> dict:
     return {"status": status, "mode": "current", "latest_identity_snapshot": latest,
             "changed_fields": changed, "key": _ukey(su or lu),
             "object": lu, "current": su}
+
+
+@router.get("/tenants/{tenant_id}/live/search")
+def live_search(tenant_id: int, q: str, request: Request, limit: int = 200) -> dict:
+    """Global Live State search: every config category at once (name or id
+    substring), plus users when the live user directory cache is warm - a cold
+    user cache is never fetched here so a keystroke can't hit the user APIs."""
+    from app.core import license as lic
+    from app.core import livestate
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        if db.get(Tenant, tenant_id) is None:
+            raise HTTPException(404, "tenant not found")
+    ql = (q or "").strip().lower()
+    if not ql:
+        return {"results": [], "total": 0, "users_included": False}
+    export = livestate.get_live_export(tenant_id)
+    results = []
+    for rt in sorted(export):
+        for o in export.get(rt, []):
+            name, oid = obj_name(o), obj_id(o)
+            if ql in name.lower() or ql in oid.lower():
+                results.append({"category": rt, "object_id": oid, "object_name": name})
+    users_included = False
+    cached = livestate.live_identity_cached(tenant_id)
+    if cached is not None and lic.has_feature("identity") and lic.is_tenant_entitled(tenant_id):
+        from app.core.identity import _ukey
+        users_included = True
+        for u in cached.get("users", []):
+            key, email, uid = _ukey(u), _uemail(u), str(u.get("id"))
+            if ql in key.lower() or ql in (email or "").lower() or ql in uid.lower():
+                results.append({"category": "users", "object_id": uid, "object_name": key})
+    results.sort(key=lambda r: (r["category"], (r["object_name"] or "").lower()))
+    return {"results": results[:min(limit, 500)], "total": len(results),
+            "users_included": users_included}
