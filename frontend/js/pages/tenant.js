@@ -885,17 +885,25 @@ function ovLabel(rt){ const s = OV_LABELS[rt] || String(rt).replace(/_/g,' '); r
 
 /* ---------- v1.2: tenant trend charts ---------- */
 let _tCharts = [], _tChartData = null;
+function _trendsBtnSync(){
+  const row = document.getElementById('t_chartrow'), btn = document.getElementById('t_ov_trends');
+  if(!row || !btn) return;
+  btn.disabled = !_tChartData;
+  btn.title = _tChartData ? 'Trend charts: changes per backup, object counts, backup size'
+                          : 'Trend charts need at least 2 backups';
+  btn.textContent = !_tChartData || row.classList.contains('hidden') ? 'Show Trends' : 'Hide Trends';
+}
 function ovToggleCharts(){
   const row = document.getElementById('t_chartrow');
-  if(!row) return;
-  if(!_tChartData){ toast('Trends need at least 2 backups.'); return; }
+  if(!row || !_tChartData) return;
   row.classList.toggle('hidden');
   if(!row.classList.contains('hidden')) renderTenantCharts();
+  _trendsBtnSync();
 }
 async function loadTenantCharts(t){
   const row = document.getElementById('t_chartrow');
   if(!row) return;
-  _tChartData = null; row.classList.add('hidden');
+  _tChartData = null; row.classList.add('hidden'); _trendsBtnSync();
   try{
     const snaps = await api(`/tenants/${t.id}/snapshots`);
     if(snaps.length < 2 || t.id !== currentTenantId) return;
@@ -906,6 +914,7 @@ async function loadTenantCharts(t){
     row.classList.remove('hidden');
     renderTenantCharts();
   }catch{}
+  _trendsBtnSync();
 }
 function _tsShort(ts){
   const d = snapDate(ts); if(!d) return String(ts);
