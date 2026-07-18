@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.5a">
+<link rel="stylesheet" href="/css/app.css?v=1.1.5b">
 </head>
 <body>
 
@@ -92,9 +92,9 @@
         <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
         <div><label>Backup schedule</label><div id="sched_fs"></div></div>
         <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
-        <div id="fd_dburl" style="grid-column:span 2"><label title="Full-DR stores a complete database dump with every config snapshot. Dumps can be large even for small instances (the database includes Authentik's event logs) - keep your retention count in mind, since each retained snapshot keeps its dump.">Full-DR Postgres URL (optional - self-hosted Authentik only)</label><input id="f_dburl" type="password" title="Full-DR stores a complete database dump with every config snapshot. Dumps can be large even for small instances (the database includes Authentik's event logs) - keep your retention count in mind, since each retained snapshot keeps its dump." placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
-        <div id="fd_dbevents"><label title="Applies to the Full-DR dump only. Excluded keeps the event tables in the dump but skips their rows, which shrinks dumps significantly - historical events are then not part of a full-DR restore.">Full-DR event logs</label><select id="f_dbevents" title="Applies to the Full-DR dump only. Excluded keeps the event tables in the dump but skips their rows, which shrinks dumps significantly - historical events are then not part of a full-DR restore."><option value="false">Included (complete history)</option><option value="true">Excluded (smaller dumps)</option></select></div>
-        <div id="fd_ident"><label title="Backs up users, group memberships, and app assignments">Users &amp; Access backup</label><select id="f_ident" title="Backs up users, group memberships, and app assignments"><option value="false">Disabled</option><option value="true">Enabled</option></select><div id="f_ident_note" class="hidden" style="font-size:12px;opacity:.7;margin-top:4px">Requires a Business or MSP license (Administration &gt; License)</div></div>
+        <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only) <span class="tipi" title="Full-DR stores a complete database dump with every config snapshot. Dumps can be large even for small instances (the database includes Authentik's event logs) - keep your retention count in mind, since each retained snapshot keeps its dump.">ⓘ</span></label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
+        <div id="fd_dbevents"><label>Full-DR event logs <span class="tipi" title="Applies to the Full-DR dump only. Excluded keeps the event tables in the dump but skips their rows, which shrinks dumps significantly - historical events are then not part of a full-DR restore.">ⓘ</span></label><select id="f_dbevents"><option value="false">Included (complete history)</option><option value="true">Excluded (smaller dumps)</option></select></div>
+        <div id="fd_ident"><label>Users &amp; Access backup <span class="tipi" title="Backs up users, group memberships, and app assignments">ⓘ</span></label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select><div id="f_ident_note" class="hidden" style="font-size:12px;opacity:.7;margin-top:4px">Requires a Business or MSP license (Administration &gt; License)</div></div>
         <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
         <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
       </div>
@@ -341,11 +341,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.5a"></script>
-<script src="/js/router.js?v=1.1.5a"></script>
-<script src="/js/pages/fleet.js?v=1.1.5a"></script>
-<script src="/js/pages/tenant.js?v=1.1.5a"></script>
-<script src="/js/pages/admin.js?v=1.1.5a"></script>
+<script src="/js/core.js?v=1.1.5b"></script>
+<script src="/js/router.js?v=1.1.5b"></script>
+<script src="/js/pages/fleet.js?v=1.1.5b"></script>
+<script src="/js/pages/tenant.js?v=1.1.5b"></script>
+<script src="/js/pages/admin.js?v=1.1.5b"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
