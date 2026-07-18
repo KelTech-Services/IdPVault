@@ -1,6 +1,42 @@
 /* IdPVault - pages/tenant.js: tenant CRUD, snapshots & diff, config restore, snapshot browser, Users & Access. Split from index.html (v1.2 Phase 1a). */
 /* ---------- tenants ---------- */
-function toggleAdd(){ const f=document.getElementById('addform'); f.classList.toggle('hidden'); if(f.classList.contains('hidden')) resetForm(); else onProviderChange(); }
+function toggleAdd(){
+  // the tenant form is shared between fleet (add) and the tenant Settings page (edit);
+  // pull it back into the fleet host and reset to add-mode if it was last used elsewhere
+  const f = document.getElementById('addform'), host = document.getElementById('fleet_formhost');
+  if(f.parentElement !== host){ host.appendChild(f); f.classList.add('hidden'); resetForm(); }
+  f.classList.toggle('hidden');
+  if(f.classList.contains('hidden')) resetForm(); else onProviderChange();
+}
+function cancelTenantForm(){
+  const f = document.getElementById('addform');
+  const onSettings = f.parentElement === document.getElementById('t_settings_formhost');
+  f.classList.add('hidden'); resetForm();
+  if(onSettings && currentTenantId) location.hash = '#/t/' + currentTenantId + '/overview';
+}
+function mountTenantSettings(t){
+  const host = document.getElementById('t_settings_formhost');
+  const f = document.getElementById('addform');
+  if(f.parentElement !== host){ host.innerHTML = ''; host.appendChild(f); }
+  editTenant(t.id);
+}
+async function renderTenantOverview(t){
+  const cards = document.getElementById('t_overview_cards');
+  const body = document.getElementById('t_overview_body');
+  if(!cards || !body) return;
+  const canW = me.role === 'admin' || me.role === 'org_admin';
+  const inactive = t.active === false;
+  let lastSnap = null, snapCount = null;
+  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1]; } catch {}
+  cards.innerHTML = `
+    <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
+    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${t.schedule_cron ? esc(t.schedule_cron) : 'not scheduled'}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
+    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtTs(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
+  body.innerHTML =
+    (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
+    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · schedule ' + esc(t.identity_schedule_cron) : ''}</p>` +
+    (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
+}
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
 const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Settings &gt; License';
 const MSP_TIP = 'Contact your MSP administrator to take this action';
@@ -32,11 +68,11 @@ async function loadTenants(){
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${canW ? `
         <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
-        <button onclick="editTenant(${t.id})">Edit</button>` : isViewer ? `
+        <button onclick="location.hash='#/t/${t.id}/settings'">Edit</button>` : isViewer ? `
         <button disabled title="${MSP_TIP}">Backup now</button>
         <button disabled title="${MSP_TIP}">Edit</button>` : ''}
-        <button onclick="showSnaps(${t.id}, '${esc(t.slug)}')">Snapshots</button>
-        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="openIdentity(${t.id}, '${esc(t.slug)}')">Users &amp; Access</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access</button>` : ''}
+        <button onclick="location.hash='#/t/${t.id}/backups'">Snapshots</button>
+        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access</button>` : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -128,7 +164,7 @@ async function saveTenant(){
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
       toast('Tenant updated.' + (body.api_token ? ' Credentials rotated.' : ''));
-      toggleAdd(); loadTenants();
+      loadTenants(); renderTenantSelector();
     } catch(e){ toast('Update failed: '+e.message, true); }
     return;
   }
@@ -146,7 +182,7 @@ async function saveTenant(){
   try {
     await api('/tenants', {method:'POST', body: JSON.stringify(body)});
     toast(`Tenant "${body.name}" created - credentials encrypted and stored.`);
-    toggleAdd(); loadTenants();
+    toggleAdd(); loadTenants(); renderTenantSelector();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
 async function backupNow(id, btn){
@@ -163,7 +199,14 @@ async function backupNow(id, btn){
 async function deleteFromForm(){
   const t = _tenants.find(x=>x.id===editingId); if(!t) return;
   if(!confirm(`Delete tenant "${t.name}"? Snapshots on disk are kept.`)) return;
-  try { await api(`/tenants/${editingId}`, {method:'DELETE'}); toast(`Tenant "${t.name}" deleted.`); toggleAdd(); loadTenants(); }
+  try {
+    await api(`/tenants/${editingId}`, {method:'DELETE'});
+    toast(`Tenant "${t.name}" deleted.`);
+    document.getElementById('addform').classList.add('hidden'); resetForm();
+    try { _tenants = await api('/tenants'); } catch {}
+    currentTenantId = null;
+    renderTenantSelector(); location.hash = defaultRoute(); route();
+  }
   catch(e){ toast('Delete failed: '+e.message, true); }
 }
 

@@ -203,7 +203,7 @@ async function installLicense(){
     toast('License installed - paid features unlocked.');
     // Re-fetch the session so new license features (identity/msp) apply without a page refresh.
     try { me = await api('/auth/me'); } catch {}
-    document.querySelectorAll('.mspnav').forEach(el => el.classList.toggle('hidden', !(me && me.role === 'admin' && (me.features||[]).includes('msp'))));
+    try { renderNav(); renderTenantSelector(); } catch {}
     _license = null; loadLicense(); loadTenants();
   } catch(e){ toast('Install failed: ' + e.message, true); }
 }
@@ -252,7 +252,6 @@ async function openDoc(key){
 }
 
 async function loadSettings(){
-  loadLicense();
   try {
     const s = await api('/settings');
     const smtp = s.smtp || {};
@@ -316,15 +315,9 @@ async function testEmail(){
 }
 
 
-/* ---------- events ---------- */
-async function loadEventTenants(){
-  const sel = document.getElementById('ev_tenant');
-  if(!_tenants.length){ try{ _tenants = await api('/tenants'); }catch{} }
-  sel.innerHTML = _tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');
-  loadEvents();
-}
+/* ---------- events (tenant Activity page as of v1.2 Phase 1b) ---------- */
 async function loadEvents(){
-  const tid = document.getElementById('ev_tenant').value;
+  const tid = currentTenantId;
   const type = document.getElementById('ev_type').value;
   const tb = document.getElementById('eventbody');
   if(!tid){ tb.innerHTML=emptyRow(5, EI.activity, 'No tenant selected.'); return; }

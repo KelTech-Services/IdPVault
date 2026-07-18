@@ -193,7 +193,7 @@ async function acceptInvite(){
 }
 async function doLogout(){ try{ await api('/auth/logout', {method:'POST'}); }catch{} location.reload(); }
 
-function showApp(){
+async function showApp(){
   document.getElementById('loginview').classList.add('hidden');
   document.getElementById('appview').classList.remove('hidden');
   document.getElementById('whoami').textContent = me.username;
@@ -202,15 +202,13 @@ function showApp(){
   const canWrite = isAdmin || me.role === 'org_admin';
   document.querySelectorAll('.adminonly').forEach(el => el.classList.toggle('hidden', !isAdmin));
   document.querySelectorAll('.mutating').forEach(el => el.classList.toggle('hidden', !canWrite));
-  document.querySelectorAll('.mspnav').forEach(el => el.classList.toggle('hidden', !(isAdmin && (me.features||[]).includes('msp'))));
   if(me.theme) applyTheme(me.theme);
   initSchedPickers();
-  health(); loadTenants(); setInterval(health, 30000);
-  setInterval(()=>{ if(!document.getElementById('view-dashboard').classList.contains('hidden')) loadDashboard(); }, 60000);
-  switchView(currentRoute(), true);            // restore page from URL on load/refresh
-  window.addEventListener('hashchange', () => {
-    if(location.hash.startsWith('#/')) switchView(currentRoute(), true);   // back/forward nav
-  });
+  health(); setInterval(health, 30000);
+  setInterval(()=>{ const fv = document.getElementById('view-fleet'); if(fv && !fv.classList.contains('hidden')) loadDashboard(); }, 60000);
+  // the router needs the visible-tenant list before it can render the nav or pick a landing page
+  try { _tenants = await api('/tenants'); } catch { _tenants = []; }
+  initRouter();
 }
 /* ---------- health ---------- */
 async function health(){
