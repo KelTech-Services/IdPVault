@@ -126,13 +126,13 @@
       <div class="mdrail" id="ex_cats"><div class="empty">Loading…</div></div>
       <div class="mdpane">
         <div id="ex_objpanel" class="hidden">
-          <div class="mdpanehead"><span class="mdtitle" id="ex_cat_label"></span><span class="spacer"></span>
+          <div class="mdpanehead"><span class="mdtitle" id="ex_cat_label"></span><span id="ex_cat_meta" class="muted" style="font-size:.8rem"></span><span class="spacer"></span>
             <input id="ex_search" placeholder="search objects…" style="width:240px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)"></div>
-          <table><thead><tr><th>Object</th><th>ID</th><th id="ex_status_th">Status</th><th style="width:190px"></th></tr></thead>
+          <table><thead><tr><th style="width:26%">Object</th><th>ID</th><th id="ex_status_th" style="width:170px">Status</th><th style="width:110px"></th></tr></thead>
           <tbody id="ex_objects"></tbody></table>
         </div>
         <div id="ex_detailpanel" class="hidden">
-          <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span></div>
+          <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span><span class="spacer"></span><button id="ex_det_restore" class="hidden" onclick="exRestoreFromDetail()" title="Preview restoring this object (dry-run first, nothing is written until you apply)">Restore this object…</button></div>
           <div id="ex_diffinfo" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div><div class="lbl" id="ex_col_a">In this snapshot</div><pre id="ex_snapjson"></pre></div>

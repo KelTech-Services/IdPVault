@@ -57,10 +57,7 @@ function renderTenantOverviewView(t, state, dash){
     <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
     <div class="stat last"><span class="sl">Unbacked changes</span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
     ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button></span>` : ''}`;
-  body.innerHTML =
-    (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
-    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''} · <span class="tag ${t.provider}">${t.provider}</span> ${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</p>` +
-    (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
+  body.innerHTML = inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '';
 }
 async function overviewRefresh(){
   const btn = document.getElementById('t_ov_refresh');
@@ -825,16 +822,35 @@ async function exLoadObjects(){
     if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
     const canW = me.role === 'admin' || me.role === 'org_admin';
     const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
+    const counts = {new:0, modified:0, deleted:0};
+    d.objects.forEach(o => { if(counts[o.status] != null) counts[o.status]++; });
+    const meta = document.getElementById('ex_cat_meta');
+    if(meta){
+      const bits = [`${d.objects.length} object${d.objects.length === 1 ? '' : 's'}`];
+      if(!_ex.isLatest){
+        const lbl = _ex.mode === 'current' ? {modified:'changed since backup', deleted:'deleted since backup', new:'not backed up yet'}
+                                           : {modified:'modified', deleted:'deleted in latest', new:'new in latest'};
+        ['modified','deleted','new'].forEach(k => { if(counts[k]) bits.push(`${counts[k]} ${lbl[k]}`); });
+      }
+      meta.textContent = '· ' + bits.join(' · ');
+    }
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
-      <td>${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+      <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
-      <td class="rowact" style="white-space:nowrap;text-align:right">${canW && !inactive && o.status !== 'new' ? `<button onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore…</button>` : ''}</td></tr>`).join('');
+      <td class="rowact" style="text-align:right">${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore…</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function exViewObject(oid){
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore/${encodeURIComponent(_ex.cat)}/${encodeURIComponent(oid)}`);
     document.getElementById('ex_obj_label').textContent = `${ovLabel(_ex.cat)} / ${oid}`;
+    _ex.detailOid = oid;
+    const rb = document.getElementById('ex_det_restore');
+    if(rb){
+      const rcw = me.role === 'admin' || me.role === 'org_admin';
+      const rinactive = _tenants.find(x => x.id === _ex.tenantId)?.active === false;
+      rb.classList.toggle('hidden', !(rcw && !rinactive && d.status !== 'new'));
+    }
     document.getElementById('ex_col_a').textContent = _ex.mode === 'current' ? 'Current (live)' : 'In this snapshot';
     document.getElementById('ex_col_b').textContent = 'In latest backup';
     document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(not in this snapshot)';
@@ -937,3 +953,5 @@ function renderTenantCharts(){
     catch(e){ console.warn('chart', id, e); }
   });
 }
+
+function exRestoreFromDetail(){ if(_ex && _ex.detailOid != null) exRestoreObject(_ex.detailOid); }
