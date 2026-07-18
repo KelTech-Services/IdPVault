@@ -295,7 +295,6 @@ function deleteSnapshots(){
     }catch(e){ toast('Delete failed: ' + e.message, true); }
   });
 }
-function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
 function selSnap(cb){
   const row = cb.closest('tr'), ts = row.dataset.ts;
   if(cb.checked){ if(!selectedSnaps.includes(ts)) selectedSnaps.push(ts); row.classList.add('sel'); }
