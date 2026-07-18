@@ -126,6 +126,40 @@ def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn, request: Request) -
     return {"deleted": doomed}
 
 
+@router.get("/tenants/{tenant_id}/state/summary")
+def state_summary(tenant_id: int, request: Request) -> dict:
+    """Cached live-state summary (counts, drift vs latest snapshot, freshness)."""
+    from app.models.db import TenantState
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        if db.get(Tenant, tenant_id) is None:
+            raise HTTPException(404, "tenant not found")
+        st = db.get(TenantState, tenant_id)
+        if st is None or st.checked_at is None:
+            return {"available": False}
+        return {"available": True, "checked_at": st.checked_at.isoformat(),
+                **(st.summary or {})}
+
+
+@router.post("/tenants/{tenant_id}/state/refresh")
+def state_refresh(tenant_id: int, request: Request) -> dict:
+    """Manual 'Refresh from provider' (debounced server-side)."""
+    from app.core import livestate
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        if db.get(Tenant, tenant_id) is None:
+            raise HTTPException(404, "tenant not found")
+    summary = livestate.poll_tenant(tenant_id, force=True)
+    if summary is None:
+        raise HTTPException(402, "this tenant is over your license's tenant limit")
+    from app.models.db import TenantState
+    with SessionLocal() as db:
+        st = db.get(TenantState, tenant_id)
+        return {"available": True,
+                "checked_at": st.checked_at.isoformat() if st and st.checked_at else None,
+                **summary}
+
+
 @router.get("/tenants/{tenant_id}/diff")
 def diff(tenant_id: int, old: str, new: str, request: Request) -> dict:
     with SessionLocal() as db:

@@ -48,6 +48,12 @@ def load_tenant_jobs() -> None:
     from app.models.db import SessionLocal, Tenant
 
     scheduler.add_job(health_check, CronTrigger.from_crontab("30 0 * * *"), id="health-check", replace_existing=True)
+    from apscheduler.triggers.interval import IntervalTrigger
+    from app.core.livestate import sweep as livestate_sweep
+    # Live-state sweep shares the serial pool with backups; the TTL check inside
+    # keeps actual provider polls at the configured cadence.
+    scheduler.add_job(livestate_sweep, IntervalTrigger(minutes=5),
+                      id="live-state-sweep", replace_existing=True)
     with SessionLocal() as db:
         for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
             scheduler.add_job(run_backup, cron_trigger(t.schedule_cron),

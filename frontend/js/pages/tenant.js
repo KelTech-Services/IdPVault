@@ -22,20 +22,70 @@ function mountTenantSettings(t){
 }
 async function renderTenantOverview(t){
   const cards = document.getElementById('t_overview_cards');
+  if(!cards) return;
+  cards.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  document.getElementById('t_overview_banner').innerHTML = '';
+  document.getElementById('t_overview_grid').innerHTML = '';
+  document.getElementById('t_overview_body').innerHTML = '';
+  let state = null, dash = null;
+  try{ state = await api(`/tenants/${t.id}/state/summary`); }catch{}
+  try{ dash = await api('/dashboard/summary'); }catch{}
+  renderTenantOverviewView(t, state, dash);
+}
+function renderTenantOverviewView(t, state, dash){
+  const cards = document.getElementById('t_overview_cards');
+  const banner = document.getElementById('t_overview_banner');
+  const grid = document.getElementById('t_overview_grid');
   const body = document.getElementById('t_overview_body');
-  if(!cards || !body) return;
+  if(!cards || !grid) return;
   const canW = me.role === 'admin' || me.role === 'org_admin';
   const inactive = t.active === false;
-  let lastSnap = null, snapCount = null;
-  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1].ts; } catch {}
+  const dt = dash && dash.tenants ? dash.tenants.find(x => x.id === t.id) : null;
+  const lastRun = dt && dt.last_run;
+  const issues = [];
+  if(inactive) issues.push('license paused');
+  if(!t.schedule_cron) issues.push('no backup schedule');
+  if(!lastRun) issues.push('no backups yet');
+  else if(lastRun.status !== 'ok') issues.push('last backup ' + lastRun.status);
+  const ok = state && state.available;
+  const drift = ok && state.drift ? (state.drift.added + state.drift.removed + state.drift.changed) : null;
+  const checked = ok && state.checked_at ? new Date(state.checked_at) : null;
+  const ago = checked ? Math.max(0, Math.round((Date.now() - checked.getTime()) / 60000)) : null;
+  const agoTxt = ago == null ? '' : (ago === 0 ? 'just now' : ago + 'm ago');
   cards.innerHTML = `
-    <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
-    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
-    <div class="card ${lastSnap ? 'good' : 'warn'}"><div class="lbl2">Last config backup</div><div class="big" style="font-size:1.1rem">${lastSnap ? fmtSnapDay(lastSnap) : 'never'}</div><div class="sub">${snapCount == null ? '-' : snapCount + ' snapshot(s) on disk'}</div></div>`;
+    <div class="card ${issues.length ? 'warn' : 'good'}"><div class="lbl2">Backup health</div><div class="big" style="font-size:1.3rem">${inactive ? 'Paused' : issues.length ? 'Attention' : 'Excellent'}</div><div class="sub">${issues.length ? esc(issues.join(' · ')) : 'scheduled and running clean'}</div></div>
+    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">last backup: ${lastRun ? fmtSnapDay(lastRun.ts) : 'never'} · keep ${t.retention_keep}</div></div>
+    <div class="card ${drift ? 'warn' : ''}"><div class="lbl2">Unbacked changes</div><div class="big">${drift == null ? '-' : drift}</div><div class="sub">${checked ? 'config vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</div></div>`;
+  banner.innerHTML = (drift && state.latest_snapshot)
+    ? `<section class="panel" style="border-color:var(--amber);margin-bottom:20px"><p style="font-size:.88rem">Your most recent backup (${fmtSnap(state.latest_snapshot)}) is out of sync with current state - <b>${drift}</b> change${drift === 1 ? '' : 's'} not yet backed up.${canW && !inactive ? ` <button class="primary" style="margin-left:10px" onclick="backupNow(${t.id}, this)">Backup now</button>` : ''}</p></section>` : '';
+  const cats = ok ? Object.keys(state.counts || {}).sort() : [];
+  const per = (ok && state.categories) || {};
+  grid.innerHTML = cats.length ? cats.map(rt => {
+    const d = per[rt];
+    const badge = d ? ` <span style="font-size:.72rem">${d.added ? `<span style="color:var(--green)">+${d.added}</span> ` : ''}${d.removed ? `<span style="color:var(--red)">−${d.removed}</span> ` : ''}${d.changed ? `<span style="color:var(--amber)">~${d.changed}</span>` : ''}</span>` : '';
+    return `<div class="card" style="cursor:pointer" onclick="overviewOpenCat('${esc(rt)}')"><div class="lbl2">${esc(rt.replace(/_/g,' '))}</div><div class="big">${state.counts[rt]}${badge}</div></div>`;
+  }).join('') : `<div class="card"><div class="lbl2">Live view warming up</div><div class="sub">The first check runs within a few minutes${canW ? ', or click Refresh from provider' : ''}. Category counts appear here with drift badges once ready.</div></div>`;
+  const src = document.getElementById('t_overview_src');
+  if(src) src.textContent = ok ? (state.source === 'live' ? `- live from provider, checked ${agoTxt}` : '- as of the latest backup') : '';
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
-    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''}</p>` +
+    `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''} · <span class="tag ${t.provider}">${t.provider}</span> ${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</p>` +
     (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
+}
+function overviewOpenCat(rt){
+  window._exJumpCat = rt;
+  location.hash = '#/t/' + currentTenantId + '/explorer';
+}
+async function overviewRefresh(){
+  const btn = document.getElementById('t_ov_refresh');
+  const t = _tenants.find(x => x.id === currentTenantId); if(!t) return;
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = 'Refreshing…';
+  try{
+    const state = await api(`/tenants/${t.id}/state/refresh`, {method:'POST'});
+    const dash = await api('/dashboard/summary').catch(() => null);
+    renderTenantOverviewView(t, state, dash);
+  }catch(e){ toast(e.message, true); }
+  btn.disabled = false; btn.innerHTML = old;
 }
 const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Administration &gt; License';
 const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Administration &gt; License';
@@ -699,7 +749,8 @@ async function openExplorer(t){
     const rev = snaps.slice().reverse();
     sel.innerHTML = rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest - ':''}${fmtSnap(s.ts)}</option>`).join('');
     _ex.snap = rev[0].ts;
-    exLoadCats();
+    await exLoadCats();
+    if(window._exJumpCat){ exOpenCat(window._exJumpCat); window._exJumpCat = null; }
   }catch(e){ document.getElementById('ex_cats').innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
 }
 async function exLoadCats(){

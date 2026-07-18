@@ -32,6 +32,16 @@ class Tenant(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class TenantState(Base):
+    """Live-state poll cache (v1.2): per-category counts + drift vs the latest
+    snapshot, refreshed by the scheduler sweep or a manual refresh."""
+    __tablename__ = "tenant_state"
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class Org(Base):
     """MSP client organization: light CRM (contact + notes + billing memo),
     the grouping key for tenants, and the scope for org_admin/org_viewer users."""

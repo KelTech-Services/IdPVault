@@ -112,7 +112,13 @@
 </main>
 <main id="view-t-overview" class="hidden">
   <section class="cards" id="t_overview_cards"></section>
-  <section class="panel"><h2>Tenant details</h2><div id="t_overview_body"><span class="muted">Loading…</span></div></section>
+  <div id="t_overview_banner"></div>
+  <section class="panel">
+    <h2>Configuration <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
+      <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh from provider <span class="tipi">ⓘ</span></button></h2>
+    <div class="cards" id="t_overview_grid"></div>
+    <div id="t_overview_body" style="margin-top:14px"></div>
+  </section>
 </main>
 <main id="view-t-backups" class="hidden">
   <section class="panel hidden" id="snappanel">
@@ -327,6 +333,7 @@
       <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
+      <div><label>Live view refresh interval (minutes, 0 = off)</label><input id="s_statemin" type="number" placeholder="15"></div>
       <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
       <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
     </div>
