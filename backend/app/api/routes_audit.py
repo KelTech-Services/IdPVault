@@ -107,7 +107,12 @@ def explore(tenant_id: int, ts: str, request: Request,
                  "count": len(export.get(rt, [])),
                  "current_count": len(cur.get(rt, []))}
                 for rt in sorted(set(export) | set(cur))]
-        return {**info, "categories": cats}
+        out = {**info, "categories": cats}
+        if info["mode"] == "current":
+            u = _users_rail_info(tenant_id)
+            if u is not None:
+                out["users"] = u
+        return out
     if resource_type not in export and resource_type not in cur:
         raise HTTPException(404, "resource type not in this snapshot")
     ql = (q or "").lower()
@@ -172,3 +177,137 @@ def explore_object(tenant_id: int, ts: str, resource_type: str, object_id: str,
         status = {"deleted": "new", "new": "deleted"}.get(status, status)
     return {"status": status, **info, "changed_fields": changed,
             "object": ns, "current": nc}
+
+
+# ---- Live State users (v1.2): lazy live directory vs latest Users & Access snapshot ----
+
+def _uemail(u: dict) -> str:
+    prof = u.get("profile") or {}
+    return prof.get("email") or u.get("email") or ""
+
+
+def _users_rail_info(tenant_id: int) -> dict | None:
+    """Directory > Users rail entry: count from the warm in-memory live cache,
+    else from the latest Users & Access snapshot manifest. NO provider hit
+    here - the live users fetch is lazy (first click / manual refresh)."""
+    import json as _json
+    import os as _os
+    from app.core import license as lic
+    from app.core import livestate
+    from app.core import storage as st
+    if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
+        return None
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            return None
+        slug = t.slug
+    cached = livestate.live_identity_cached(tenant_id)
+    if cached is not None:
+        return {"count": len(cached.get("users", [])), "cached": True}
+    snaps = st.list_identity_snapshots(slug)
+    if snaps:
+        try:
+            with open(_os.path.join(st.identity_dir(slug, snaps[-1]), "manifest.json")) as f:
+                return {"count": (_json.load(f).get("counts") or {}).get("users"),
+                        "cached": False}
+        except OSError:
+            pass
+    return {"count": None, "cached": False}
+
+
+def _users_pair(tenant_id: int, request: Request, force: bool = False):
+    """Live user directory + latest Users & Access snapshot, license-gated."""
+    from app.core import license as lic
+    from app.core import livestate
+    from app.core import storage as st
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        slug, key = t.slug, crypto.unwrap_data_key(t.wrapped_data_key)
+    if not lic.has_feature("identity") or not lic.is_tenant_entitled(tenant_id):
+        raise HTTPException(402, "Users & Access requires a Business or MSP license")
+    live = livestate.get_live_identity(tenant_id, force=force)
+    snaps = st.list_identity_snapshots(slug)
+    latest = snaps[-1] if snaps else None
+    snap = st.read_identities(slug, latest, key) if latest else {}
+    return live, snap, latest
+
+
+@router.get("/tenants/{tenant_id}/live/users")
+def live_users(tenant_id: int, request: Request, q: str | None = None,
+               limit: int = 500) -> dict:
+    """Live State > Users: the current directory with a status per user vs the
+    latest Users & Access snapshot (backed up / changed / not backed up yet /
+    deleted since backup)."""
+    import json as _json
+    from app.core.identity import _ukey
+    live, snap, latest = _users_pair(tenant_id, request)
+    lus, sus = live.get("users", []), snap.get("users", [])
+    sidx = {str(u.get("id")): u for u in sus}
+    rows, live_ids = [], set()
+    for u in lus:
+        uid = str(u.get("id"))
+        live_ids.add(uid)
+        s = sidx.get(uid)
+        if s is None:
+            status = "new"
+        elif _json.dumps(u, sort_keys=True) != _json.dumps(s, sort_keys=True):
+            status = "modified"
+        else:
+            status = "unchanged"
+        rows.append({"object_id": uid, "object_name": _ukey(u),
+                     "email": _uemail(u), "key": _ukey(u), "status": status})
+    for uid, s in sidx.items():
+        if uid in live_ids:
+            continue
+        rows.append({"object_id": uid, "object_name": _ukey(s),
+                     "email": _uemail(s), "key": _ukey(s), "status": "deleted"})
+    counts = {"added": sum(1 for r in rows if r["status"] == "new"),
+              "removed": sum(1 for r in rows if r["status"] == "deleted"),
+              "changed": sum(1 for r in rows if r["status"] == "modified")}
+    ql = (q or "").lower()
+    if ql:
+        rows = [r for r in rows if ql in (r["object_name"] or "").lower()
+                or ql in (r["email"] or "").lower() or ql in r["object_id"].lower()]
+    return {"mode": "current", "latest_identity_snapshot": latest,
+            "count": len(lus), "counts": counts,
+            "total": len(rows), "objects": rows[:min(limit, 1000)]}
+
+
+@router.post("/tenants/{tenant_id}/live/users/refresh")
+def live_users_refresh(tenant_id: int, request: Request) -> dict:
+    """Manual 'Refresh Users from provider' (debounced server-side)."""
+    live, _snap, _latest = _users_pair(tenant_id, request, force=True)
+    return {"ok": True, "count": len(live.get("users", []))}
+
+
+@router.get("/tenants/{tenant_id}/live/users/{user_id}")
+def live_user_detail(tenant_id: int, user_id: str, request: Request) -> dict:
+    """Live State user detail: live record vs the latest Users & Access
+    snapshot, plus which fields differ."""
+    import json as _json
+    from app.core.identity import _ukey
+    live, snap, latest = _users_pair(tenant_id, request)
+    lu = next((u for u in live.get("users", []) if str(u.get("id")) == user_id), None)
+    su = next((u for u in snap.get("users", []) if str(u.get("id")) == user_id), None)
+    if lu is None and su is None:
+        raise HTTPException(404, "user not found")
+    if lu is None:
+        status = "deleted"
+    elif su is None:
+        status = "new"
+    elif _json.dumps(lu, sort_keys=True) != _json.dumps(su, sort_keys=True):
+        status = "modified"
+    else:
+        status = "unchanged"
+    changed = []
+    if lu is not None and su is not None:
+        for k in sorted(set(lu) | set(su)):
+            if _json.dumps(lu.get(k), sort_keys=True) != _json.dumps(su.get(k), sort_keys=True):
+                changed.append(k)
+    return {"status": status, "mode": "current", "latest_identity_snapshot": latest,
+            "changed_fields": changed, "key": _ukey(su or lu),
+            "object": lu, "current": su}

@@ -159,3 +159,45 @@ def sweep() -> None:
             poll_tenant(tid)
         except Exception:
             log.warning("live-state poll failed tenant=%s", tid, exc_info=True)
+
+
+# ---- live user directory (v1.2 Live State users) ----
+# Users are the rate-limited API surface (Okta rate limits, Auth0 export caps),
+# so this fetch is LAZY: only when the Users category is opened or manually
+# refreshed. Cached in RAM only - user data never touches the database here.
+_LIVE_ID_TTL_S = 300
+_ID_REFRESH_DEBOUNCE_S = 60
+_live_id_cache: dict[int, tuple[float, dict]] = {}
+
+
+def live_identity_cached(tenant_id: int) -> dict | None:
+    """Warm cache hit or None - never triggers a provider fetch."""
+    import time as _t
+    hit = _live_id_cache.get(tenant_id)
+    if hit and _t.monotonic() - hit[0] < _LIVE_ID_TTL_S:
+        return hit[1]
+    return None
+
+
+def get_live_identity(tenant_id: int, force: bool = False) -> dict:
+    """Current provider user directory. force=True bypasses the TTL but is
+    still debounced so a refresh button cannot hammer the user APIs."""
+    import time as _t
+    from app.core import crypto
+    from app.models.db import SessionLocal, Tenant
+    from app.providers import get_adapter
+    hit = _live_id_cache.get(tenant_id)
+    if hit:
+        age = _t.monotonic() - hit[0]
+        if (not force and age < _LIVE_ID_TTL_S) or (force and age < _ID_REFRESH_DEBOUNCE_S):
+            return hit[1]
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise ValueError("tenant not found")
+        key = crypto.unwrap_data_key(t.wrapped_data_key)
+        creds = crypto.decrypt(t.enc_credentials, key).decode()
+        adapter = get_adapter(t.provider, t.base_url, creds)
+    data = adapter.export_identities()
+    _live_id_cache[tenant_id] = (_t.monotonic(), data)
+    return data

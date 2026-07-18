@@ -663,6 +663,14 @@ function renderIdentityRestore(p){
   const extra = (p.manual_steps&&p.manual_steps.length?`<div style="margin-top:10px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'')
     + (p.note?`<p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>`:'');
   document.getElementById('ir_items').innerHTML = selbar + IR_HEAD + userRows + agg.join('') + extra;
+  if(window._irPreselect){
+    const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
+    if(boxes.length){
+      boxes.forEach(b => b.checked = b.value === window._irPreselect);
+      if(!boxes.some(b => b.checked)) boxes.forEach(b => b.checked = true);
+    }
+    window._irPreselect = null;
+  }
   updateIdentityCount();
 }
 function setAllIdentity(v){ document.querySelectorAll('#ir_items .ir-sel').forEach(b=>b.checked=v); updateIdentityCount(); }
@@ -721,37 +729,26 @@ async function identityApply(){
 let _ex = null;
 let _restorePreselect = null;
 async function openExplorer(t){
-  _ex = { tenantId: t.id, slug: t.slug, snap: null, cat: null, isLatest: true };
+  _ex = { tenantId: t.id, slug: t.slug, snap: 'current', cat: null, isLatest: false, mode: 'current',
+          identity: _feat('identity') && t.supports_identity !== false };
   snapTenantId = t.id; window._snapSlug = t.slug;
   document.getElementById('ex_objpanel').classList.add('hidden');
   document.getElementById('ex_detailpanel').classList.add('hidden');
   document.getElementById('ex_empty').classList.remove('hidden');
-  const sel = document.getElementById('ex_snap');
-  sel.innerHTML = '';
+  const rb = document.getElementById('t_ov_refreshu');
+  if(rb) rb.classList.toggle('hidden', !_ex.identity);
   const rail = document.getElementById('ex_cats');
   rail.innerHTML = '<div class="empty">Loading…</div>';
-  try{
-    const snaps = await api(`/tenants/${t.id}/snapshots`);
-    if(!snaps.length){ rail.innerHTML = '<div class="empty">No backups yet - run a backup, then browse the configuration here.</div>'; return; }
-    const rev = snaps.slice().reverse();
-    sel.innerHTML = '<option value="current">Current (live from provider)</option>' +
-      rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest backup - ':''}${fmtSnap(s.ts)}</option>`).join('');
-    _ex.snap = window._exJumpSnap || 'current';
-    sel.value = _ex.snap;
-    window._exJumpSnap = null;
-    await exLoadCats();
-    if(window._exJumpCat){ exOpenCat(window._exJumpCat); window._exJumpCat = null; }
-  }catch(e){ rail.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  await exLoadCats();
 }
 async function exLoadCats(){
-  const sel = document.getElementById('ex_snap');
-  if(sel.value) _ex.snap = sel.value;
   const rail = document.getElementById('ex_cats');
   rail.innerHTML = '<div class="empty">Loading…</div>';
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore`);
     _ex.mode = d.mode; _ex.isLatest = d.mode === 'snapshot' && d.is_latest; _ex.latest = d.latest;
     const byType = {}; d.categories.forEach(c => byType[c.resource_type] = c);
+    if(d.users && _ex.identity) byType['users'] = {resource_type: 'users', count: d.users.count, current_count: d.users.count};
     const st = window._ovState;
     const per = (_ex.mode === 'current' && st && st.available && st.categories) || null;
     const row = c => {
@@ -765,7 +762,7 @@ async function exLoadCats(){
         const delta = _ex.mode === 'current' ? c.count - c.current_count : c.current_count - c.count;
         if(delta) chips = `<span class="chip ${delta > 0 ? 'add' : 'rem'}">${delta > 0 ? '+' + delta : '−' + (-delta)}</span>`;
       }
-      return `<button class="mdrow" data-rt="${esc(c.resource_type)}" onclick="exOpenCat('${esc(c.resource_type)}')"><span>${esc(ovLabel(c.resource_type))}</span><span class="spacer"></span><span class="cnt">${c.count}</span>${chips}</button>`;
+      return `<button class="mdrow" data-rt="${esc(c.resource_type)}" onclick="exOpenCat('${esc(c.resource_type)}')"><span>${esc(ovLabel(c.resource_type))}</span><span class="spacer"></span><span class="cnt">${c.count == null ? '-' : c.count}</span>${chips}</button>`;
     };
     let html = ''; const used = new Set();
     OV_SECTIONS.forEach(s => {
@@ -777,11 +774,10 @@ async function exLoadCats(){
     const rest = d.categories.filter(c => !used.has(c.resource_type));
     if(rest.length) html += '<div class="mdsec">Other</div>' + rest.map(row).join('');
     rail.innerHTML = html || '<div class="empty">Nothing captured in this view.</div>';
-    const th = document.getElementById('ex_status_th');
-    if(th) th.textContent = _ex.mode === 'current' ? 'Backup status' : 'Status vs latest';
     const src = document.getElementById('t_overview_src');
-    if(src) src.textContent = _ex.mode === 'current' ? '- live from provider' : '- as of backup ' + fmtSnap(_ex.snap);
-    const first = rail.querySelector('.mdrow');
+    if(src) src.textContent = d.latest ? '- compared with the latest backup (' + fmtSnap(d.latest) + ')' : '- no config backups yet';
+    const rowsAll = [...rail.querySelectorAll('.mdrow')];
+    const first = rowsAll.find(b => b.dataset.rt !== 'users') || rowsAll[0];
     if(_ex.cat && byType[_ex.cat]) exOpenCat(_ex.cat);
     else if(first) exOpenCat(first.dataset.rt);
   }catch(e){ rail.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
@@ -814,6 +810,7 @@ function exStatusTag(status){
 }
 async function exLoadObjects(){
   if(!_ex || !_ex.cat) return;
+  if(_ex.cat === 'users') return exLoadUsersObjects();
   const q = v('ex_search');
   const tb = document.getElementById('ex_objects');
   tb.innerHTML = skelRows(4);
@@ -963,4 +960,90 @@ function renderTenantCharts(){
   });
 }
 
-function exRestoreFromDetail(){ if(_ex && _ex.detailOid != null) exRestoreObject(_ex.detailOid); }
+function exRestoreFromDetail(){
+  if(!_ex) return;
+  if(_ex.cat === 'users'){
+    const rb = document.getElementById('ex_det_restore');
+    if(rb && rb.dataset.uname) exRestoreUser(rb.dataset.uname);
+    return;
+  }
+  if(_ex.detailOid != null) exRestoreObject(_ex.detailOid);
+}
+
+/* ---------- v1.2: Live State users (lazy live directory vs latest Users & Access backup) ---------- */
+async function exLoadUsersObjects(){
+  const q = v('ex_search');
+  const tb = document.getElementById('ex_objects');
+  tb.innerHTML = skelRows(4);
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/live/users${q ? '?q=' + encodeURIComponent(q) : ''}`);
+    _ex.idLatest = d.latest_identity_snapshot;
+    const rowBtn = document.querySelector('#ex_cats .mdrow[data-rt="users"]');
+    if(rowBtn){
+      const c = d.counts || {};
+      const chips = (c.added ? `<span class="chip add">+${c.added}</span>` : '') +
+                    (c.removed ? `<span class="chip rem">−${c.removed}</span>` : '') +
+                    (c.changed ? `<span class="chip chg">~${c.changed}</span>` : '');
+      rowBtn.innerHTML = `<span>Users</span><span class="spacer"></span><span class="cnt">${d.count}</span>${chips}`;
+    }
+    const meta = document.getElementById('ex_cat_meta');
+    if(meta){
+      const bits = [`${d.count} user${d.count === 1 ? '' : 's'}`];
+      const lbl = {changed: 'changed since backup', removed: 'deleted since backup', added: 'not backed up yet'};
+      ['changed','removed','added'].forEach(k => { if(d.counts && d.counts[k]) bits.push(`${d.counts[k]} ${lbl[k]}`); });
+      if(!d.latest_identity_snapshot) bits.push('no Users & Access backup yet');
+      meta.textContent = '· ' + bits.join(' · ');
+    }
+    if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching users.'); return; }
+    const canW = me.role === 'admin' || me.role === 'org_admin';
+    const inactive = _tenants.find(x => x.id === _ex.tenantId)?.active === false;
+    tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewUser('${esc(o.object_id)}')">
+      <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}${o.email && o.email !== o.object_name ? ` <span class="muted" style="font-size:.78rem">${esc(o.email)}</span>` : ''}</td>
+      <td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+      <td>${exStatusTag(o.status)}</td>
+      <td class="rowact" style="text-align:right">${canW && !inactive && o.status === 'deleted' && d.latest_identity_snapshot ? `<button class="ghost" onclick="event.stopPropagation();exRestoreUser('${esc(o.key)}')" title="Recreate this user from the latest Users &amp; Access backup (additive create-only restore; dry-run preview first)">Restore…</button>` : ''}</td></tr>`).join('');
+  }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function exViewUser(oid){
+  try{
+    const d = await api(`/tenants/${_ex.tenantId}/live/users/${encodeURIComponent(oid)}`);
+    _ex.idLatest = d.latest_identity_snapshot;
+    document.getElementById('ex_obj_label').textContent = `Users / ${oid}`;
+    document.getElementById('ex_col_a').textContent = 'Current (live)';
+    document.getElementById('ex_col_b').textContent = 'In latest Users & Access backup';
+    document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(deleted - no longer in the live directory)';
+    document.getElementById('ex_curjson').textContent = d.current ? JSON.stringify(d.current, null, 2) : '(not backed up yet)';
+    document.getElementById('ex_diffinfo').innerHTML = d.status === 'modified' && d.changed_fields.length
+      ? `Changed fields: <b>${d.changed_fields.map(esc).join(', ')}</b>` : exStatusTag(d.status);
+    _ex.detailOid = null;
+    const rb = document.getElementById('ex_det_restore');
+    if(rb){
+      const rcw = me.role === 'admin' || me.role === 'org_admin';
+      const rinactive = _tenants.find(x => x.id === _ex.tenantId)?.active === false;
+      rb.dataset.uname = d.key || '';
+      rb.classList.toggle('hidden', !(rcw && !rinactive && d.status === 'deleted' && _ex.idLatest && d.key));
+    }
+    document.getElementById('ex_objpanel').classList.add('hidden');
+    document.getElementById('ex_detailpanel').classList.remove('hidden');
+  }catch(e){ toast(e.message, true); }
+}
+function exRestoreUser(key){
+  if(!_ex.idLatest) return toast('No Users & Access backup to restore from yet.', true);
+  const t = _tenants.find(x => x.id === _ex.tenantId);
+  _idCtx = {tenantId: _ex.tenantId, slug: _ex.slug, provider: t ? t.provider : null};
+  document.getElementById('id_slug').textContent = _ex.slug;
+  window._irPreselect = key;
+  openIdentityRestore(_ex.idLatest);
+  identityPreview();
+}
+async function overviewRefreshUsers(){
+  const btn = document.getElementById('t_ov_refreshu');
+  if(!_ex || !btn) return;
+  btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = 'Refreshing…';
+  try{
+    await api(`/tenants/${_ex.tenantId}/live/users/refresh`, {method:'POST'});
+    if(_ex.cat === 'users') await exLoadObjects();
+    else await exLoadCats();
+  }catch(e){ toast(e.message, true); }
+  btn.disabled = false; btn.innerHTML = old;
+}

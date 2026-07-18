@@ -118,17 +118,17 @@
     <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Total size of each backup in MB (encrypted snapshot plus the Full-DR database dump when enabled)">ⓘ</span></div><div class="chart" id="ch_t_size"></div></div>
   </section>
   <section class="panel">
-    <h2>Configuration <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
-      <select id="ex_snap" onchange="exLoadCats()" style="width:auto"></select>
+    <h2>Live State <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
       <button id="t_ov_trends" onclick="ovToggleCharts()" title="Trend charts: changes per backup, object counts, backup size">Show Trends</button>
-      <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider</button></h2>
+      <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider</button>
+      <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider</button></h2>
     <div class="mdlayout">
       <div class="mdrail" id="ex_cats"><div class="empty">Loading…</div></div>
       <div class="mdpane">
         <div id="ex_objpanel" class="hidden">
           <div class="mdpanehead"><span class="mdtitle" id="ex_cat_label"></span><span id="ex_cat_meta" class="muted" style="font-size:.8rem"></span><span class="spacer"></span>
             <input id="ex_search" placeholder="search objects…" style="width:240px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)"></div>
-          <table><thead><tr><th style="width:26%">Object</th><th>ID</th><th id="ex_status_th" style="width:170px">Status</th><th style="width:110px"></th></tr></thead>
+          <table><thead><tr><th style="width:26%">Object</th><th>ID</th><th id="ex_status_th" style="width:170px">Backup status</th><th style="width:110px"></th></tr></thead>
           <tbody id="ex_objects"></tbody></table>
         </div>
         <div id="ex_detailpanel" class="hidden">
