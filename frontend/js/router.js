@@ -9,6 +9,7 @@ let _activeHash = '';
 const NAV_ICONS = {
   overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   backups: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>',
+  changes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>',
   identity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
   tsettings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg>',
@@ -22,9 +23,9 @@ const NAV_ICONS = {
 };
 
 const GLOBAL_VIEWS = {fleet:'view-fleet', orgs:'view-orgs', appusers:'view-users', audit:'view-audit', license:'view-license', settings:'view-settings', docs:'view-docs'};
-const TENANT_VIEWS = {overview:'view-t-overview', backups:'view-t-backups', identity:'view-t-identity', activity:'view-t-activity', settings:'view-t-settings'};
+const TENANT_VIEWS = {overview:'view-t-overview', backups:'view-t-backups', changes:'view-t-changes', identity:'view-t-identity', activity:'view-t-activity', settings:'view-t-settings'};
 const GLOBAL_TITLES = {fleet:'Dashboard', orgs:'Client orgs', appusers:'App users', audit:'Audit log', license:'License', settings:'System settings', docs:'Docs'};
-const TENANT_TITLES = {overview:'Overview', backups:'Backups', identity:'Users & Access', activity:'Activity', settings:'Settings'};
+const TENANT_TITLES = {overview:'Overview', backups:'Backups', changes:'Changes', identity:'Users & Access', activity:'Activity', settings:'Settings'};
 const LEGACY_ROUTES = {dashboard:'fleet', users:'appusers', events:'fleet'};
 
 function _isAdmin(){ return me && me.role === 'admin'; }
@@ -37,6 +38,7 @@ function tenantPages(t){
   const pages = [
     {key:'overview', label:'Overview'},
     {key:'backups', label:'Backups'},
+    {key:'changes', label:'Changes'},
   ];
   // HIDE not lock-badge (spec sec 2): identity page only when licensed, provider-supported,
   // tenant not license-paused, and the user can write (org_viewer has no identity actions today).
@@ -150,6 +152,7 @@ function enterGlobalPage(page){
 function enterTenantPage(t, page){
   if(page === 'overview') renderTenantOverview(t);
   if(page === 'backups') showSnaps(t.id, t.slug);
+  if(page === 'changes') openChanges(t);
   if(page === 'identity') openIdentity(t.id, t.slug);
   if(page === 'activity') loadEvents();
   if(page === 'settings') mountTenantSettings(t);

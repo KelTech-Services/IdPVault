@@ -162,13 +162,23 @@ def state_refresh(tenant_id: int, request: Request) -> dict:
 
 @router.get("/tenants/{tenant_id}/diff")
 def diff(tenant_id: int, old: str, new: str, request: Request) -> dict:
+    """Compare any two points in time. Either side may be a snapshot timestamp
+    or "current" (live provider config via the in-memory live cache)."""
     with SessionLocal() as db:
         require_tenant_read(request, db, tenant_id)
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
         key = crypto.unwrap_data_key(t.wrapped_data_key)
-        return diff_exports(
-            storage.read_snapshot(t.slug, old, key),
-            storage.read_snapshot(t.slug, new, key),
-        )
+        slug = t.slug
+
+    def _load(ts: str) -> dict:
+        if ts == "current":
+            from app.core import livestate
+            return livestate.get_live_export(tenant_id)
+        try:
+            return storage.read_snapshot(slug, ts, key)
+        except FileNotFoundError:
+            raise HTTPException(404, "snapshot not found")
+
+    return diff_exports(_load(old), _load(new))

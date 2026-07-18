@@ -171,6 +171,24 @@
     <pre id="diffout" class="hidden" style="margin-top:12px"></pre>
   </section>
 </main>
+<main id="view-t-changes" class="hidden">
+  <section class="panel">
+    <h2>Changes <span class="spacer"></span>
+      <span class="lbl" style="display:inline;margin:0">From</span>
+      <select id="chg_from" onchange="runChanges()" style="width:auto"></select>
+      <button onclick="chgStep(1)" aria-label="Step From one backup older">&lsaquo; Older</button>
+      <button onclick="chgStep(-1)" aria-label="Step From one backup newer">Newer &rsaquo;</button>
+      <span class="lbl" style="display:inline;margin:0 0 0 10px">To</span>
+      <select id="chg_to" onchange="runChanges()" style="width:auto"></select>
+    </h2>
+    <p class="muted" style="font-size:.82rem;margin:-6px 0 14px">What changed between two points in time - defaults to your latest backup vs the current live configuration <span class="tipi" title="Pick any two backups, or compare a backup against Current (live from provider). Category chips filter the table; every added, removed, and changed object is listed with its changed fields.">ⓘ</span></p>
+    <div class="diffstat" id="chg_stat"></div>
+    <div class="chk" id="chg_cats"></div>
+    <table><thead><tr><th>Change</th><th>Category</th><th>Object</th><th>Changed fields</th><th style="width:170px"></th></tr></thead>
+    <tbody id="chg_rows"></tbody></table>
+    <pre id="chg_out" class="hidden" style="margin-top:12px"></pre>
+  </section>
+</main>
 <main id="view-t-identity" class="hidden">
   <section class="panel hidden" id="idpanel">
     <h2>Users &amp; Access - <span id="id_slug"></span><span class="spacer"></span>

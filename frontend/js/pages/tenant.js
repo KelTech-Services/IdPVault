@@ -55,7 +55,7 @@ function renderTenantOverviewView(t, state, dash){
     <div class="stat"><span class="sl">Backup health</span><span class="sv" style="color:${inactive ? 'var(--red)' : issues.length ? 'var(--amber)' : 'var(--green)'}">${inactive ? 'Paused' : issues.length ? 'Attention' : 'Excellent'}</span><span class="ss">${issues.length ? esc(issues.join(' · ')) : 'scheduled and running clean'}</span></div>
     <div class="stat"><span class="sl">Schedule</span><span class="sv">${esc(cronLabel(t.schedule_cron))}</span><span class="ss">keep ${t.retention_keep} snapshots</span></div>
     <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
-    <div class="stat last"><span class="sl">Unbacked changes</span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
+    <div class="stat last" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/changes'" title="Open the Changes page - investigate what changed vs the latest backup"><span class="sl">Unbacked changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
     ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button></span>` : ''}`;
   body.innerHTML = inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '';
 }
@@ -1046,4 +1046,110 @@ async function overviewRefreshUsers(){
     else await exLoadCats();
   }catch(e){ toast(e.message, true); }
   btn.disabled = false; btn.innerHTML = old;
+}
+
+/* ---------- v1.2 Phase 4: Changes page (timeline compare) ---------- */
+let _chg = null;
+async function openChanges(t){
+  _chg = { tenantId: t.id, slug: t.slug, cat: null, data: null };
+  snapTenantId = t.id; window._snapSlug = t.slug;
+  const from = document.getElementById('chg_from'), to = document.getElementById('chg_to');
+  from.innerHTML = ''; to.innerHTML = '';
+  document.getElementById('chg_rows').innerHTML = '';
+  document.getElementById('chg_stat').innerHTML = '';
+  document.getElementById('chg_cats').innerHTML = '';
+  document.getElementById('chg_out').classList.add('hidden');
+  try{
+    const snaps = await api(`/tenants/${t.id}/snapshots`);
+    if(!snaps.length){ document.getElementById('chg_stat').innerHTML = '<span class="muted">No backups yet - run a backup first, then investigate changes here.</span>'; return; }
+    const rev = snaps.slice().reverse();
+    const opts = rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest backup - ':''}${fmtSnap(s.ts)}</option>`).join('');
+    from.innerHTML = opts;
+    to.innerHTML = '<option value="current">Current (live from provider)</option>' + opts;
+    from.value = rev[0].ts; to.value = 'current';
+    await runChanges();
+  }catch(e){ document.getElementById('chg_stat').innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
+}
+function chgStep(dir){
+  const from = document.getElementById('chg_from');
+  const i = from.selectedIndex + dir;   // options run newest -> oldest
+  if(i < 0 || i >= from.options.length) return;
+  from.selectedIndex = i; runChanges();
+}
+async function runChanges(){
+  if(!_chg) return;
+  const a = v('chg_from'), b = v('chg_to');
+  const rows = document.getElementById('chg_rows');
+  document.getElementById('chg_out').classList.add('hidden'); window._chgOpenRef = null;
+  if(a === b){
+    document.getElementById('chg_stat').innerHTML = '<span class="muted">Same point on both sides - pick two different points.</span>';
+    rows.innerHTML = ''; document.getElementById('chg_cats').innerHTML = ''; return;
+  }
+  rows.innerHTML = skelRows(5);
+  try{
+    const d = await api(`/tenants/${_chg.tenantId}/diff?old=${encodeURIComponent(a)}&new=${encodeURIComponent(b)}`);
+    _chg.data = d; _chg.from = a; _chg.to = b; _chg.cat = null;
+    renderChanges();
+  }catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
+}
+function renderChanges(){
+  const d = _chg.data || {};
+  const cats = Object.keys(d).filter(rt => (d[rt].added.length + d[rt].removed.length + d[rt].changed.length) > 0).sort();
+  let add = 0, rem = 0, chg = 0;
+  cats.forEach(rt => { add += d[rt].added.length; rem += d[rt].removed.length; chg += d[rt].changed.length; });
+  document.getElementById('chg_stat').innerHTML = cats.length
+    ? `<span class="add">+${add} added</span><span class="rem">−${rem} removed</span><span class="chg">~${chg} changed</span>`
+    : '<span class="muted">No differences between these two points.</span>';
+  const cbox = document.getElementById('chg_cats');
+  cbox.innerHTML = cats.length ? `<button class="${!_chg.cat ? 'primary' : ''}" onclick="chgFilter(null)">All</button>` +
+    cats.map(rt => {
+      const x = d[rt];
+      const bits = (x.added.length ? ` <span class="chip add">+${x.added.length}</span>` : '') +
+                   (x.removed.length ? ` <span class="chip rem">−${x.removed.length}</span>` : '') +
+                   (x.changed.length ? ` <span class="chip chg">~${x.changed.length}</span>` : '');
+      return `<button class="${_chg.cat === rt ? 'primary' : ''}" onclick="chgFilter('${esc(rt)}')">${esc(ovLabel(rt))}${bits}</button>`;
+    }).join('') : '';
+  const canW = me.role === 'admin' || me.role === 'org_admin';
+  const inactive = _tenants.find(x => x.id === _chg.tenantId)?.active === false;
+  const restoreOk = canW && !inactive && _chg.from !== 'current';
+  const out = [];
+  const mk = (kind, rt, o, fields, ref) => `<tr>
+      <td>${DIFF_TAG[kind]}</td><td>${esc(ovLabel(rt))}</td>
+      <td>${esc(objLabel(o))}</td>
+      <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length > 8 ? ' …' : '') : '-'}</td>
+      <td style="white-space:nowrap;text-align:right"><button onclick="chgView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button>${restoreOk && kind !== 'added' ? ` <button class="ghost" onclick="chgRestore('${esc(rt)}', '${ref}')" title="Preview restoring this object from the From backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`;
+  Object.keys(d).sort().forEach(rt => {
+    if(_chg.cat && rt !== _chg.cat) return;
+    const x = d[rt];
+    x.added.forEach((o, i) => out.push(mk('added', rt, o, null, `a:${rt}:${i}`)));
+    x.removed.forEach((o, i) => out.push(mk('removed', rt, o, null, `r:${rt}:${i}`)));
+    x.changed.forEach((c, i) => out.push(mk('changed', rt, c.after || c.before, changedFieldList(c), `c:${rt}:${i}`)));
+  });
+  document.getElementById('chg_rows').innerHTML = out.join('') || '<tr><td colspan="5" class="muted">No changes in this category.</td></tr>';
+}
+function chgFilter(rt){ _chg.cat = rt; renderChanges(); }
+function chgView(ref){
+  const pre = document.getElementById('chg_out');
+  if(window._chgOpenRef === ref && !pre.classList.contains('hidden')){ pre.classList.add('hidden'); window._chgOpenRef = null; return; }
+  window._chgOpenRef = ref;
+  const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
+  const kind = ref.slice(0, i1), rt = ref.slice(i1 + 1, i2), i = +ref.slice(i2 + 1);
+  const x = (_chg.data || {})[rt]; if(!x) return;
+  const payload = kind === 'a' ? x.added[i] : kind === 'r' ? x.removed[i]
+    : {before: x.changed[i].before, after: x.changed[i].after};
+  pre.textContent = JSON.stringify(payload, null, 2);
+  pre.classList.remove('hidden');
+  pre.scrollIntoView({behavior:'smooth'});
+}
+function chgRestore(rt, ref){
+  const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
+  const kind = ref.slice(0, i1), i = +ref.slice(i2 + 1);
+  const x = (_chg.data || {})[rt]; if(!x) return;
+  const o = kind === 'r' ? x.removed[i] : (x.changed[i] ? (x.changed[i].before || x.changed[i].after) : null);
+  if(!o) return;
+  const oid = String(o.pk ?? o.id ?? o.client_id ?? o.custom_domain_id ?? o.slug ?? o.brand_uuid ?? '');
+  if(!oid) return toast('Cannot identify this object for restore.', true);
+  _restorePreselect = { rt, oid };
+  openRestore(_chg.from);
+  restorePreview();
 }

@@ -192,7 +192,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 .statusbar .ss{font-size:.76rem;color:var(--dim)}
 .rowlink{cursor:pointer}
 .idcell{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.74rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mdrow .chip{font-size:.66rem;font-weight:700;padding:1px 7px;border-radius:9px}
+.chip{font-size:.66rem;font-weight:700;padding:1px 7px;border-radius:9px}
 .chip.add{background:var(--tag-green-bg)}.chip.rem{background:var(--tag-red-bg)}.chip.chg{background:var(--tag-amber-bg)}
 .chartgrid .lbl2{display:flex;align-items:center;gap:6px}
 .chartgrid .lbl2 .spacer{flex:1}
