@@ -201,6 +201,9 @@ async function installLicense(){
     await api('/license', {method:'PUT', body: JSON.stringify({token:key})});
     document.getElementById('lic_key').value = '';
     toast('License installed - paid features unlocked.');
+    // Re-fetch the session so new license features (identity/msp) apply without a page refresh.
+    try { me = await api('/auth/me'); } catch {}
+    document.querySelectorAll('.mspnav').forEach(el => el.classList.toggle('hidden', !(me && me.role === 'admin' && (me.features||[]).includes('msp'))));
     _license = null; loadLicense(); loadTenants();
   } catch(e){ toast('Install failed: ' + e.message, true); }
 }
