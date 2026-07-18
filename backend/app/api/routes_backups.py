@@ -1,10 +1,16 @@
-from fastapi import APIRouter, HTTPException, Request
-from app.core.security import require_tenant_read, require_tenant_write
+"""Config backups: trigger, snapshot list (with manifest metadata), compare,
+per-snapshot change summary (cached), and admin-only bulk deletion."""
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from app.core.security import require_admin, require_tenant_read, require_tenant_write
 
 from app.core import crypto, storage
 from app.core.diff import diff_exports
 from app.core.scheduler import run_backup
-from app.models.db import SessionLocal, Tenant
+from app.models.db import AuditLog, SessionLocal, Tenant
 
 router = APIRouter(tags=["backups"])
 
@@ -23,13 +29,86 @@ def trigger_backup(tenant_id: int, request: Request) -> dict:
 
 
 @router.get("/tenants/{tenant_id}/snapshots")
-def snapshots(tenant_id: int, request: Request) -> list[str]:
+def snapshots(tenant_id: int, request: Request) -> list[dict]:
+    """Snapshot list enriched from each snapshot's plaintext manifest (no
+    decryption): object totals, encrypted size, and Full-DR dump size."""
     with SessionLocal() as db:
         require_tenant_read(request, db, tenant_id)
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
-        return storage.list_snapshots(t.slug)
+        slug = t.slug
+    out = []
+    for ts in storage.list_snapshots(slug):
+        m = storage.read_manifest(slug, ts) or {}
+        entry = {"ts": ts,
+                 "objects": sum((m.get("counts") or {}).values()),
+                 "size": m.get("size_encrypted", 0),
+                 "db_dump_size": None}
+        dump = os.path.join(storage.snapshot_dir(slug, ts), "pgdump.sql.enc")
+        if os.path.exists(dump):
+            entry["db_dump_size"] = os.path.getsize(dump)
+        out.append(entry)
+    return out
+
+
+@router.get("/tenants/{tenant_id}/snapshots/{ts}/changes")
+def snapshot_changes(tenant_id: int, ts: str, request: Request) -> dict:
+    """Added/removed/changed totals vs the previous snapshot. Computed once
+    per pair and cached inside the snapshot dir, so lists render fast."""
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        slug, key = t.slug, crypto.unwrap_data_key(t.wrapped_data_key)
+    snaps = storage.list_snapshots(slug)
+    if ts not in snaps:
+        raise HTTPException(404, "snapshot not found")
+    i = snaps.index(ts)
+    if i == 0:
+        return {"first": True}
+    prev = snaps[i - 1]
+    cached = storage.read_changes_cache(slug, ts)
+    if cached and cached.get("prev") == prev:
+        return cached
+    d = diff_exports(storage.read_snapshot(slug, prev, key),
+                     storage.read_snapshot(slug, ts, key))
+    out = {"prev": prev,
+           "added": sum(len(x["added"]) for x in d.values()),
+           "removed": sum(len(x["removed"]) for x in d.values()),
+           "changed": sum(len(x["changed"]) for x in d.values())}
+    storage.write_changes_cache(slug, ts, out)
+    return out
+
+
+class SnapshotDeleteIn(BaseModel):
+    timestamps: list[str]
+
+
+@router.post("/tenants/{tenant_id}/snapshots/delete", dependencies=[Depends(require_admin)])
+def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn) -> dict:
+    """Admin-only bulk deletion of config snapshots (files incl. Full-DR dumps).
+    Every deletion is audit-logged."""
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        slug = t.slug
+        for ts in body.timestamps:
+            try:
+                storage._safe_ts(ts)
+            except ValueError:
+                raise HTTPException(422, "invalid snapshot timestamp")
+        existing = set(storage.list_snapshots(slug))
+        doomed = [ts for ts in body.timestamps if ts in existing]
+        for ts in doomed:
+            storage.delete_snapshot(slug, ts)
+        db.add(AuditLog(action="tenant.snapshots_delete",
+                        detail={"slug": slug, "count": len(doomed),
+                                "timestamps": doomed[:20]}))
+        db.commit()
+    return {"deleted": doomed}
 
 
 @router.get("/tenants/{tenant_id}/diff")

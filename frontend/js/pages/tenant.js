@@ -27,7 +27,7 @@ async function renderTenantOverview(t){
   const canW = me.role === 'admin' || me.role === 'org_admin';
   const inactive = t.active === false;
   let lastSnap = null, snapCount = null;
-  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1]; } catch {}
+  try { const snaps = await api(`/tenants/${t.id}/snapshots`); snapCount = snaps.length; if(snaps.length) lastSnap = snaps[snaps.length - 1].ts; } catch {}
   cards.innerHTML = `
     <div class="card"><div class="lbl2">Provider</div><div class="big" style="font-size:1.1rem"><span class="tag ${t.provider}">${t.provider}</span></div><div class="sub">${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</div></div>
     <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">retention: keep ${t.retention_keep}</div></div>
@@ -219,26 +219,72 @@ async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
   document.getElementById('snaptenant').textContent = slug;
   document.getElementById('snappanel').classList.remove('hidden');
-  document.getElementById('diffbtn').disabled = true;
   window._snapSlug = slug;
+  updateSnapButtons();
   const sb = document.getElementById('snapbody');
-  sb.innerHTML = skelRows(3);
+  sb.innerHTML = skelRows(7);
   try {
     const snaps = await api(`/tenants/${id}/snapshots`);
-    if(!snaps.length){ sb.innerHTML = emptyRow(3, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
+    if(!snaps.length){ sb.innerHTML = emptyRow(7, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
     const admin = me.role==='admin' || me.role==='org_admin';
-    sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
-      <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
-      <td onclick="selSnap(this.parentElement)">${fmtSnap(ts)}</td>
-      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
-  } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
+    sb.innerHTML = snaps.slice().reverse().map(s => `<tr class="snaprow" data-ts="${s.ts}">
+      <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
+      <td>${fmtSnap(s.ts)}</td>
+      <td>${s.objects || 0}</td>
+      <td class="muted">${fmtBytes(s.size || 0)}</td>
+      <td class="muted">${s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
+      <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
+      <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
+    fillSnapChanges(id);
+  } catch(e){ sb.innerHTML = `<tr><td colspan="7" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
+}
+async function fillSnapChanges(id){
+  for(const el of document.querySelectorAll('#snapbody .chgcell')){
+    if(snapTenantId !== id) return;   // navigated away mid-fill
+    try{
+      const c = await api(`/tenants/${id}/snapshots/${el.dataset.ts}/changes`);
+      el.innerHTML = c.first ? '<span class="muted">first snapshot</span>'
+        : (c.added || c.removed || c.changed)
+          ? `<span class="add">+${c.added}</span> <span class="rem">−${c.removed}</span> <span class="chg">~${c.changed}</span>`
+          : '<span class="muted">none</span>';
+    }catch{ el.innerHTML = '<span class="muted">-</span>'; }
+  }
+}
+function updateSnapButtons(){
+  const n = selectedSnaps.length;
+  const diffBtn = document.getElementById('diffbtn');
+  if(diffBtn){ diffBtn.disabled = n !== 2;
+    diffBtn.innerHTML = (n === 2 ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
+  const del = document.getElementById('delsnapsbtn');
+  if(del){ del.classList.toggle('hidden', me.role !== 'admin' || n === 0);
+    del.textContent = `Delete selected (${n})`; }
+  const all = document.getElementById('snapall');
+  if(all){ const rows = document.querySelectorAll('#snapbody .snaprow').length;
+    all.checked = rows > 0 && n === rows; }
+}
+function selAllSnaps(on){
+  selectedSnaps = [];
+  document.querySelectorAll('#snapbody .snaprow').forEach(r => {
+    const cb = r.querySelector('input'); cb.checked = on; r.classList.toggle('sel', on);
+    if(on) selectedSnaps.push(r.dataset.ts);
+  });
+  updateSnapButtons();
+}
+async function deleteSnapshots(){
+  const n = selectedSnaps.length; if(!n) return;
+  if(!confirm(`Permanently delete ${n} selected backup(s) for "${window._snapSlug}"? This removes the snapshot files, including any Full-DR database dumps. This cannot be undone.`)) return;
+  try{
+    const r = await api(`/tenants/${snapTenantId}/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedSnaps})});
+    toast(`${r.deleted.length} backup(s) deleted.`);
+    showSnaps(snapTenantId, window._snapSlug);
+  }catch(e){ toast('Delete failed: ' + e.message, true); }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
-function selSnap(row){
-  const ts = row.dataset.ts, cb = row.querySelector('input');
-  if(selectedSnaps.includes(ts)){ selectedSnaps = selectedSnaps.filter(x=>x!==ts); cb.checked=false; row.classList.remove('sel'); }
-  else if(selectedSnaps.length < 2){ selectedSnaps.push(ts); cb.checked=true; row.classList.add('sel'); }
-  document.getElementById('diffbtn').disabled = selectedSnaps.length !== 2;
+function selSnap(cb){
+  const row = cb.closest('tr'), ts = row.dataset.ts;
+  if(cb.checked){ if(!selectedSnaps.includes(ts)) selectedSnaps.push(ts); row.classList.add('sel'); }
+  else { selectedSnaps = selectedSnaps.filter(x=>x!==ts); row.classList.remove('sel'); }
+  updateSnapButtons();
 }
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
@@ -411,22 +457,53 @@ async function loadIdentityEstimate(){
       : `No measured run yet. ${esc(e.recommendation)}`;
   }catch(e){ document.getElementById('id_estimate').textContent=''; }
 }
+let selectedIdSnaps = [];
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
-  tb.innerHTML = skelRows(7);
+  selectedIdSnaps = []; updateIdSnapButtons();
+  tb.innerHTML = skelRows(8);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
+    if(!s.length){ tb.innerHTML=emptyRow(8, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
+      const box = `<td><input type="checkbox" class="idsel" data-ts="${r.ts}" tabindex="-1" onchange="selIdSnap(this)"></td>`;
       const asg = _idCtx.provider === 'authentik'
         ? (c.app_policy_bindings != null ? c.app_policy_bindings : '-')
         : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
-        ? `<tr><td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr><td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
+        ? `<tr>${box}<td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
+        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
-  }catch(e){ tb.innerHTML=`<tr><td colspan="7" class="muted">${esc(e.message)}</td></tr>`; }
+  }catch(e){ tb.innerHTML=`<tr><td colspan="8" class="muted">${esc(e.message)}</td></tr>`; }
+}
+function selIdSnap(cb){
+  const ts = cb.dataset.ts;
+  if(cb.checked){ if(!selectedIdSnaps.includes(ts)) selectedIdSnaps.push(ts); }
+  else selectedIdSnaps = selectedIdSnaps.filter(x=>x!==ts);
+  updateIdSnapButtons();
+}
+function selAllIdSnaps(on){
+  selectedIdSnaps = [];
+  document.querySelectorAll('#id_snaps .idsel').forEach(cb => { cb.checked = on; if(on) selectedIdSnaps.push(cb.dataset.ts); });
+  updateIdSnapButtons();
+}
+function updateIdSnapButtons(){
+  const d = document.getElementById('delidsnapsbtn');
+  if(d){ d.classList.toggle('hidden', me.role !== 'admin' || selectedIdSnaps.length === 0);
+    d.textContent = `Delete selected (${selectedIdSnaps.length})`; }
+  const all = document.getElementById('idsnapall');
+  if(all){ const rows = document.querySelectorAll('#id_snaps .idsel').length;
+    all.checked = rows > 0 && selectedIdSnaps.length === rows; }
+}
+async function deleteIdentitySnapshots(){
+  const n = selectedIdSnaps.length; if(!n) return;
+  if(!confirm(`Permanently delete ${n} selected Users & Access backup(s) for "${_idCtx.slug}"? This cannot be undone.`)) return;
+  try{
+    const r = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots/delete`, {method:'POST', body: JSON.stringify({timestamps: selectedIdSnaps})});
+    toast(`${r.deleted.length} Users & Access backup(s) deleted.`);
+    loadIdentitySnaps();
+  }catch(e){ toast('Delete failed: ' + e.message, true); }
 }
 async function identityBackupNow(){
   document.getElementById('id_estimate').textContent = 'Backing up users & access… (throttled to respect Okta API limits - may take a while on large orgs)';

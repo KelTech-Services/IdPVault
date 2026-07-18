@@ -109,3 +109,40 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
         raise HTTPException(404, "identity snapshot not found")
     except ValueError as e:
         raise HTTPException(404, str(e))
+
+
+class IdentitySnapshotDeleteIn(BaseModel):
+    timestamps: list[str]
+
+
+@router.post("/tenants/{tenant_id}/identity/snapshots/delete")
+def delete_identity_snapshots(tenant_id: int, body: IdentitySnapshotDeleteIn,
+                              request: Request) -> dict:
+    """Admin-only bulk deletion of Users & Access snapshots (files + records).
+    Every deletion is audit-logged."""
+    from app.core import storage
+    from app.core.security import require_admin
+    from app.models.db import AuditLog
+    require_admin(request)
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        for ts in body.timestamps:
+            try:
+                storage._safe_ts(ts)
+            except ValueError:
+                raise HTTPException(422, "invalid snapshot timestamp")
+        rows = db.query(IdentitySnapshot)\
+            .filter(IdentitySnapshot.tenant_id == tenant_id,
+                    IdentitySnapshot.ts.in_(body.timestamps)).all()
+        doomed = []
+        for r in rows:
+            storage.delete_identity_snapshot(t.slug, r.ts)
+            doomed.append(r.ts)
+            db.delete(r)
+        db.add(AuditLog(action="tenant.identity_snapshots_delete",
+                        detail={"slug": t.slug, "count": len(doomed),
+                                "timestamps": doomed[:20]}))
+        db.commit()
+    return {"deleted": doomed}

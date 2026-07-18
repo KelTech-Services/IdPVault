@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.5">
+<link rel="stylesheet" href="/css/app.css?v=1.1.6a">
 </head>
 <body>
 
@@ -117,9 +117,10 @@
 <main id="view-t-backups" class="hidden">
   <section class="panel hidden" id="snappanel">
     <h2>Snapshots - <span id="snaptenant"></span><span class="spacer"></span>
-      <button id="diffbtn" disabled onclick="runDiff()">Diff selected (pick 2)</button>
+      <button id="delsnapsbtn" class="del hidden" onclick="deleteSnapshots()">Delete selected</button>
+      <button id="diffbtn" disabled title="Select any two backups, then Compare shows exactly what was added, removed, or changed between them." onclick="runDiff()">Compare (select 2) <span class="tipi">ⓘ</span></button>
       <button onclick="hideSnaps()">Close</button></h2>
-    <table><thead><tr><th style="width:30px"></th><th>Timestamp</th><th></th></tr></thead>
+    <table><thead><tr><th style="width:30px"><input type="checkbox" id="snapall" onchange="selAllSnaps(this.checked)"></th><th>Timestamp</th><th>Objects</th><th>Size</th><th>Full-DR</th><th>Changes vs previous</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="browsepanel">
@@ -139,10 +140,11 @@
 <main id="view-t-identity" class="hidden">
   <section class="panel hidden" id="idpanel">
     <h2>Users &amp; Access - <span id="id_slug"></span><span class="spacer"></span>
+      <button id="delidsnapsbtn" class="del hidden" onclick="deleteIdentitySnapshots()">Delete selected</button>
       <button class="mutating" onclick="identityBackupNow()">Back up now</button>
       <button onclick="document.getElementById('idpanel').classList.add('hidden')">Close</button></h2>
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
-    <table><thead><tr><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
+    <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
   </section>
 </main>
@@ -341,11 +343,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.5"></script>
-<script src="/js/router.js?v=1.1.5"></script>
-<script src="/js/pages/fleet.js?v=1.1.5"></script>
-<script src="/js/pages/tenant.js?v=1.1.5"></script>
-<script src="/js/pages/admin.js?v=1.1.5"></script>
+<script src="/js/core.js?v=1.1.6a"></script>
+<script src="/js/router.js?v=1.1.6a"></script>
+<script src="/js/pages/fleet.js?v=1.1.6a"></script>
+<script src="/js/pages/tenant.js?v=1.1.6a"></script>
+<script src="/js/pages/admin.js?v=1.1.6a"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

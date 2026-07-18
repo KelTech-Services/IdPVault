@@ -158,3 +158,5 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 /* visible tooltip affordance: (i) icon carrying the title attribute */
 .tipi{color:var(--dim);cursor:help;font-size:.9em;margin-left:3px;font-style:normal;text-transform:none;letter-spacing:0}
 .tipi:hover{color:var(--accent)}
+
+.chgcell .add{color:var(--green)}.chgcell .rem{color:var(--red)}.chgcell .chg{color:var(--amber)}
