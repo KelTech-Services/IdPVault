@@ -302,20 +302,57 @@ function selSnap(cb){
   else { selectedSnaps = selectedSnaps.filter(x=>x!==ts); row.classList.remove('sel'); }
   updateSnapButtons();
 }
+function objLabel(o){ return (o && (o.name || o.slug || o.username || o.label || o.title || o.id || o.pk)) || '-'; }
+function changedFieldList(c){
+  const b = c.before || {}, a = c.after || {}, out = [];
+  new Set([...Object.keys(b), ...Object.keys(a)]).forEach(k => {
+    if(k.endsWith('_obj')) return;
+    if(JSON.stringify(b[k]) !== JSON.stringify(a[k])) out.push(k);
+  });
+  return out;
+}
+const DIFF_TAG = {added:'<span class="tag ok">added</span>', removed:'<span class="tag off">removed</span>', changed:'<span class="tag pending">changed</span>'};
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
   document.getElementById('difflabel').textContent = `${fmtSnap(a)} → ${fmtSnap(b)}`;
   document.getElementById('diffpanel').classList.remove('hidden');
-  document.getElementById('diffout').textContent = 'Computing…';
+  document.getElementById('difftablewrap').classList.remove('hidden');
+  document.getElementById('diffout').classList.add('hidden');
+  document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
+  const rows = document.getElementById('diffrows');
+  rows.innerHTML = skelRows(5);
   try {
     const d = await api(`/tenants/${snapTenantId}/diff?old=${a}&new=${b}`);
-    let add=0, rem=0, chg=0;
-    Object.values(d).forEach(x=>{ add+=x.added.length; rem+=x.removed.length; chg+=x.changed.length; });
-    document.getElementById('diffstat').innerHTML = Object.keys(d).length
+    window._diffData = d;
+    let add=0, rem=0, chg=0; const out=[];
+    const mk = (kind, rt, obj, fields, ref) => `<tr>
+      <td>${DIFF_TAG[kind]}</td><td>${esc(rt.replace(/_/g,' '))}</td>
+      <td>${esc(objLabel(obj))}</td>
+      <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length>8 ? ' …' : '') : '-'}</td>
+      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button></td></tr>`;
+    Object.keys(d).sort().forEach(rt => {
+      const x = d[rt];
+      x.added.forEach((o,i)=>{ add++; out.push(mk('added', rt, o, null, `a:${rt}:${i}`)); });
+      x.removed.forEach((o,i)=>{ rem++; out.push(mk('removed', rt, o, null, `r:${rt}:${i}`)); });
+      x.changed.forEach((c,i)=>{ chg++; out.push(mk('changed', rt, c.after || c.before, changedFieldList(c), `c:${rt}:${i}`)); });
+    });
+    document.getElementById('diffstat').innerHTML = out.length
       ? `<span class="add">+${add} added</span><span class="rem">−${rem} removed</span><span class="chg">~${chg} changed</span>`
-      : '<span class="muted">No differences - configs identical.</span>';
-    document.getElementById('diffout').textContent = Object.keys(d).length ? JSON.stringify(d, null, 2) : '';
-  } catch(e){ document.getElementById('diffout').textContent = 'Diff failed: '+e.message; }
+      : '<span class="muted">No differences - configurations are identical.</span>';
+    rows.innerHTML = out.join('');
+    if(!out.length) document.getElementById('difftablewrap').classList.add('hidden');
+  } catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
+}
+function diffView(ref){
+  const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
+  const kind = ref.slice(0, i1), rt = ref.slice(i1+1, i2), i = +ref.slice(i2+1);
+  const x = (window._diffData || {})[rt]; if(!x) return;
+  const payload = kind === 'a' ? x.added[i] : kind === 'r' ? x.removed[i]
+    : {before: x.changed[i].before, after: x.changed[i].after};
+  const pre = document.getElementById('diffout');
+  pre.textContent = JSON.stringify(payload, null, 2);
+  pre.classList.remove('hidden');
+  pre.scrollIntoView({behavior:'smooth'});
 }
 
 async function fillTenantOrg(val){
@@ -452,6 +489,8 @@ async function viewObject(oid){
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects/${encodeURIComponent(_browse.type)}/${encodeURIComponent(oid)}`);
     document.getElementById('difflabel').textContent = `${_browse.type} / ${oid}`;
     document.getElementById('diffstat').innerHTML = '';
+    document.getElementById('difftablewrap').classList.add('hidden');
+    document.getElementById('diffout').classList.remove('hidden');
     document.getElementById('diffout').textContent = JSON.stringify(d.object, null, 2);
     document.getElementById('diffpanel').classList.remove('hidden');
     document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});

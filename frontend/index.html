@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.6c">
+<link rel="stylesheet" href="/css/app.css?v=1.1.6d">
 </head>
 <body>
 
@@ -132,9 +132,13 @@
     <tbody id="b_objects"></tbody></table>
   </section>
   <section class="panel hidden" id="diffpanel">
-    <h2>Diff <span id="difflabel" class="muted"></span><span class="spacer"></span><button onclick="document.getElementById('diffpanel').classList.add('hidden')">Close</button></h2>
+    <h2>Compare <span id="difflabel" class="muted"></span><span class="spacer"></span><button onclick="document.getElementById('diffpanel').classList.add('hidden')">Close</button></h2>
     <div class="diffstat" id="diffstat"></div>
-    <pre id="diffout"></pre>
+    <div id="difftablewrap">
+      <table><thead><tr><th>Change</th><th>Category</th><th>Object</th><th>Changed fields</th><th style="width:90px"></th></tr></thead>
+      <tbody id="diffrows"></tbody></table>
+    </div>
+    <pre id="diffout" class="hidden" style="margin-top:12px"></pre>
   </section>
 </main>
 <main id="view-t-identity" class="hidden">
@@ -375,11 +379,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.6c"></script>
-<script src="/js/router.js?v=1.1.6c"></script>
-<script src="/js/pages/fleet.js?v=1.1.6c"></script>
-<script src="/js/pages/tenant.js?v=1.1.6c"></script>
-<script src="/js/pages/admin.js?v=1.1.6c"></script>
+<script src="/js/core.js?v=1.1.6d"></script>
+<script src="/js/router.js?v=1.1.6d"></script>
+<script src="/js/pages/fleet.js?v=1.1.6d"></script>
+<script src="/js/pages/tenant.js?v=1.1.6d"></script>
+<script src="/js/pages/admin.js?v=1.1.6d"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
