@@ -103,6 +103,7 @@ _COLUMN_MIGRATIONS = [
     ("tenants", "org_id", "INTEGER"),
     ("tenants", "db_dump_exclude_events", "BOOLEAN DEFAULT FALSE"),
     ("users", "org_id", "INTEGER"),
+    ("backup_runs", "trigger", "VARCHAR(12)"),
 ]
 
 
@@ -179,6 +180,7 @@ class BackupRun(Base):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
     ts: Mapped[str] = mapped_column(String(20), index=True)     # snapshot ts (or attempt time on failure)
     status: Mapped[str] = mapped_column(String(10))              # ok | failed
+    trigger: Mapped[str | None] = mapped_column(String(12), nullable=True)  # manual | scheduled
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     at: Mapped[datetime] = mapped_column(

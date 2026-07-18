@@ -67,7 +67,7 @@ def load_tenant_jobs() -> None:
             log.info("scheduled identity backup tenant=%s cron=%s", t.slug, t.identity_schedule_cron)
 
 
-def run_backup(tenant_id: int) -> dict:
+def run_backup(tenant_id: int, trigger: str = "scheduled") -> dict:
     """Full backup pass for one tenant. Called by cron or the API.
     Always records a BackupRun row (ok or failed); emits Event rows on drift."""
     from app.core import crypto, storage
@@ -120,6 +120,7 @@ def run_backup(tenant_id: int) -> dict:
                             counts=manifest["counts"], size=manifest["size_encrypted"],
                             drift=bool(drift)))
             db.add(BackupRun(tenant_id=t.id, ts=manifest["timestamp"], status="ok",
+                             trigger=trigger,
                              duration_ms=int((time.monotonic() - started) * 1000)))
             if t.retention_keep:
                 storage.prune(t.slug, t.retention_keep)
@@ -133,7 +134,7 @@ def run_backup(tenant_id: int) -> dict:
             db.rollback()
             db.add(BackupRun(tenant_id=tenant_id,
                              ts=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
-                             status="failed", error=str(e)[:490],
+                             status="failed", error=str(e)[:490], trigger=trigger,
                              duration_ms=int((time.monotonic() - started) * 1000)))
             db.commit()
             log.exception("backup failed tenant=%s", tenant_id)

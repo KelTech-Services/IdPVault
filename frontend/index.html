@@ -147,10 +147,10 @@
 </main>
 <main id="view-t-backups" class="hidden">
   <section class="panel hidden" id="snappanel">
-    <h2>Snapshots - <span id="snaptenant"></span><span class="spacer"></span>
+    <h2>Snapshots <span class="spacer"></span>
       <button id="diffbtn" disabled title="Select any two backups, then Compare shows exactly what was added, removed, or changed between them." onclick="runDiff()">Compare (select 2) <span class="tipi">ⓘ</span></button>
       <button id="delsnapsbtn" class="del hidden" onclick="deleteSnapshots()">Delete selected</button></h2>
-    <table><thead><tr><th style="width:30px"><input type="checkbox" id="snapall" onchange="selAllSnaps(this.checked)"></th><th>Timestamp</th><th>Objects</th><th>Size</th><th>Full-DR</th><th>Changes vs previous</th><th></th></tr></thead>
+    <table><thead><tr><th style="width:30px"><input type="checkbox" id="snapall" onchange="selAllSnaps(this.checked)"></th><th>Timestamp</th><th>Type</th><th>Status</th><th>Objects</th><th>Size</th><th>Full-DR</th><th>Changes vs previous</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="browsepanel">
@@ -191,11 +191,11 @@
 </main>
 <main id="view-t-identity" class="hidden">
   <section class="panel hidden" id="idpanel">
-    <h2>Users &amp; Access - <span id="id_slug"></span><span class="spacer"></span>
+    <h2>Users &amp; Access <span class="spacer"></span>
       <button class="mutating" onclick="identityBackupNow()">Back up now</button>
       <button id="delidsnapsbtn" class="del hidden" onclick="deleteIdentitySnapshots()">Delete selected</button></h2>
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
-    <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
+    <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Changes vs previous</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
   </section>
 </main>

@@ -230,7 +230,7 @@ async function backupNow(id, btn){
     const r = await api(`/tenants/${id}/backup`, {method:'POST'});
     const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
     toast(`Snapshot ${fmtSnap(r.manifest.timestamp)} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
-    if(snapTenantId === id) showSnaps(id, document.getElementById('snaptenant').textContent);
+    if(snapTenantId === id) showSnaps(id, window._snapSlug);
     loadDashboard();
   } catch(e){ toast('Backup failed: '+e.message, true); }
   btn.disabled = false; btn.textContent = 'Backup now';
@@ -252,26 +252,34 @@ async function deleteFromForm(){
 /* ---------- snapshots & diff ---------- */
 async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
-  document.getElementById('snaptenant').textContent = slug;
   document.getElementById('snappanel').classList.remove('hidden');
   window._snapSlug = slug;
   updateSnapButtons();
   const sb = document.getElementById('snapbody');
-  sb.innerHTML = skelRows(7);
+  sb.innerHTML = skelRows(9);
   try {
-    const snaps = await api(`/tenants/${id}/snapshots`);
-    if(!snaps.length){ sb.innerHTML = emptyRow(7, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
+    const snaps = await api(`/tenants/${id}/snapshots?runs=1`);
+    if(!snaps.length){ sb.innerHTML = emptyRow(9, EI.db, 'No snapshots yet - run a backup to create one.'); return; }
     const admin = me.role==='admin' || me.role==='org_admin';
-    sb.innerHTML = snaps.slice().reverse().map(s => `<tr class="snaprow" data-ts="${s.ts}">
+    const trigTag = tg => tg === 'manual' ? '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">manual</span>'
+      : tg === 'scheduled' ? '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">auto</span>'
+      : '<span class="muted">-</span>';
+    sb.innerHTML = snaps.slice().reverse().map(s => s.status === 'failed'
+      ? `<tr><td></td><td>${fmtSnap(s.ts)}</td><td>${trigTag(s.trigger)}</td>
+        <td><span class="tag off">failed</span></td>
+        <td colspan="4" class="st-failed" style="font-size:.8rem">${esc(s.error || 'backup failed - no snapshot was written')}</td><td></td></tr>`
+      : `<tr class="snaprow" data-ts="${s.ts}">
       <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
       <td>${fmtSnap(s.ts)}</td>
+      <td>${trigTag(s.trigger)}</td>
+      <td><span class="tag ok">ok</span></td>
       <td>${s.objects || 0}</td>
       <td class="muted">${fmtBytes(s.size || 0)}</td>
       <td class="muted">${s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
       <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
       <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
     fillSnapChanges(id);
-  } catch(e){ sb.innerHTML = `<tr><td colspan="7" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
+  } catch(e){ sb.innerHTML = `<tr><td colspan="9" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 async function fillSnapChanges(id){
   for(const el of document.querySelectorAll('#snapbody .chgcell')){
@@ -336,7 +344,16 @@ function selSnap(cb){
   else { selectedSnaps = selectedSnaps.filter(x=>x!==ts); row.classList.remove('sel'); }
   updateSnapButtons();
 }
-function objLabel(o){ return (o && (o.name || o.slug || o.username || o.label || o.title || o.id || o.pk)) || '-'; }
+function objLabel(o){
+  if(o){
+    // bindings have no display name of their own - use what they bind
+    if(o.policy_obj && o.policy_obj.name) return o.policy_obj.name + ' (binding)';
+    if(o.stage_obj && o.stage_obj.name) return o.stage_obj.name + ' (binding)';
+    if(o.group_obj && o.group_obj.name) return o.group_obj.name + ' (binding)';
+    if(o.user_obj && (o.user_obj.username || o.user_obj.name)) return (o.user_obj.username || o.user_obj.name) + ' (binding)';
+  }
+  return (o && (o.name || o.slug || o.username || o.label || o.title || o.id || o.pk)) || '-';
+}
 function changedFieldList(c){
   const b = c.before || {}, a = c.after || {}, out = [];
   new Set([...Object.keys(b), ...Object.keys(a)]).forEach(k => {
@@ -499,7 +516,7 @@ async function restoreApply(){
 let _browse = null;
 async function openBrowse(ts){
   _browse = { tenantId: snapTenantId, snap: ts, type: null };
-  document.getElementById('b_label').textContent = `${window._snapSlug} @ ${fmtSnap(ts)}`;
+  document.getElementById('b_label').textContent = fmtSnap(ts);
   document.getElementById('b_search').value = '';
   document.getElementById('b_objects').innerHTML = '';
   document.getElementById('browsepanel').classList.remove('hidden');
@@ -518,9 +535,9 @@ async function browseObjects(){
   try {
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects?resource_type=${encodeURIComponent(_browse.type)}${q?'&q='+encodeURIComponent(q):''}`);
     if(!d.objects.length){ tb.innerHTML=emptyRow(3, EI.search, 'No matching objects.'); return; }
-    tb.innerHTML = d.objects.map(o=>`<tr>
-      <td>${esc(o.object_name||'-')}</td><td class="muted">${esc(o.object_id)}</td>
-      <td><button onclick="viewObject('${esc(o.object_id)}')">View</button></td></tr>`).join('');
+    tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="viewObject('${esc(o.object_id)}')">
+      <td>${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+      <td class="muted" style="text-align:right;font-size:.78rem">view</td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="3" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function viewObject(oid){
@@ -546,7 +563,6 @@ function openIdentity(id, slug){
   // column shows the (real) bindings count instead of a structurally-zero number.
   const th = document.getElementById('id_asg_th');
   if(th) th.textContent = _idCtx.provider === 'authentik' ? 'Policy bindings' : 'Assignments';
-  document.getElementById('id_slug').textContent = slug;
   document.getElementById('idpanel').classList.remove('hidden');
   document.getElementById('idpanel').scrollIntoView({behavior:'smooth'});
   loadIdentityEstimate(); loadIdentitySnaps();
@@ -555,29 +571,41 @@ async function loadIdentityEstimate(){
   try{
     const e = await api(`/tenants/${_idCtx.tenantId}/identity/estimate`);
     document.getElementById('id_estimate').innerHTML = e.last_duration_s!=null
-      ? `Last run: <b>${e.last_duration_s}s</b>, ${e.last_api_calls} API calls (${esc(e.basis)}). ${esc(e.recommendation)}`
-      : `No measured run yet. ${esc(e.recommendation)}`;
+      ? `Backup time: the last run took <b>${e.last_duration_s}s</b> and made ${e.last_api_calls} API calls (${esc(e.basis)}). ${esc(e.recommendation)}`
+      : `Backup time: no run measured yet - the first backup times itself and an estimate appears here. ${esc(e.recommendation)}`;
   }catch(e){ document.getElementById('id_estimate').textContent=''; }
 }
 let selectedIdSnaps = [];
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
   selectedIdSnaps = []; updateIdSnapButtons();
-  tb.innerHTML = skelRows(8);
+  tb.innerHTML = skelRows(9);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
-    if(!s.length){ tb.innerHTML=emptyRow(8, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
-    tb.innerHTML = s.map(r=>{
+    if(!s.length){ tb.innerHTML=emptyRow(9, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
+    const asgOf = c => _idCtx.provider === 'authentik'
+      ? (c.app_policy_bindings||0)
+      : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
+    tb.innerHTML = s.map((r, i)=>{
       const c = r.counts||{};
       const box = `<td><input type="checkbox" class="idsel" data-ts="${r.ts}" tabindex="-1" onchange="selIdSnap(this)"></td>`;
       const asg = _idCtx.provider === 'authentik'
         ? (c.app_policy_bindings != null ? c.app_policy_bindings : '-')
         : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
+      const prev = s[i+1] && s[i+1].status !== 'failed' ? s[i+1] : null;
+      let chgs = '<span class="muted">-</span>';
+      if(prev){
+        const pc = prev.counts||{};
+        const du = (c.users||0)-(pc.users||0), dm = (c.group_memberships||0)-(pc.group_memberships||0), da = asgOf(c)-asgOf(pc);
+        const lblA = _idCtx.provider === 'authentik' ? 'bindings' : 'assignments';
+        const f = (n, l) => n ? `<span class="${n>0?'add':'rem'}">${n>0?'+':''}${n} ${l}</span> ` : '';
+        chgs = (f(du,'users')+f(dm,'memberships')+f(da,lblA)) || '<span class="muted">none</span>';
+      } else if(i === s.length-1) chgs = '<span class="muted">first snapshot</span>';
       return r.status==='failed'
-        ? `<tr>${box}<td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
+        ? `<tr>${box}<td>${fmtSnap(r.ts)}</td><td colspan="6" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
+        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="chgcell">${chgs}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
-  }catch(e){ tb.innerHTML=`<tr><td colspan="8" class="muted">${esc(e.message)}</td></tr>`; }
+  }catch(e){ tb.innerHTML=`<tr><td colspan="9" class="muted">${esc(e.message)}</td></tr>`; }
 }
 function selIdSnap(cb){
   const ts = cb.dataset.ts;
@@ -621,7 +649,7 @@ const RECREATE_SELECT_MAX = 200;
 const IR_HEAD = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
 function openIdentityRestore(ts){
   _irCtx = { ts, preview: null };
-  document.getElementById('ir_tenant').textContent = document.getElementById('id_slug').textContent;
+  document.getElementById('ir_tenant').textContent = (_idCtx && _idCtx.slug) || '';
   document.getElementById('ir_snap').textContent = fmtSnap(ts);
   document.getElementById('ir_summary').textContent = '';
   document.getElementById('ir_items').innerHTML = '';
@@ -1031,7 +1059,6 @@ function exRestoreUser(key){
   if(!_ex.idLatest) return toast('No Users & Access backup to restore from yet.', true);
   const t = _tenants.find(x => x.id === _ex.tenantId);
   _idCtx = {tenantId: _ex.tenantId, slug: _ex.slug, provider: t ? t.provider : null};
-  document.getElementById('id_slug').textContent = _ex.slug;
   window._irPreselect = key;
   openIdentityRestore(_ex.idLatest);
   identityPreview();

@@ -24,22 +24,31 @@ def trigger_backup(tenant_id: int, request: Request) -> dict:
         raise HTTPException(402, "this tenant is over your license's tenant limit - "
                                  "backups are paused for it until a license is added "
                                  "in Settings → License")
-    result = run_backup(tenant_id)
+    result = run_backup(tenant_id, trigger="manual")
     return {"manifest": result["manifest"], "drift_detected": bool(result["drift"])}
 
 
 @router.get("/tenants/{tenant_id}/snapshots")
-def snapshots(tenant_id: int, request: Request) -> list[dict]:
+def snapshots(tenant_id: int, request: Request, runs: int = 0) -> list[dict]:
     """Snapshot list enriched from each snapshot's plaintext manifest (no
-    decryption): object totals, encrypted size, and Full-DR dump size."""
+    decryption): object totals, encrypted size, and Full-DR dump size.
+    runs=1 also joins run metadata (trigger, status) and includes FAILED
+    backup attempts as rows, so failures are visible on the Backups page."""
+    from app.models.db import BackupRun
     with SessionLocal() as db:
         require_tenant_read(request, db, tenant_id)
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
         slug = t.slug
+        run_by_ts = {}
+        if runs:
+            for r in (db.query(BackupRun).filter(BackupRun.tenant_id == tenant_id)
+                      .order_by(BackupRun.id.desc()).limit(300)):
+                run_by_ts.setdefault(r.ts, r)
     out = []
-    for ts in storage.list_snapshots(slug):
+    listed = storage.list_snapshots(slug)
+    for ts in listed:
         m = storage.read_manifest(slug, ts) or {}
         entry = {"ts": ts,
                  "objects": sum((m.get("counts") or {}).values()),
@@ -48,7 +57,21 @@ def snapshots(tenant_id: int, request: Request) -> list[dict]:
         dump = os.path.join(storage.snapshot_dir(slug, ts), "pgdump.sql.enc")
         if os.path.exists(dump):
             entry["db_dump_size"] = os.path.getsize(dump)
+        if runs:
+            r = run_by_ts.get(ts)
+            entry["status"] = r.status if r else "ok"
+            entry["error"] = r.error if r else None
+            entry["trigger"] = r.trigger if r else None
         out.append(entry)
+    if runs:
+        oldest = listed[0] if listed else ""
+        have = set(listed)
+        for ts, r in run_by_ts.items():
+            if r.status == "failed" and ts not in have and ts >= oldest:
+                out.append({"ts": ts, "objects": None, "size": None,
+                            "db_dump_size": None, "status": "failed",
+                            "error": r.error, "trigger": r.trigger})
+        out.sort(key=lambda e: e["ts"])
     return out
 
 
