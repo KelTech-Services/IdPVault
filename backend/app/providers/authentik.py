@@ -266,13 +266,29 @@ class AuthentikAdapter(ProviderAdapter):
                               "path": u.get("path")})
                 for gid in (u.get("groups") or []):
                     memberships.append({"group_id": gid, "user_id": uid})
-            # Authentik app access is governed by policy bindings (captured in config),
-            # which already record group-vs-user provenance — so those buckets stay empty here.
+            # Authentik has no direct per-user app assignments (those buckets stay
+            # empty); app access is granted by policy bindings on applications. Capture
+            # a reference list of the access-relevant bindings (bound to an application,
+            # with a group or user set) so the UI can show a real "Policy bindings"
+            # count instead of a structurally-zero Assignments column. The bindings
+            # themselves are restored via config backups, not identity restore.
             groups = self._paged(c, "/api/v3/core/groups/")
             group_ref = [{"id": g.get("pk"), "name": g.get("name")} for g in groups]
+            apps = self._paged(c, "/api/v3/core/applications/")
+            app_ref = [{"id": a.get("pk"), "name": a.get("name")} for a in apps]
+            app_pks = {a.get("pk") for a in apps}
+            bindings = self._paged(c, "/api/v3/policies/bindings/")
+            app_policy_bindings = [
+                {"app_id": b.get("target"), "group_id": b.get("group"),
+                 "user_id": b.get("user"), "order": b.get("order"),
+                 "enabled": b.get("enabled")}
+                for b in bindings
+                if b.get("target") in app_pks and (b.get("group") or b.get("user"))
+            ]
             return {"users": users, "group_memberships": memberships,
                     "app_group_assignments": [], "app_user_assignments_direct": [],
-                    "group_ref": group_ref, "app_ref": []}
+                    "app_policy_bindings": app_policy_bindings,
+                    "group_ref": group_ref, "app_ref": app_ref}
 
     def _write(self, c, method, path, **kw):
         r = c.request(method, path, **kw)

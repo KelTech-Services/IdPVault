@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.4">
+<link rel="stylesheet" href="/css/app.css?v=1.1.5a">
 </head>
 <body>
 
@@ -141,7 +141,7 @@
       <button class="mutating" onclick="identityBackupNow()">Back up now</button>
       <button onclick="document.getElementById('idpanel').classList.add('hidden')">Close</button></h2>
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
-    <table><thead><tr><th>Timestamp</th><th>Users</th><th>Memberships</th><th>Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
+    <table><thead><tr><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
   </section>
 </main>
@@ -340,11 +340,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.4"></script>
-<script src="/js/router.js?v=1.1.4"></script>
-<script src="/js/pages/fleet.js?v=1.1.4"></script>
-<script src="/js/pages/tenant.js?v=1.1.4"></script>
-<script src="/js/pages/admin.js?v=1.1.4"></script>
+<script src="/js/core.js?v=1.1.5a"></script>
+<script src="/js/router.js?v=1.1.5a"></script>
+<script src="/js/pages/fleet.js?v=1.1.5a"></script>
+<script src="/js/pages/tenant.js?v=1.1.5a"></script>
+<script src="/js/pages/admin.js?v=1.1.5a"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });

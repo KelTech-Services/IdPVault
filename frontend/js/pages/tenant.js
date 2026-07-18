@@ -388,7 +388,12 @@ async function viewObject(oid){
 /* ---------- identity ---------- */
 let _idCtx = null;
 function openIdentity(id, slug){
-  _idCtx = {tenantId:id, slug};
+  const t = _tenants.find(x=>x.id===id);
+  _idCtx = {tenantId:id, slug, provider: t ? t.provider : null};
+  // Authentik has no direct app assignments; access rides policy bindings, so the
+  // column shows the (real) bindings count instead of a structurally-zero number.
+  const th = document.getElementById('id_asg_th');
+  if(th) th.textContent = _idCtx.provider === 'authentik' ? 'Policy bindings' : 'Assignments';
   document.getElementById('id_slug').textContent = slug;
   document.getElementById('idpanel').classList.remove('hidden');
   document.getElementById('idpanel').scrollIntoView({behavior:'smooth'});
@@ -410,7 +415,9 @@ async function loadIdentitySnaps(){
     if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
-      const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
+      const asg = _idCtx.provider === 'authentik'
+        ? (c.app_policy_bindings != null ? c.app_policy_bindings : '-')
+        : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
         ? `<tr><td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
         : `<tr><td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
