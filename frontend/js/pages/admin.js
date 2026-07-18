@@ -27,6 +27,7 @@ async function loadUsers(){
     const ab = document.getElementById('adduserbtn');
     if(ab){ ab.disabled = !!atUserCap;
       ab.title = atUserCap ? 'User limit reached for your license - the free Community tier includes a single admin account. Add a license in Administration > License' : '';
+      ab.innerHTML = '+ Add user' + (atUserCap ? ' ' + TIPI : '');
       if(atUserCap) document.getElementById('userform').classList.add('hidden'); }
     ub.innerHTML = us.map(u => `<tr>
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>

@@ -50,7 +50,8 @@ async function loadTenants(){
     const atLimit = _license && _license.max_tenants != null && ts.length >= _license.max_tenants;
     const addBtn = document.getElementById('addtenantbtn');
     if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
-      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Administration > License' : ''; }
+      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Administration > License' : '';
+      addBtn.innerHTML = '+ Add tenant' + (atLimit ? ' ' + TIPI : ''); }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
     const identOk = ((me && me.features) || []).includes('identity');
     const canW = me.role==='admin' || me.role==='org_admin';
@@ -61,18 +62,18 @@ async function loadTenants(){
       const lockI = inactive ? `disabled title="${LIC_TIP_TENANT}"`
                   : (!identOk ? `disabled title="${LIC_TIP_IDENTITY}"` : '');
       return `<tr>
-      <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
+      <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused) <span class="tipi">ⓘ</span></span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${esc(cronLabel(t.schedule_cron))}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${canW ? `
-        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
+        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now${lockT?' '+TIPI:''}</button>
         <button onclick="location.hash='#/t/${t.id}/settings'">Edit</button>` : isViewer ? `
-        <button disabled title="${MSP_TIP}">Backup now</button>
-        <button disabled title="${MSP_TIP}">Edit</button>` : ''}
+        <button disabled title="${MSP_TIP}">Backup now ${TIPI}</button>
+        <button disabled title="${MSP_TIP}">Edit ${TIPI}</button>` : ''}
         <button onclick="location.hash='#/t/${t.id}/backups'">Snapshots</button>
-        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access</button>` : ''}
+        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access ${TIPI}</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access${lockI?' '+TIPI:''}</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access ${TIPI}</button>` : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -229,7 +230,7 @@ async function showSnaps(id, slug){
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
       <td onclick="selSnap(this.parentElement)">${fmtSnap(ts)}</td>
-      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore…</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
+      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }

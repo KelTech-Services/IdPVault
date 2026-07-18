@@ -29,7 +29,7 @@ async function loadDashboard(){
     el.innerHTML = `
       <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '-'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
       <div class="card"><div class="lbl2">Tenants</div><div class="big">${d.tenants.length}</div><div class="sub">${d.tenants.map(t=>t.provider).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||'none'}</div></div>
-      <div class="card ${unbacked>0?'warn':''}" style="cursor:pointer" title="Click for a per-tenant breakdown" onclick="toggleUnbacked()"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">since last backup · click for breakdown</div></div>
+      <div class="card ${unbacked>0?'warn':''}" style="cursor:pointer" onclick="toggleUnbacked()"><div class="lbl2">Unbacked changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">since last backup · click for breakdown</div></div>
       <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
     if(!document.getElementById('unbackedpanel').classList.contains('hidden')) renderUnbacked();
     loadCharts();
@@ -97,9 +97,9 @@ function renderUnbacked(){
   const rows = d.tenants.map(t=>{
     const tt = _tenants.find(x=>x.id===t.id);
     const cnt = t.unbacked_changes;
-    const cntCell = cnt==null ? '<span class="muted" title="No successful backup yet, or the provider does not report admin events">n/a</span>' : (cnt>0?`<span class="ev-update"><b>${cnt}</b></span>`:'0');
+    const cntCell = cnt==null ? '<span class="muted">n/a <span class="tipi" title="No successful backup yet, or the provider does not report admin events">ⓘ</span></span>' : (cnt>0?`<span class="ev-update"><b>${cnt}</b></span>`:'0');
     const lastCell = t.last_run ? `${fmtSnap(t.last_run.ts)}${t.last_run.status!=='ok'?` <span class="st-failed">(${t.last_run.status})</span>`:''}` : '<span class="muted">never</span>';
-    const btn = (me && (me.role==='admin' || me.role==='org_admin')) ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now</button>` : '';
+    const btn = (me && (me.role==='admin' || me.role==='org_admin')) ? `<button ${tt&&tt.active===false?`disabled title="${LIC_TIP_TENANT}"`:''} onclick="backupNow(${t.id}, this)">Backup now${tt&&tt.active===false?' '+TIPI:''}</button>` : '';
     return `<tr><td>${esc(t.name)}</td><td><span class="tag ${t.provider}">${t.provider}</span></td><td>${cntCell}</td><td class="muted">${lastCell}</td><td>${btn}</td></tr>`;
   }).join('');
   el.innerHTML = `<section class="panel"><h2>Unbacked changes by tenant <span class="spacer"></span><button onclick="document.getElementById('unbackedpanel').classList.add('hidden')">Close</button></h2>

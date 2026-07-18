@@ -49,6 +49,7 @@ function skelRows(cols, n=3){
   return out;
 }
 
+const TIPI = '<span class="tipi">ⓘ</span>';   // visible tooltip marker; inherits the parent's title
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function v(id){ return document.getElementById(id).value.trim(); }
 function toast(msg, err=false){
@@ -266,7 +267,7 @@ function initSchedPickers(){
       <select id="${p}_dow" class="hidden" style="width:auto">${SCHED_DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select>
       <select id="${p}_dom" class="hidden" style="width:auto">${Array.from({length:28},(_,i)=>`<option value="${i+1}">Day ${i+1}</option>`).join('')}</select>
       <select id="${p}_time" class="hidden" style="width:auto">${timeOpts}</select>
-      <input id="${p}_cron" class="hidden" placeholder="0 3 * * *" style="width:110px" title="Standard 5-field cron, evaluated in the org timezone"></div>`;
+      <input id="${p}_cron" class="hidden" placeholder="0 3 * * *" style="width:110px"><span id="${p}_croninfo" class="tipi hidden" title="Standard 5-field cron, evaluated in the org timezone">ⓘ</span></div>`;
     host.dataset.ready = '1';
     if(prev !== undefined) schedSet(p, prev);
   });
@@ -277,6 +278,7 @@ function schedToggle(p){
   document.getElementById(p+'_dom').classList.toggle('hidden', f!=='monthly');
   document.getElementById(p+'_time').classList.toggle('hidden', f===''||f==='cron');
   document.getElementById(p+'_cron').classList.toggle('hidden', f!=='cron');
+  const ci = document.getElementById(p+'_croninfo'); if(ci) ci.classList.toggle('hidden', f!=='cron');
 }
 function schedSet(p, cron){
   const el = k=>document.getElementById(p+k);

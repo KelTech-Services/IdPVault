@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IdPVault</title>
 <link rel="icon" type="image/png" href="/IdPVault_favicon.png">
-<link rel="stylesheet" href="/css/app.css?v=1.1.5b">
+<link rel="stylesheet" href="/css/app.css?v=1.1.5c">
 </head>
 <body>
 
@@ -241,9 +241,9 @@
 <main id="view-orgs" class="hidden">
   <section class="panel">
     <h2>Client organizations <span class="spacer"></span>
-      <button onclick="exportOrgs()" title="Download all orgs as CSV">Export CSV</button>
-      <button onclick="orgTemplate()" title="Empty CSV with the right columns plus one example row">Template</button>
-      <button onclick="document.getElementById('orgcsvfile').click()" title="Bulk-add orgs from a CSV - existing names are skipped, never overwritten">Import CSV</button>
+      <button onclick="exportOrgs()" title="Download all orgs as CSV">Export CSV <span class="tipi">ⓘ</span></button>
+      <button onclick="orgTemplate()" title="Empty CSV with the right columns plus one example row">Template <span class="tipi">ⓘ</span></button>
+      <button onclick="document.getElementById('orgcsvfile').click()" title="Bulk-add orgs from a CSV - existing names are skipped, never overwritten">Import CSV <span class="tipi">ⓘ</span></button>
       <input type="file" id="orgcsvfile" accept=".csv,text/csv" class="hidden" onchange="importOrgsFile(this)">
       <button id="addorgbtn" class="primary" onclick="toggleOrgForm()">+ Add org</button></h2>
     <div id="orgform" class="hidden">
@@ -341,11 +341,11 @@
 </div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
-<script src="/js/core.js?v=1.1.5b"></script>
-<script src="/js/router.js?v=1.1.5b"></script>
-<script src="/js/pages/fleet.js?v=1.1.5b"></script>
-<script src="/js/pages/tenant.js?v=1.1.5b"></script>
-<script src="/js/pages/admin.js?v=1.1.5b"></script>
+<script src="/js/core.js?v=1.1.5c"></script>
+<script src="/js/router.js?v=1.1.5c"></script>
+<script src="/js/pages/fleet.js?v=1.1.5c"></script>
+<script src="/js/pages/tenant.js?v=1.1.5c"></script>
+<script src="/js/pages/admin.js?v=1.1.5c"></script>
 <script>
 /* bootstrap - runs after all modules above are loaded */
 document.getElementById('l_pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
