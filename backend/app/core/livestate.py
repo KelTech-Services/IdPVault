@@ -17,6 +17,31 @@ from datetime import datetime, timezone
 log = logging.getLogger(__name__)
 
 _REFRESH_DEBOUNCE_S = 60
+_LIVE_CACHE_TTL_S = 120
+_live_cache: dict[int, tuple[float, dict]] = {}
+
+
+def get_live_export(tenant_id: int) -> dict:
+    """Current provider config for Explorer's "Current (live)" view. Cached in
+    memory for a couple of minutes so category clicks don't hammer the API;
+    plaintext config never touches the database."""
+    import time as _t
+    from app.core import crypto
+    from app.models.db import SessionLocal, Tenant
+    from app.providers import get_adapter
+    hit = _live_cache.get(tenant_id)
+    if hit and _t.monotonic() - hit[0] < _LIVE_CACHE_TTL_S:
+        return hit[1]
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise ValueError("tenant not found")
+        key = crypto.unwrap_data_key(t.wrapped_data_key)
+        creds = crypto.decrypt(t.enc_credentials, key).decode()
+        adapter = get_adapter(t.provider, t.base_url, creds)
+    export = adapter.export()
+    _live_cache[tenant_id] = (_t.monotonic(), export)
+    return export
 
 
 def _ttl_minutes() -> int:

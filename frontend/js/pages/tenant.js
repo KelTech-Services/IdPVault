@@ -74,6 +74,7 @@ function renderTenantOverviewView(t, state, dash){
 }
 function overviewOpenCat(rt){
   window._exJumpCat = rt;
+  window._exJumpSnap = 'current';   // Overview tiles show live state; land on the live view
   location.hash = '#/t/' + currentTenantId + '/explorer';
 }
 async function overviewRefresh(){
@@ -747,8 +748,11 @@ async function openExplorer(t){
     const snaps = await api(`/tenants/${t.id}/snapshots`);
     if(!snaps.length){ document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="lbl2">No snapshots yet</div><div class="sub">Run a backup, then explore it here.</div></div>'; return; }
     const rev = snaps.slice().reverse();
-    sel.innerHTML = rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest - ':''}${fmtSnap(s.ts)}</option>`).join('');
-    _ex.snap = rev[0].ts;
+    sel.innerHTML = '<option value="current">Current (live from provider)</option>' +
+      rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest backup - ':''}${fmtSnap(s.ts)}</option>`).join('');
+    _ex.snap = window._exJumpSnap || rev[0].ts;
+    sel.value = _ex.snap;
+    window._exJumpSnap = null;
     await exLoadCats();
     if(window._exJumpCat){ exOpenCat(window._exJumpCat); window._exJumpCat = null; }
   }catch(e){ document.getElementById('ex_cats').innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
@@ -762,15 +766,17 @@ async function exLoadCats(){
   grid.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore`);
-    _ex.isLatest = d.is_latest;
+    _ex.mode = d.mode; _ex.isLatest = d.mode === 'snapshot' && d.is_latest; _ex.latest = d.latest;
     grid.innerHTML = d.categories.map(c=>{
-      const delta = c.current_count - c.count;
+      const delta = _ex.mode === 'current' ? c.count - c.current_count : c.current_count - c.count;
       const badge = _ex.isLatest || delta === 0 ? ''
-        : ` <span style="font-size:.75rem;color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+'+delta:delta} in latest</span>`;
+        : ` <span style="font-size:.75rem;color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+'+delta:delta}${_ex.mode==='current'?' vs backup':' in latest'}</span>`;
+      const sub = _ex.mode === 'current' ? c.current_count + ' in the latest backup'
+        : _ex.isLatest ? 'objects in the latest backup' : c.current_count + ' in the latest backup';
       return `<div class="card" style="cursor:pointer" onclick="exOpenCat('${esc(c.resource_type)}')">
         <div class="lbl2">${esc(c.resource_type.replace(/_/g,' '))}</div>
         <div class="big">${c.count}${badge}</div>
-        <div class="sub">${_ex.isLatest ? 'objects in the latest backup' : c.current_count + ' in the latest backup'}</div></div>`;
+        <div class="sub">${sub}</div></div>`;
     }).join('');
   }catch(e){ grid.innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
 }
@@ -789,6 +795,16 @@ const EX_STATUS = {
   deleted: '<span class="tag off">deleted in latest</span>',
   new: '<span class="tag ok">new in latest</span>',
 };
+const EX_STATUS_CURRENT = {
+  unchanged: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">backed up</span>',
+  modified: '<span class="tag pending">changed since backup</span>',
+  deleted: '<span class="tag off">deleted since backup</span>',
+  new: '<span class="tag pending">not backed up yet</span>',
+};
+function exStatusTag(status){
+  const map = _ex && _ex.mode === 'current' ? EX_STATUS_CURRENT : EX_STATUS;
+  return map[status] || esc(status);
+}
 async function exLoadObjects(){
   if(!_ex || !_ex.cat) return;
   const q = v('ex_search');
@@ -801,7 +817,7 @@ async function exLoadObjects(){
     const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
     tb.innerHTML = d.objects.map(o=>`<tr>
       <td>${esc(o.object_name||'-')}</td><td class="muted" style="font-size:.78rem">${esc(o.object_id)}</td>
-      <td>${_ex.isLatest ? '<span class="muted">-</span>' : (EX_STATUS[o.status]||esc(o.status))}</td>
+      <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
       <td style="white-space:nowrap"><button onclick="exViewObject('${esc(o.object_id)}')">View</button>
       ${canW && !inactive && o.status !== 'new' ? ` <button onclick="exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this snapshot (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
@@ -810,17 +826,21 @@ async function exViewObject(oid){
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore/${encodeURIComponent(_ex.cat)}/${encodeURIComponent(oid)}`);
     document.getElementById('ex_obj_label').textContent = `${_ex.cat.replace(/_/g,' ')} / ${oid}`;
+    document.getElementById('ex_col_a').textContent = _ex.mode === 'current' ? 'Current (live)' : 'In this snapshot';
+    document.getElementById('ex_col_b').textContent = 'In latest backup';
     document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(not in this snapshot)';
     document.getElementById('ex_curjson').textContent = d.current ? JSON.stringify(d.current, null, 2) : '(deleted - not in the latest backup)';
     document.getElementById('ex_diffinfo').innerHTML = d.status === 'modified' && d.changed_fields.length
       ? `Changed fields: <b>${d.changed_fields.map(esc).join(', ')}</b>`
-      : (_ex.isLatest ? '' : (EX_STATUS[d.status] || ''));
+      : (_ex.isLatest ? '' : exStatusTag(d.status));
     document.getElementById('ex_detailpanel').classList.remove('hidden');
     document.getElementById('ex_detailpanel').scrollIntoView({behavior:'smooth'});
   }catch(e){ toast(e.message, true); }
 }
 function exRestoreObject(oid){
+  const snap = _ex.mode === 'current' ? _ex.latest : _ex.snap;
+  if(!snap) return toast('No backup to restore from yet.', true);
   _restorePreselect = { rt: _ex.cat, oid: String(oid) };
-  openRestore(_ex.snap);
+  openRestore(snap);
   restorePreview();
 }
