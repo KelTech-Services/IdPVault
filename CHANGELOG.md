@@ -3,6 +3,29 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.5] - 2026-07-18
+### Security
+- The snapshot browse and object detail endpoints now enforce tenant scoping
+  like every other tenant route. Before this fix, any authenticated user could
+  read any tenant's snapshot contents by id; on MSP installs that let
+  org-scoped users read other client organizations' backed-up configuration.
+  Single-organization installs are unaffected in practice (non-admin roles are
+  read-all by design there). A regression test now guards the scoping check.
+### Added
+- Full-DR: an "event and session data" option per tenant. Excluded skips the
+  rows of ephemeral and history tables (login sessions, background task logs,
+  event history) from the database dump - typically a 90%+ size reduction on
+  long-running instances. Tables stay in the dump, so restores boot clean.
+  Default is Included (existing behavior).
+- Authentik Users & Access snapshots now capture and count policy bindings
+  that reference a group or user. The snapshot table shows "Policy bindings"
+  for Authentik tenants instead of a structurally-zero "Assignments" column
+  (Authentik grants app access via bindings, not direct assignments).
+### Changed
+- Tooltips are now carried by a visible (i) icon next to the label or control
+  instead of invisible hover-on-text, everywhere in the app.
+- The Full-DR field explains dump size behavior; docs updated to match.
+
 ## [1.1.4] - 2026-07-18
 ### Changed
 - New tenant-scoped navigation (v1.2 shell, phase 1). The tenant becomes the

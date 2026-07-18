@@ -50,7 +50,8 @@ async function loadTenants(){
     const atLimit = _license && _license.max_tenants != null && ts.length >= _license.max_tenants;
     const addBtn = document.getElementById('addtenantbtn');
     if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
-      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Administration > License' : ''; }
+      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Administration > License' : '';
+      addBtn.innerHTML = '+ Add tenant' + (atLimit ? ' ' + TIPI : ''); }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
     const identOk = ((me && me.features) || []).includes('identity');
     const canW = me.role==='admin' || me.role==='org_admin';
@@ -61,18 +62,18 @@ async function loadTenants(){
       const lockI = inactive ? `disabled title="${LIC_TIP_TENANT}"`
                   : (!identOk ? `disabled title="${LIC_TIP_IDENTITY}"` : '');
       return `<tr>
-      <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused)</span>':''}</td>
+      <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused) <span class="tipi">ⓘ</span></span>':''}</td>
       <td><span class="tag ${t.provider}">${t.provider}</span></td>
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${esc(cronLabel(t.schedule_cron))}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${canW ? `
-        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now</button>
+        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now${lockT?' '+TIPI:''}</button>
         <button onclick="location.hash='#/t/${t.id}/settings'">Edit</button>` : isViewer ? `
-        <button disabled title="${MSP_TIP}">Backup now</button>
-        <button disabled title="${MSP_TIP}">Edit</button>` : ''}
+        <button disabled title="${MSP_TIP}">Backup now ${TIPI}</button>
+        <button disabled title="${MSP_TIP}">Edit ${TIPI}</button>` : ''}
         <button onclick="location.hash='#/t/${t.id}/backups'">Snapshots</button>
-        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access</button>` : ''}
+        ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access ${TIPI}</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access${lockI?' '+TIPI:''}</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access ${TIPI}</button>` : ''}
       </td></tr>`; }).join('');
   } catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">Failed to load: ${esc(e.message)}</td></tr>`; }
 }
@@ -94,6 +95,7 @@ function editTenant(id){
   schedSet('fs', t.schedule_cron || null);
   document.getElementById('f_keep').value = t.retention_keep;
   document.getElementById('f_dburl').value = '';
+  document.getElementById('f_dbevents').value = (t.db_dump_exclude_events ? 'true' : 'false');
   document.getElementById('f_ident').value = (t.identity_enabled && !document.getElementById('f_ident').disabled) ? 'true' : 'false';
   schedSet('fi', t.identity_schedule_cron || null);
   document.getElementById('f_identkeep').value = t.identity_retention_keep || 14;
@@ -108,7 +110,7 @@ function onProviderChange(){
   const show = (id,on)=>document.getElementById(id).classList.toggle('hidden', !on);
   const isAuth0 = p==='auth0', hasIdentity = true;  // all providers support Users & Access now
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
-  show('fd_dburl', p==='authentik');
+  show('fd_dburl', p==='authentik'); show('fd_dbevents', p==='authentik');
   show('fd_ident', hasIdentity); 
   // License gate: Community has no 'identity' feature - lock the control instead
   // of letting the save fail with a 402.
@@ -135,6 +137,7 @@ function resetForm(){
   ['f_name','f_slug','f_url','f_token','f_clientid','f_clientsecret','f_dburl'].forEach(i=>document.getElementById(i).value='');
   document.getElementById('f_provider').value='authentik';
   document.getElementById('f_ident').value='false';
+  document.getElementById('f_dbevents').value='false';
   document.getElementById('f_identkeep').value=14;
   document.getElementById('f_keep').value = 30;
   document.getElementById('f_delete').classList.add('hidden');
@@ -160,7 +163,7 @@ async function saveTenant(){
     if(!document.getElementById('fd_org').classList.contains('hidden')) body.org_id = v('f_org') ? parseInt(v('f_org')) : null;
     const tok = prov==='auth0' ? auth0cred() : v('f_token');
     if(tok) body.api_token = tok;
-    if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); }
+    if(prov==='authentik'){ const dbraw = document.getElementById('f_dburl').value; if(dbraw!=='') body.db_url = dbraw.trim(); body.db_dump_exclude_events = v('f_dbevents')==='true'; }
     try {
       await api(`/tenants/${editingId}`, {method:'PATCH', body: JSON.stringify(body)});
       toast('Tenant updated.' + (body.api_token ? ' Credentials rotated.' : ''));
@@ -174,6 +177,7 @@ async function saveTenant(){
     base_url: v('f_url'), api_token: prov==='auth0' ? auth0cred() : v('f_token'),
     schedule_cron: schedGet('fs'), retention_keep: parseInt(v('f_keep')||'30'),
     db_url: prov==='authentik' ? (v('f_dburl') || null) : null,
+    db_dump_exclude_events: prov==='authentik' && v('f_dbevents')==='true',
     identity_enabled: v('f_ident')==='true', identity_schedule_cron: schedGet('fi'),
     identity_retention_keep: parseInt(v('f_identkeep')||'14')
   };
@@ -226,7 +230,7 @@ async function showSnaps(id, slug){
     sb.innerHTML = snaps.slice().reverse().map(ts => `<tr class="snaprow" data-ts="${ts}">
       <td onclick="selSnap(this.parentElement)"><input type="checkbox" tabindex="-1"></td>
       <td onclick="selSnap(this.parentElement)">${fmtSnap(ts)}</td>
-      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore…</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
+      <td style="text-align:right"><button onclick="openBrowse('${ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${ts}')">Restore…</button>`):''}</td></tr>`).join('');
   } catch(e){ sb.innerHTML = `<tr><td colspan="2" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
 function hideSnaps(){ document.getElementById('snappanel').classList.add('hidden'); }
@@ -388,7 +392,12 @@ async function viewObject(oid){
 /* ---------- identity ---------- */
 let _idCtx = null;
 function openIdentity(id, slug){
-  _idCtx = {tenantId:id, slug};
+  const t = _tenants.find(x=>x.id===id);
+  _idCtx = {tenantId:id, slug, provider: t ? t.provider : null};
+  // Authentik has no direct app assignments; access rides policy bindings, so the
+  // column shows the (real) bindings count instead of a structurally-zero number.
+  const th = document.getElementById('id_asg_th');
+  if(th) th.textContent = _idCtx.provider === 'authentik' ? 'Policy bindings' : 'Assignments';
   document.getElementById('id_slug').textContent = slug;
   document.getElementById('idpanel').classList.remove('hidden');
   document.getElementById('idpanel').scrollIntoView({behavior:'smooth'});
@@ -410,7 +419,9 @@ async function loadIdentitySnaps(){
     if(!s.length){ tb.innerHTML=emptyRow(7, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     tb.innerHTML = s.map(r=>{
       const c = r.counts||{};
-      const asg = (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
+      const asg = _idCtx.provider === 'authentik'
+        ? (c.app_policy_bindings != null ? c.app_policy_bindings : '-')
+        : (c.app_group_assignments||0)+(c.app_user_assignments_direct||0);
       return r.status==='failed'
         ? `<tr><td>${fmtSnap(r.ts)}</td><td colspan="5" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
         : `<tr><td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;

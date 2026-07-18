@@ -27,6 +27,7 @@ async function loadUsers(){
     const ab = document.getElementById('adduserbtn');
     if(ab){ ab.disabled = !!atUserCap;
       ab.title = atUserCap ? 'User limit reached for your license - the free Community tier includes a single admin account. Add a license in Administration > License' : '';
+      ab.innerHTML = '+ Add user' + (atUserCap ? ' ' + TIPI : '');
       if(atUserCap) document.getElementById('userform').classList.add('hidden'); }
     ub.innerHTML = us.map(u => `<tr>
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
@@ -91,7 +92,7 @@ async function loadOrgs(){
     _orgs = await api('/orgs');
     if(!_orgs.length){ ob.innerHTML = emptyRow(7, EI.db, 'No client orgs yet - add one to group tenants and users per client.'); return; }
     ob.innerHTML = _orgs.map(o=>`<tr>
-      <td>${esc(o.name)}${o.notes?` <span class="muted" style="font-size:.72rem" title="${esc(o.notes)}">ⓘ</span>`:''}</td>
+      <td>${esc(o.name)}${o.notes?` <span class="tipi" title="${esc(o.notes)}">ⓘ</span>`:''}</td>
       <td class="muted">${esc(o.contact_name||'-')}${o.contact_email?`<br><span style="font-size:.75rem">${esc(o.contact_email)}</span>`:''}${o.contact_phone?`<br><span style="font-size:.75rem">${esc(o.contact_phone)}</span>`:''}</td>
       <td>${o.tenant_count}</td><td>${o.user_count}</td>
       <td class="muted">${esc(o.billing_memo||'-')}${o.billing_cadence?` · ${o.billing_cadence}`:''}</td>
@@ -171,7 +172,7 @@ const ALERT_CATALOG = [
 ];
 function renderAlertEvents(enabled){
   document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
-    `<label title="${esc(e.when)}"><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)}</label>`).join('');
+    `<label><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)} <span class="tipi" title="${esc(e.when)}">ⓘ</span></label>`).join('');
 }
 /* ---------- license ---------- */
 async function loadLicense(){

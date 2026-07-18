@@ -1,10 +1,10 @@
 """Audit log viewer (admin) + snapshot object browser (any authenticated user)."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core import crypto, storage
 from app.core.diff import normalize
 from app.core.events import _id as obj_id, _name as obj_name
-from app.core.security import require_admin
+from app.core.security import require_admin, require_tenant_read
 from app.models.db import AuditLog, SessionLocal, Tenant
 
 router = APIRouter(tags=["audit"])
@@ -24,11 +24,12 @@ def audit(limit: int = 100, offset: int = 0, action: str | None = None) -> dict:
 
 
 @router.get("/tenants/{tenant_id}/snapshots/{ts}/objects")
-def browse(tenant_id: int, ts: str, resource_type: str | None = None,
+def browse(request: Request, tenant_id: int, ts: str, resource_type: str | None = None,
            q: str | None = None, limit: int = 100) -> dict:
     """Browse a snapshot's contents. Without resource_type: type list w/ counts.
     With resource_type: object summaries (id, name), filtered by q."""
     with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)   # org users: 404 outside their org
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
@@ -52,8 +53,9 @@ def browse(tenant_id: int, ts: str, resource_type: str | None = None,
 
 
 @router.get("/tenants/{tenant_id}/snapshots/{ts}/objects/{resource_type}/{object_id}")
-def object_detail(tenant_id: int, ts: str, resource_type: str, object_id: str) -> dict:
+def object_detail(request: Request, tenant_id: int, ts: str, resource_type: str, object_id: str) -> dict:
     with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)   # org users: 404 outside their org
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")

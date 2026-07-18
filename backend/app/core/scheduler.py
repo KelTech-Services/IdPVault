@@ -92,7 +92,8 @@ def run_backup(tenant_id: int) -> dict:
                 try:
                     from app.core.dbdump import pg_dump
                     db_url = crypto.decrypt(t.enc_db_url, data_key).decode()
-                    size = storage.write_dbdump(t.slug, manifest["timestamp"], data_key, pg_dump(db_url))
+                    size = storage.write_dbdump(t.slug, manifest["timestamp"], data_key,
+                                                pg_dump(db_url, exclude_events=bool(t.db_dump_exclude_events)))
                     manifest["db_dump"] = {"status": "ok", "size_encrypted": size}
                 except Exception as de:
                     # exception text goes to logs only; API/manifest gets a generic marker

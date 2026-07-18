@@ -19,6 +19,7 @@ class TenantIn(BaseModel):
     schedule_cron: str | None = None  # e.g. "0 3 * * *"
     retention_keep: int = 30
     db_url: str | None = None  # optional: full-DR pg_dump source (self-hosted only)
+    db_dump_exclude_events: bool = False  # full-DR: skip Authentik event-log rows
     identity_enabled: bool = False
     identity_schedule_cron: str | None = None
     identity_retention_keep: int = 14
@@ -50,6 +51,7 @@ def create_tenant(body: TenantIn) -> dict:
             wrapped_data_key=crypto.wrap_data_key(data_key),
             schedule_cron=body.schedule_cron, retention_keep=body.retention_keep,
             enc_db_url=crypto.encrypt(body.db_url.encode(), data_key) if body.db_url else None,
+            db_dump_exclude_events=body.db_dump_exclude_events,
             identity_enabled=body.identity_enabled,
             identity_schedule_cron=body.identity_schedule_cron,
             identity_retention_keep=body.identity_retention_keep,
@@ -76,6 +78,7 @@ def list_tenants(request: Request) -> list[dict]:
              "base_url": t.base_url,
              "schedule_cron": t.schedule_cron, "retention_keep": t.retention_keep,
              "db_dr": bool(t.enc_db_url),
+             "db_dump_exclude_events": bool(t.db_dump_exclude_events),
              "supports_identity": identity_supported(t.provider),
              "identity_enabled": t.identity_enabled,
              "identity_schedule_cron": t.identity_schedule_cron,
@@ -111,6 +114,7 @@ class TenantUpdate(BaseModel):
     schedule_cron: str | None = None   # explicit null/empty clears the schedule
     retention_keep: int | None = None
     db_url: str | None = None          # set to configure full-DR; "" clears it
+    db_dump_exclude_events: bool | None = None
     identity_enabled: bool | None = None
     identity_schedule_cron: str | None = None
     identity_retention_keep: int | None = None
@@ -149,6 +153,8 @@ def update_tenant(tenant_id: int, body: TenantUpdate, request: Request) -> dict:
         if "db_url" in fields:
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             t.enc_db_url = crypto.encrypt(fields["db_url"].encode(), data_key) if fields["db_url"] else None
+        if "db_dump_exclude_events" in fields:
+            t.db_dump_exclude_events = bool(fields["db_dump_exclude_events"])
         if "identity_enabled" in fields:
             t.identity_enabled = bool(fields["identity_enabled"])
         if "identity_retention_keep" in fields and fields["identity_retention_keep"]:
