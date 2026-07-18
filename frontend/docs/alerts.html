@@ -1,6 +1,6 @@
 <!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Alerts-and-Notifications". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
 <h3>Channels</h3>
-<p>Alerts post to a webhook (Slack, Mattermost, Discord, or ntfy - format auto-detected, or pick explicitly) and, when SMTP is configured, also email every admin with a branded message. Configure both in Settings, then use <b>Send test alert / test email</b> to verify.</p>
+<p>Alerts post to a webhook (Slack, Mattermost, Discord, or ntfy - format auto-detected, or pick explicitly) and, when SMTP is configured, also email every admin with a branded message. Configure both in Administration &gt; System settings, then use <b>Send test alert / test email</b> to verify.</p>
 <h3>One email per backup</h3>
 <p>Change detection happens during backups, so the backup notification and the change details arrive as <b>one</b> message: "Backup complete - changes detected", with a per-object list ([+] added, [-] removed, [~] changed). No-change backups send a plain success message (if subscribed).</p>
 <h3>Event subscriptions</h3>

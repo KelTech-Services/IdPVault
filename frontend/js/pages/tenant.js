@@ -37,8 +37,8 @@ async function renderTenantOverview(t){
     `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''}</p>` +
     (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
 }
-const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Settings &gt; License';
-const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Settings &gt; License';
+const LIC_TIP_TENANT = 'Over your license&#39;s tenant limit - backup &amp; restore paused for this tenant. Add a license in Administration &gt; License';
+const LIC_TIP_IDENTITY = 'Users &amp; Access backup &amp; restore requires a paid license - add one in Administration &gt; License';
 const MSP_TIP = 'Contact your MSP administrator to take this action';
 async function loadTenants(){
   const tb = document.getElementById('tenantbody');
@@ -50,7 +50,7 @@ async function loadTenants(){
     const atLimit = _license && _license.max_tenants != null && ts.length >= _license.max_tenants;
     const addBtn = document.getElementById('addtenantbtn');
     if(addBtn && isAdmin){ addBtn.disabled = !!atLimit;
-      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Settings > License' : ''; }
+      addBtn.title = atLimit ? 'Tenant limit reached for your license - upgrade in Administration > License' : ''; }
     if(!ts.length){ tb.innerHTML = emptyRow(6, EI.db, 'No tenants yet', isAdmin?'<button class="primary" onclick="toggleAdd()">+ Add your first tenant</button>':''); return; }
     const identOk = ((me && me.features) || []).includes('identity');
     const canW = me.role==='admin' || me.role==='org_admin';

@@ -3,6 +3,34 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.1.4] - 2026-07-18
+### Changed
+- New tenant-scoped navigation (v1.2 shell, phase 1). The tenant becomes the
+  workspace: picking a tenant (dropdown, top of the sidebar) opens its own
+  pages - Overview, Backups, Users & Access, Activity, and Settings. With a
+  single tenant the app enters that workspace directly and shows no dropdown.
+  With two or more, the all-tenants dashboard is the landing page, reachable
+  any time via "All tenants".
+- Admin pages (Orgs, App users, Audit, License, System settings) moved into a
+  collapsible Administration group. License and System settings are now
+  separate pages. The app-users page is titled "App users" to distinguish it
+  from IdP users. Items an installed license does not include are hidden
+  rather than shown locked.
+- The global Events page is replaced by a per-tenant Activity page.
+- Pages are deep-linkable: tenant pages at #/t/<id>/<page>, global pages at
+  #/<page>. Old links redirect.
+- Timestamps in the UI are shown in the browser's local time and honor the
+  profile time format; the "(UTC)" table columns are gone. Snapshot names and
+  storage remain UTC on the backend.
+- Backup schedules display as friendly labels ("Daily - 12:00 AM") instead of
+  raw cron; custom cron schedules still display as entered.
+- The frontend is split into static css/js modules (no build step, same
+  image). Assets carry versioned URLs so browsers pick up new code on update.
+### Added
+- Installing a license now applies its features immediately - the app
+  re-reads the session and updates the nav without a sign-out. A note under
+  the license key field recommends a hard refresh after install.
+
 ## [1.1.3] - 2026-07-17
 ### Fixed
 - Master key read no longer strips an exact 32-byte key. Key material is
