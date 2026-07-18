@@ -3,6 +3,49 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.0] - 2026-07-18
+### Added
+- Tenant Overview redesigned as a Live State workspace: full-width
+  master-detail layout with a category rail (Directory / Applications /
+  Security & access / System) showing live object counts and drift chips vs
+  the latest backup, an object table with a backup-status pill per object,
+  and a side-by-side detail view with changed fields called out. Per-object
+  Restore from both the rows and the detail view.
+- Live users (Business/MSP): the Directory rail includes the live user
+  directory compared against the latest Users & Access snapshot. Loaded on
+  demand and cached (new "Live State users cache" setting, default 60
+  minutes) so user APIs are never hammered; Restore on a deleted user opens
+  the Users & Access restore with that user preselected. New "Refresh Config
+  from provider" and "Refresh Users from provider" buttons, both debounced.
+- Global Live State search: one box searches every category at once by name
+  or id (users included once the directory is loaded), with grouped results
+  that click through to object detail.
+- Changes page: compare any backup against any other backup or the current
+  live configuration - totals, per-category filter chips, changed-field
+  lists, before/after JSON, and Restore from the From backup. The Unbacked
+  changes stat on the Overview clicks through to it.
+- Tenant trend charts (changes per backup, objects over time, backup size)
+  with a Show/Hide Trends toggle.
+- Backups page: Type (manual/auto) and Status columns; failed backup
+  attempts now appear in the list with their error instead of disappearing.
+- Users & Access page: changes-vs-previous summary per snapshot.
+- Server-side paging on Live State object and user lists with a 50/100/250
+  page-size picker; lists are name-sorted and counts always reflect the full
+  set.
+### Changed
+- Full-width app shell (the centered content cap is gone) plus a typography
+  pass: larger section titles and stat values.
+- The Overview's status cards and out-of-sync banner merged into a single
+  status strip (health, schedule, last backup, unbacked changes, Backup now).
+- The Explorer page merged into the Overview's Live State panel; snapshot
+  browsing lives on the Backups page. Old Explorer links land on Overview.
+- Policy and flow-stage bindings show readable labels (what they bind)
+  instead of raw UUIDs in Compare and Changes.
+- Restore buttons are always visible on object rows, and every informational
+  tooltip carries the visible info icon.
+### Fixed
+- Failed backup attempts are no longer invisible on the Backups page.
+
 ## [1.1.6] - 2026-07-18
 ### Added
 - Snapshot Explorer (tenant sidebar): open any snapshot and browse it by

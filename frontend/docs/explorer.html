@@ -1,16 +1,21 @@
-<!-- SYNC NOTE: this page mirrors the GitHub wiki page "Snapshot Explorer".
+<!-- SYNC NOTE: this page mirrors the GitHub wiki page "Live State".
      Editing one REQUIRES updating the other. -->
-<h3>Snapshot Explorer</h3>
-<p>The Explorer (tenant sidebar) lets you open any config snapshot and browse everything in it by category: applications, flows, policies, groups, bindings, and whatever else your provider exports. Pick a snapshot at the top - the newest one is selected by default.</p>
-<h3>Status badges</h3>
-<p>When you open an older snapshot, every object carries a badge comparing it to the <b>latest backup</b>:</p>
+<h3>Live State</h3>
+<p>Each tenant's Overview is a live dashboard of the IdP itself. The <b>Live State</b> panel shows the provider's CURRENT configuration in a two-pane layout: a category rail on the left (Directory, Applications, Security &amp; access, System) with live object counts and drift chips vs your latest backup, and the selected category's objects on the right. Click an object for a side-by-side view of the live version and the version in your latest backup, with the changed fields called out.</p>
+<h3>Backup status per object</h3>
 <ul>
-<li><b>unchanged</b> - identical in the latest backup.</li>
-<li><b>modified</b> - exists in the latest backup with different configuration; the object detail lists exactly which fields changed and shows both versions side by side.</li>
-<li><b>deleted in latest</b> - present in this snapshot but gone from the latest backup. This is the one to look for after an accidental deletion.</li>
-<li><b>new in latest</b> - did not exist yet when this snapshot was taken.</li>
+<li><b>backed up</b> - identical to the latest backup.</li>
+<li><b>changed since backup</b> - differs from the latest backup; the detail view lists exactly which fields.</li>
+<li><b>not backed up yet</b> - exists live but is not in any backup yet.</li>
+<li><b>deleted since backup</b> - in your latest backup but gone from the live tenant. This is the one to look for after an accidental deletion - Restore it right from the row.</li>
 </ul>
-<p>Badges compare snapshots, so they work offline and instantly. Category tiles show a +N / -N delta against the latest backup for the same reason.</p>
-<h3>One-click object restore</h3>
-<p>Every object row has a <b>Restore…</b> button. It opens the restore dialog with a dry-run preview already running and only that object selected - one click to preview, one to apply, never a silent write. Dependencies and manual follow-ups (like credential regeneration) are flagged in the preview, exactly as in a full restore.</p>
-<p>Write actions follow your role: org viewers can browse everything but see no Restore buttons, and the server enforces the same rule regardless.</p>
+<h3>Users in Live State</h3>
+<p>With a Business or MSP license, the Directory section includes <b>Users</b>: the live user directory compared against your latest Users &amp; Access snapshot. User directories are the API-heavy surface of every provider, so users load on demand - the first click on Users (or <b>Refresh Users from provider</b>) fetches the directory, which then stays cached for the time set in Administration &gt; System settings (<b>Live State users cache</b>, default 60 minutes, minimum 5). Restore on a deleted user opens the Users &amp; Access restore with just that user preselected.</p>
+<h3>Search everything</h3>
+<p>The search box in the Live State header searches every category at once by name or id - apps, policies, flows, bindings, and users once the directory is loaded. Results come back grouped by category; clicking one jumps straight to that object's detail.</p>
+<h3>Refresh, freshness, and paging</h3>
+<p>Config state refreshes automatically on the interval set in System settings and whenever you click <b>Refresh Config from provider</b> (debounced, so it cannot hammer the API). Large categories page in place - 50/100/250 objects per page - and the counts always reflect the full set, not just the visible page.</p>
+<h3>Restore and roles</h3>
+<p>Every restore goes through a dry-run preview - one click to preview, one to apply, never a silent write. Org viewers can browse everything but see no Restore buttons, and the server enforces the same rule regardless.</p>
+<h3>Trends</h3>
+<p><b>Show Trends</b> reveals three charts once a tenant has two or more backups: changes per backup, object count over time, and backup size (including Full-DR dumps when enabled).</p>

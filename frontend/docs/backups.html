@@ -5,6 +5,7 @@
 <p>Each tenant has its own schedule (Daily/Weekly/Monthly with a time, or custom cron for anything else) and a retention count - how many snapshots to keep. Schedules run in the org timezone set in Administration &gt; System settings. Backups queue and run one at a time, so same-time schedules never overload the host. Old snapshots past the retention count are pruned automatically after each successful backup. Manual backups any time with <b>Backup now</b>.</p>
 <h3>Snapshots</h3>
 <ul>
+<li><b>Type &amp; Status</b> - every row shows whether the backup was scheduled or manual and whether it succeeded. Failed backup attempts appear in the list with their error instead of disappearing.</li>
 <li><b>Browse</b> - open any snapshot and inspect every object in it (searchable).</li>
 <li><b>Compare</b> - select any two snapshots and see exactly what was added, removed, or changed between them. The snapshot list also shows a per-snapshot change summary vs the previous backup.</li>
 <li><b>Restore…</b> - see the <b>Config restore</b> doc.</li>
