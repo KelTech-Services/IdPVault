@@ -24,7 +24,6 @@ async function renderTenantOverview(t){
   const cards = document.getElementById('t_overview_cards');
   if(!cards) return;
   cards.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
-  document.getElementById('t_overview_banner').innerHTML = '';
   document.getElementById('t_overview_body').innerHTML = '';
   let state = null, dash = null;
   try{ state = await api(`/tenants/${t.id}/state/summary`); }catch{}
@@ -36,7 +35,6 @@ async function renderTenantOverview(t){
 }
 function renderTenantOverviewView(t, state, dash){
   const cards = document.getElementById('t_overview_cards');
-  const banner = document.getElementById('t_overview_banner');
   const body = document.getElementById('t_overview_body');
   if(!cards) return;
   const canW = me.role === 'admin' || me.role === 'org_admin';
@@ -54,11 +52,12 @@ function renderTenantOverviewView(t, state, dash){
   const ago = checked ? Math.max(0, Math.round((Date.now() - checked.getTime()) / 60000)) : null;
   const agoTxt = ago == null ? '' : (ago === 0 ? 'just now' : ago + 'm ago');
   cards.innerHTML = `
-    <div class="card ${issues.length ? 'warn' : 'good'}"><div class="lbl2">Backup health</div><div class="big" style="font-size:1.3rem">${inactive ? 'Paused' : issues.length ? 'Attention' : 'Excellent'}</div><div class="sub">${issues.length ? esc(issues.join(' · ')) : 'scheduled and running clean'}</div></div>
-    <div class="card"><div class="lbl2">Backup schedule</div><div class="big" style="font-size:1.1rem">${esc(cronLabel(t.schedule_cron))}</div><div class="sub">last backup: ${lastRun ? fmtSnapDay(lastRun.ts) : 'never'} · keep ${t.retention_keep}</div></div>
-    <div class="card ${drift ? 'warn' : ''}"><div class="lbl2">Unbacked changes</div><div class="big">${drift == null ? '-' : drift}</div><div class="sub">${checked ? 'config vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</div></div>`;
-  banner.innerHTML = (drift && state.latest_snapshot)
-    ? `<section class="panel" style="border-color:var(--amber);margin-bottom:20px"><p style="font-size:.88rem">Your most recent backup (${fmtSnap(state.latest_snapshot)}) is out of sync with current state - <b>${drift}</b> change${drift === 1 ? '' : 's'} not yet backed up.${canW && !inactive ? ` <button class="primary" style="margin-left:10px" onclick="backupNow(${t.id}, this)">Backup now</button>` : ''}</p></section>` : '';
+    <div class="stat"><span class="sl">Backup health</span><span class="sv" style="color:${inactive ? 'var(--red)' : issues.length ? 'var(--amber)' : 'var(--green)'}">${inactive ? 'Paused' : issues.length ? 'Attention' : 'Excellent'}</span><span class="ss">${issues.length ? esc(issues.join(' · ')) : 'scheduled and running clean'}</span></div>
+    <div class="stat"><span class="sl">Schedule</span><span class="sv">${esc(cronLabel(t.schedule_cron))}</span><span class="ss">keep ${t.retention_keep} snapshots</span></div>
+    <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
+    <div class="stat last"><span class="sl">Unbacked changes</span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
+    <span class="spacer"></span>
+    ${drift && canW && !inactive ? `<button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button>` : ''}`;
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
     `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''} · <span class="tag ${t.provider}">${t.provider}</span> ${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</p>` +
@@ -294,7 +293,7 @@ function updateSnapButtons(){
   const n = selectedSnaps.length;
   const diffBtn = document.getElementById('diffbtn');
   if(diffBtn){ diffBtn.disabled = n !== 2;
-    diffBtn.innerHTML = (n === 2 ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
+    diffBtn.innerHTML = n === 2 ? 'Compare selected' : 'Compare (select 2)'; }
   const del = document.getElementById('delsnapsbtn');
   if(del){ del.classList.toggle('hidden', me.role !== 'admin' || n === 0);
     del.textContent = `Delete selected (${n})`; }
@@ -368,7 +367,7 @@ async function runDiff(){
       <td>${DIFF_TAG[kind]}</td><td>${esc(rt.replace(/_/g,' '))}</td>
       <td>${esc(objLabel(obj))}</td>
       <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length>8 ? ' …' : '') : '-'}</td>
-      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button></td></tr>`;
+      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View</button></td></tr>`;
     Object.keys(d).sort().forEach(rt => {
       const x = d[rt];
       x.added.forEach((o,i)=>{ add++; out.push(mk('added', rt, o, null, `a:${rt}:${i}`)); });
@@ -770,7 +769,7 @@ async function exLoadCats(){
         const delta = _ex.mode === 'current' ? c.count - c.current_count : c.current_count - c.count;
         if(delta) chips = `<span class="chip ${delta > 0 ? 'add' : 'rem'}">${delta > 0 ? '+' + delta : '−' + (-delta)}</span>`;
       }
-      return `<button class="mdrow" data-rt="${esc(c.resource_type)}" onclick="exOpenCat('${esc(c.resource_type)}')"><span>${esc(ovLabel(c.resource_type))}</span><span class="spacer"></span>${chips}<span class="cnt">${c.count}</span></button>`;
+      return `<button class="mdrow" data-rt="${esc(c.resource_type)}" onclick="exOpenCat('${esc(c.resource_type)}')"><span>${esc(ovLabel(c.resource_type))}</span><span class="spacer"></span><span class="cnt">${c.count}</span>${chips}</button>`;
     };
     let html = ''; const used = new Set();
     OV_SECTIONS.forEach(s => {
@@ -808,7 +807,7 @@ const EX_STATUS = {
   new: '<span class="tag ok">new in latest</span>',
 };
 const EX_STATUS_CURRENT = {
-  unchanged: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">backed up</span>',
+  unchanged: '<span class="tag ok">backed up</span>',
   modified: '<span class="tag pending">changed since backup</span>',
   deleted: '<span class="tag off">deleted since backup</span>',
   new: '<span class="tag pending">not backed up yet</span>',
@@ -827,11 +826,10 @@ async function exLoadObjects(){
     if(!d.objects.length){ tb.innerHTML = emptyRow(4, EI.search, 'No matching objects.'); return; }
     const canW = me.role === 'admin' || me.role === 'org_admin';
     const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
-    tb.innerHTML = d.objects.map(o=>`<tr>
-      <td>${esc(o.object_name||'-')}</td><td class="muted" style="font-size:.78rem">${esc(o.object_id)}</td>
+    tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
+      <td>${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
-      <td style="white-space:nowrap"><button onclick="exViewObject('${esc(o.object_id)}')">View</button>
-      ${canW && !inactive && o.status !== 'new' ? ` <button onclick="exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this snapshot (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
+      <td class="rowact" style="white-space:nowrap;text-align:right">${canW && !inactive && o.status !== 'new' ? `<button onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore…</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function exViewObject(oid){
@@ -915,17 +913,18 @@ function renderTenantCharts(){
     const c = _tChartData.changes[i];
     if(c && !c.first) ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: c[k] || 0}));
   });
-  const ax = () => ([{orient:'left', label:{style:{fontSize:10}}, grid:{visible:false}},
-                     {orient:'bottom', label:{style:{fontSize:9}, sampling:true}}]);
+  const ax = intOnly => ([{orient:'left', grid:{visible:false}, tick:{tickCount:4},
+       label:{style:{fontSize:10}, formatMethod: intOnly ? (v => (+v % 1 === 0 ? v : '')) : undefined}},
+      {orient:'bottom', label:{visible:false}, tick:{visible:false}}]);
   const specs = [
     ['ch_t_changes', {...base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
-      seriesField:'type', stack:true, color:[G, R, A],
-      legends:{visible:true, orient:'bottom', item:{label:{style:{fontSize:11}}}}, axes: ax()}],
-    ['ch_t_objects', {...base, type:'line', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
-      color:[B], point:{visible:false}, axes: ax()}],
-    ['ch_t_size', {...base, type:'line', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
-      color:[GD], point:{visible:false},
-      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax()}],
+      seriesField:'type', stack:true, color:[G, R, A], barMaxWidth:26,
+      legends:{visible:false}, axes: ax(true)}],
+    ['ch_t_objects', {...base, type:'area', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
+      color:[B], point:{visible:false}, area:{style:{fillOpacity:0.12}}, axes: ax(true)}],
+    ['ch_t_size', {...base, type:'area', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
+      color:[GD], point:{visible:false}, area:{style:{fillOpacity:0.12}},
+      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax(false)}],
   ];
   specs.forEach(([id, spec]) => {
     const el = document.getElementById(id); if(!el) return;
