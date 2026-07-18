@@ -25,19 +25,20 @@ async function renderTenantOverview(t){
   if(!cards) return;
   cards.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
   document.getElementById('t_overview_banner').innerHTML = '';
-  document.getElementById('t_overview_grid').innerHTML = '';
   document.getElementById('t_overview_body').innerHTML = '';
   let state = null, dash = null;
   try{ state = await api(`/tenants/${t.id}/state/summary`); }catch{}
   try{ dash = await api('/dashboard/summary'); }catch{}
+  window._ovState = state;
   renderTenantOverviewView(t, state, dash);
+  openExplorer(t);
+  loadTenantCharts(t);
 }
 function renderTenantOverviewView(t, state, dash){
   const cards = document.getElementById('t_overview_cards');
   const banner = document.getElementById('t_overview_banner');
-  const grid = document.getElementById('t_overview_grid');
   const body = document.getElementById('t_overview_body');
-  if(!cards || !grid) return;
+  if(!cards) return;
   const canW = me.role === 'admin' || me.role === 'org_admin';
   const inactive = t.active === false;
   const dt = dash && dash.tenants ? dash.tenants.find(x => x.id === t.id) : null;
@@ -58,24 +59,10 @@ function renderTenantOverviewView(t, state, dash){
     <div class="card ${drift ? 'warn' : ''}"><div class="lbl2">Unbacked changes</div><div class="big">${drift == null ? '-' : drift}</div><div class="sub">${checked ? 'config vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</div></div>`;
   banner.innerHTML = (drift && state.latest_snapshot)
     ? `<section class="panel" style="border-color:var(--amber);margin-bottom:20px"><p style="font-size:.88rem">Your most recent backup (${fmtSnap(state.latest_snapshot)}) is out of sync with current state - <b>${drift}</b> change${drift === 1 ? '' : 's'} not yet backed up.${canW && !inactive ? ` <button class="primary" style="margin-left:10px" onclick="backupNow(${t.id}, this)">Backup now</button>` : ''}</p></section>` : '';
-  const cats = ok ? Object.keys(state.counts || {}).sort() : [];
-  const per = (ok && state.categories) || {};
-  grid.innerHTML = cats.length ? cats.map(rt => {
-    const d = per[rt];
-    const badge = d ? ` <span style="font-size:.72rem">${d.added ? `<span style="color:var(--green)">+${d.added}</span> ` : ''}${d.removed ? `<span style="color:var(--red)">−${d.removed}</span> ` : ''}${d.changed ? `<span style="color:var(--amber)">~${d.changed}</span>` : ''}</span>` : '';
-    return `<div class="card" style="cursor:pointer" onclick="overviewOpenCat('${esc(rt)}')"><div class="lbl2">${esc(rt.replace(/_/g,' '))}</div><div class="big">${state.counts[rt]}${badge}</div></div>`;
-  }).join('') : `<div class="card"><div class="lbl2">Live view warming up</div><div class="sub">The first check runs within a few minutes${canW ? ', or click Refresh from provider' : ''}. Category counts appear here with drift badges once ready.</div></div>`;
-  const src = document.getElementById('t_overview_src');
-  if(src) src.textContent = ok ? (state.source === 'live' ? `- live from provider, checked ${agoTxt}` : '- as of the latest backup') : '';
   body.innerHTML =
     (inactive ? '<p class="st-failed" style="font-size:.85rem;margin-bottom:10px">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '') +
     `<p class="muted" style="font-size:.85rem">Users &amp; Access backup: <b>${t.identity_enabled ? 'enabled' : 'disabled'}</b>${t.identity_enabled && t.identity_schedule_cron ? ' · ' + esc(cronLabel(t.identity_schedule_cron)) : ''} · <span class="tag ${t.provider}">${t.provider}</span> ${esc(t.slug)}${t.org_name ? ' · ' + esc(t.org_name) : ''}</p>` +
     (canW && !inactive ? `<div style="margin-top:12px"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button> <button onclick="location.hash='#/t/${t.id}/backups'">View backups</button></div>` : '');
-}
-function overviewOpenCat(rt){
-  window._exJumpCat = rt;
-  window._exJumpSnap = 'current';   // Overview tiles show live state; land on the live view
-  location.hash = '#/t/' + currentTenantId + '/explorer';
 }
 async function overviewRefresh(){
   const btn = document.getElementById('t_ov_refresh');
@@ -84,7 +71,9 @@ async function overviewRefresh(){
   try{
     const state = await api(`/tenants/${t.id}/state/refresh`, {method:'POST'});
     const dash = await api('/dashboard/summary').catch(() => null);
+    window._ovState = state;
     renderTenantOverviewView(t, state, dash);
+    if(_ex && _ex.mode === 'current') await exLoadCats();
   }catch(e){ toast(e.message, true); }
   btn.disabled = false; btn.innerHTML = old;
 }
@@ -741,53 +730,76 @@ async function openExplorer(t){
   snapTenantId = t.id; window._snapSlug = t.slug;
   document.getElementById('ex_objpanel').classList.add('hidden');
   document.getElementById('ex_detailpanel').classList.add('hidden');
+  document.getElementById('ex_empty').classList.remove('hidden');
   const sel = document.getElementById('ex_snap');
   sel.innerHTML = '';
-  document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  const rail = document.getElementById('ex_cats');
+  rail.innerHTML = '<div class="empty">Loading…</div>';
   try{
     const snaps = await api(`/tenants/${t.id}/snapshots`);
-    if(!snaps.length){ document.getElementById('ex_cats').innerHTML = '<div class="card"><div class="lbl2">No snapshots yet</div><div class="sub">Run a backup, then explore it here.</div></div>'; return; }
+    if(!snaps.length){ rail.innerHTML = '<div class="empty">No backups yet - run a backup, then browse the configuration here.</div>'; return; }
     const rev = snaps.slice().reverse();
     sel.innerHTML = '<option value="current">Current (live from provider)</option>' +
       rev.map((s,i)=>`<option value="${s.ts}">${i===0?'Latest backup - ':''}${fmtSnap(s.ts)}</option>`).join('');
-    _ex.snap = window._exJumpSnap || rev[0].ts;
+    _ex.snap = window._exJumpSnap || 'current';
     sel.value = _ex.snap;
     window._exJumpSnap = null;
     await exLoadCats();
     if(window._exJumpCat){ exOpenCat(window._exJumpCat); window._exJumpCat = null; }
-  }catch(e){ document.getElementById('ex_cats').innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+  }catch(e){ rail.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function exLoadCats(){
   const sel = document.getElementById('ex_snap');
   if(sel.value) _ex.snap = sel.value;
-  document.getElementById('ex_objpanel').classList.add('hidden');
-  document.getElementById('ex_detailpanel').classList.add('hidden');
-  const grid = document.getElementById('ex_cats');
-  grid.innerHTML = '<div class="card"><div class="sub">Loading…</div></div>';
+  const rail = document.getElementById('ex_cats');
+  rail.innerHTML = '<div class="empty">Loading…</div>';
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore`);
     _ex.mode = d.mode; _ex.isLatest = d.mode === 'snapshot' && d.is_latest; _ex.latest = d.latest;
-    grid.innerHTML = d.categories.map(c=>{
-      const delta = _ex.mode === 'current' ? c.count - c.current_count : c.current_count - c.count;
-      const badge = _ex.isLatest || delta === 0 ? ''
-        : ` <span style="font-size:.75rem;color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+'+delta:delta}${_ex.mode==='current'?' vs backup':' in latest'}</span>`;
-      const sub = _ex.mode === 'current' ? c.current_count + ' in the latest backup'
-        : _ex.isLatest ? 'objects in the latest backup' : c.current_count + ' in the latest backup';
-      return `<div class="card" style="cursor:pointer" onclick="exOpenCat('${esc(c.resource_type)}')">
-        <div class="lbl2">${esc(c.resource_type.replace(/_/g,' '))}</div>
-        <div class="big">${c.count}${badge}</div>
-        <div class="sub">${sub}</div></div>`;
-    }).join('');
-  }catch(e){ grid.innerHTML = `<div class="card bad"><div class="sub">${esc(e.message)}</div></div>`; }
+    const byType = {}; d.categories.forEach(c => byType[c.resource_type] = c);
+    const st = window._ovState;
+    const per = (_ex.mode === 'current' && st && st.available && st.categories) || null;
+    const row = c => {
+      let chips = '';
+      const p = per && per[c.resource_type];
+      if(p && (p.added || p.removed || p.changed)){
+        chips = (p.added ? `<span class="chip add">+${p.added}</span>` : '') +
+                (p.removed ? `<span class="chip rem">−${p.removed}</span>` : '') +
+                (p.changed ? `<span class="chip chg">~${p.changed}</span>` : '');
+      } else if(!per && !_ex.isLatest){
+        const delta = _ex.mode === 'current' ? c.count - c.current_count : c.current_count - c.count;
+        if(delta) chips = `<span class="chip ${delta > 0 ? 'add' : 'rem'}">${delta > 0 ? '+' + delta : '−' + (-delta)}</span>`;
+      }
+      return `<button class="mdrow" data-rt="${esc(c.resource_type)}" onclick="exOpenCat('${esc(c.resource_type)}')"><span>${esc(ovLabel(c.resource_type))}</span><span class="spacer"></span>${chips}<span class="cnt">${c.count}</span></button>`;
+    };
+    let html = ''; const used = new Set();
+    OV_SECTIONS.forEach(s => {
+      const rows = s.types.filter(x => byType[x]);
+      if(!rows.length) return;
+      rows.forEach(x => used.add(x));
+      html += `<div class="mdsec">${s.name}</div>` + rows.map(x => row(byType[x])).join('');
+    });
+    const rest = d.categories.filter(c => !used.has(c.resource_type));
+    if(rest.length) html += '<div class="mdsec">Other</div>' + rest.map(row).join('');
+    rail.innerHTML = html || '<div class="empty">Nothing captured in this view.</div>';
+    const th = document.getElementById('ex_status_th');
+    if(th) th.textContent = _ex.mode === 'current' ? 'Backup status' : 'Status vs latest';
+    const src = document.getElementById('t_overview_src');
+    if(src) src.textContent = _ex.mode === 'current' ? '- live from provider' : '- as of backup ' + fmtSnap(_ex.snap);
+    const first = rail.querySelector('.mdrow');
+    if(_ex.cat && byType[_ex.cat]) exOpenCat(_ex.cat);
+    else if(first) exOpenCat(first.dataset.rt);
+  }catch(e){ rail.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 function exOpenCat(rt){
   _ex.cat = rt;
-  document.getElementById('ex_cat_label').textContent = rt.replace(/_/g,' ');
+  document.querySelectorAll('#ex_cats .mdrow').forEach(b => b.classList.toggle('active', b.dataset.rt === rt));
+  document.getElementById('ex_cat_label').textContent = ovLabel(rt);
   document.getElementById('ex_search').value = '';
-  document.getElementById('ex_objpanel').classList.remove('hidden');
+  document.getElementById('ex_empty').classList.add('hidden');
   document.getElementById('ex_detailpanel').classList.add('hidden');
+  document.getElementById('ex_objpanel').classList.remove('hidden');
   exLoadObjects();
-  document.getElementById('ex_objpanel').scrollIntoView({behavior:'smooth'});
 }
 const EX_STATUS = {
   unchanged: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">unchanged</span>',
@@ -825,7 +837,7 @@ async function exLoadObjects(){
 async function exViewObject(oid){
   try{
     const d = await api(`/tenants/${_ex.tenantId}/snapshots/${_ex.snap}/explore/${encodeURIComponent(_ex.cat)}/${encodeURIComponent(oid)}`);
-    document.getElementById('ex_obj_label').textContent = `${_ex.cat.replace(/_/g,' ')} / ${oid}`;
+    document.getElementById('ex_obj_label').textContent = `${ovLabel(_ex.cat)} / ${oid}`;
     document.getElementById('ex_col_a').textContent = _ex.mode === 'current' ? 'Current (live)' : 'In this snapshot';
     document.getElementById('ex_col_b').textContent = 'In latest backup';
     document.getElementById('ex_snapjson').textContent = d.object ? JSON.stringify(d.object, null, 2) : '(not in this snapshot)';
@@ -833,8 +845,8 @@ async function exViewObject(oid){
     document.getElementById('ex_diffinfo').innerHTML = d.status === 'modified' && d.changed_fields.length
       ? `Changed fields: <b>${d.changed_fields.map(esc).join(', ')}</b>`
       : (_ex.isLatest ? '' : exStatusTag(d.status));
+    document.getElementById('ex_objpanel').classList.add('hidden');
     document.getElementById('ex_detailpanel').classList.remove('hidden');
-    document.getElementById('ex_detailpanel').scrollIntoView({behavior:'smooth'});
   }catch(e){ toast(e.message, true); }
 }
 function exRestoreObject(oid){
@@ -843,4 +855,82 @@ function exRestoreObject(oid){
   _restorePreselect = { rt: _ex.cat, oid: String(oid) };
   openRestore(snap);
   restorePreview();
+}
+/* ---------- v1.2: master-detail overview (left category rail, right object pane) ---------- */
+function exBackToList(){
+  document.getElementById('ex_detailpanel').classList.add('hidden');
+  if(_ex && _ex.cat) document.getElementById('ex_objpanel').classList.remove('hidden');
+}
+const OV_SECTIONS = [
+  {name:'Directory', types:['users','groups','roles','user_schemas','user_types','user_type_schemas','profile_mappings']},
+  {name:'Applications', types:['applications','apps','clients','providers','resource_servers','actions','rules']},
+  {name:'Security & access', types:['flows','stages','flow_stage_bindings','policies','policy_bindings','policies_signon','policies_password','policies_mfa','policies_access','authorization_servers','idps','network_zones','certificates','connections']},
+  {name:'System', types:['brands','outposts','blueprints','property_mappings','event_hooks','inline_hooks','tenant_settings','custom_domains','branding']},
+];
+const OV_LABELS = {policies_signon:'Sign-on policies', policies_password:'Password policies', policies_mfa:'MFA policies', policies_access:'Access policies', idps:'Identity providers', resource_servers:'APIs (resource servers)', tenant_settings:'Tenant settings'};
+function ovLabel(rt){ const s = OV_LABELS[rt] || String(rt).replace(/_/g,' '); return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/* ---------- v1.2: tenant trend charts ---------- */
+let _tCharts = [], _tChartData = null;
+function ovToggleCharts(){
+  const row = document.getElementById('t_chartrow');
+  if(!row) return;
+  if(!_tChartData){ toast('Trends need at least 2 backups.'); return; }
+  row.classList.toggle('hidden');
+  if(!row.classList.contains('hidden')) renderTenantCharts();
+}
+async function loadTenantCharts(t){
+  const row = document.getElementById('t_chartrow');
+  if(!row) return;
+  _tChartData = null; row.classList.add('hidden');
+  try{
+    const snaps = await api(`/tenants/${t.id}/snapshots`);
+    if(snaps.length < 2 || t.id !== currentTenantId) return;
+    const last = snaps.slice(-30);
+    const changes = await Promise.all(last.map(s => api(`/tenants/${t.id}/snapshots/${s.ts}/changes`).catch(() => null)));
+    if(t.id !== currentTenantId) return;
+    _tChartData = {snaps: last, changes};
+    row.classList.remove('hidden');
+    renderTenantCharts();
+  }catch{}
+}
+function _tsShort(ts){
+  const d = snapDate(ts); if(!d) return String(ts);
+  return (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+function renderTenantCharts(){
+  const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
+  const row = document.getElementById('t_chartrow');
+  if(!VC || !_tChartData || !row || row.classList.contains('hidden')) return;
+  _tCharts.forEach(c => { try{ c.release(); }catch{} }); _tCharts = [];
+  const light = document.documentElement.dataset.theme === 'light';
+  const G = _cssVar('--green'), R = _cssVar('--red'), A = _cssVar('--amber'), B = _cssVar('--accent'), GD = _cssVar('--gold');
+  const base = { background: 'transparent' };
+  const opts = el => ({ dom: el, theme: light ? 'light' : 'dark' });
+  const chRows = [], objRows = [], szRows = [];
+  _tChartData.snaps.forEach((s, i) => {
+    const x = _tsShort(s.ts);
+    objRows.push({ts: x, n: s.objects || 0});
+    szRows.push({ts: x, mb: Math.round(((s.size || 0) + (s.db_dump_size || 0)) / 1048576 * 10) / 10});
+    const c = _tChartData.changes[i];
+    if(c && !c.first) ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: c[k] || 0}));
+  });
+  const ax = () => ([{orient:'left', label:{style:{fontSize:10}}, grid:{visible:false}},
+                     {orient:'bottom', label:{style:{fontSize:9}, sampling:true}}]);
+  const specs = [
+    ['ch_t_changes', {...base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
+      seriesField:'type', stack:true, color:[G, R, A],
+      legends:{visible:true, orient:'bottom', item:{label:{style:{fontSize:11}}}}, axes: ax()}],
+    ['ch_t_objects', {...base, type:'line', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
+      color:[B], point:{visible:false}, axes: ax()}],
+    ['ch_t_size', {...base, type:'line', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
+      color:[GD], point:{visible:false},
+      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax()}],
+  ];
+  specs.forEach(([id, spec]) => {
+    const el = document.getElementById(id); if(!el) return;
+    el.innerHTML = '';
+    try { const ch = new VC(spec, opts(el)); ch.renderSync ? ch.renderSync() : ch.render(); _tCharts.push(ch); }
+    catch(e){ console.warn('chart', id, e); }
+  });
 }

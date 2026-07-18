@@ -24,6 +24,7 @@ function applyTheme(t){
   if(moon){ moon.classList.toggle('hidden', t==='light'); sun.classList.toggle('hidden', t!=='light');
             btn.title = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode'; }
   if(typeof renderCharts === 'function' && window._trendsReady !== false) try{ renderCharts(); }catch{}
+  if(typeof renderTenantCharts === 'function') try{ renderTenantCharts(); }catch{}
 }
 async function toggleTheme(){
   const next = (document.documentElement.dataset.theme === 'light') ? 'dark' : 'light';

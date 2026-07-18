@@ -113,10 +113,36 @@
 <main id="view-t-overview" class="hidden">
   <section class="cards" id="t_overview_cards"></section>
   <div id="t_overview_banner"></div>
+  <section class="chartgrid hidden" id="t_chartrow">
+    <div class="card"><div class="lbl2">Changes per backup <span class="tipi" title="Objects added, removed, and changed in each backup compared with the backup before it">ⓘ</span></div><div class="chart" id="ch_t_changes"></div></div>
+    <div class="card"><div class="lbl2">Objects over time <span class="tipi" title="Total configuration objects captured in each backup - a sudden drop can mean something was deleted">ⓘ</span></div><div class="chart" id="ch_t_objects"></div></div>
+    <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Snapshot size per backup, including the Full-DR database dump when enabled">ⓘ</span></div><div class="chart" id="ch_t_size"></div></div>
+  </section>
   <section class="panel">
     <h2>Configuration <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
+      <select id="ex_snap" onchange="exLoadCats()" style="width:auto"></select>
+      <button id="t_ov_trends" onclick="ovToggleCharts()" title="Show or hide the trend charts (changes per backup, object counts, backup size)">Trends <span class="tipi">ⓘ</span></button>
       <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh from provider <span class="tipi">ⓘ</span></button></h2>
-    <div class="cards" id="t_overview_grid"></div>
+    <div class="mdlayout">
+      <div class="mdrail" id="ex_cats"><div class="empty">Loading…</div></div>
+      <div class="mdpane">
+        <div id="ex_objpanel" class="hidden">
+          <div class="mdpanehead"><span class="mdtitle" id="ex_cat_label"></span><span class="spacer"></span>
+            <input id="ex_search" placeholder="search objects…" style="width:240px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)"></div>
+          <table><thead><tr><th>Object</th><th>ID</th><th id="ex_status_th">Status</th><th style="width:190px"></th></tr></thead>
+          <tbody id="ex_objects"></tbody></table>
+        </div>
+        <div id="ex_detailpanel" class="hidden">
+          <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span></div>
+          <div id="ex_diffinfo" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div><div class="lbl" id="ex_col_a">In this snapshot</div><pre id="ex_snapjson"></pre></div>
+            <div><div class="lbl" id="ex_col_b">In latest backup</div><pre id="ex_curjson"></pre></div>
+          </div>
+        </div>
+        <div id="ex_empty" class="empty">Pick a category on the left to see its objects.</div>
+      </div>
+    </div>
     <div id="t_overview_body" style="margin-top:14px"></div>
   </section>
 </main>
@@ -154,30 +180,6 @@
     <div id="id_estimate" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
-  </section>
-</main>
-<main id="view-t-explorer" class="hidden">
-  <section class="panel">
-    <h2>Explorer <span class="spacer"></span>
-      <select id="ex_snap" onchange="exLoadCats()" style="width:auto"></select>
-    </h2>
-    <p class="muted" style="font-size:.8rem;margin:-6px 0 14px">Pick a snapshot, then browse its objects by category. Badges compare each object against the latest backup.</p>
-    <div class="cards" id="ex_cats"></div>
-  </section>
-  <section class="panel hidden" id="ex_objpanel">
-    <h2><span id="ex_cat_label"></span> <span class="spacer"></span>
-      <input id="ex_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._exs); window._exs=setTimeout(exLoadObjects, 300)">
-    </h2>
-    <table><thead><tr><th>Object</th><th>ID</th><th>Status vs latest</th><th style="width:190px"></th></tr></thead>
-    <tbody id="ex_objects"></tbody></table>
-  </section>
-  <section class="panel hidden" id="ex_detailpanel">
-    <h2>Object detail - <span id="ex_obj_label"></span> <span class="spacer"></span><button onclick="document.getElementById('ex_detailpanel').classList.add('hidden')">Close</button></h2>
-    <div id="ex_diffinfo" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-      <div><div class="lbl" id="ex_col_a">In this snapshot</div><pre id="ex_snapjson"></pre></div>
-      <div><div class="lbl" id="ex_col_b">In latest backup</div><pre id="ex_curjson"></pre></div>
-    </div>
   </section>
 </main>
 <main id="view-t-activity" class="hidden">

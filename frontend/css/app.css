@@ -39,7 +39,7 @@ nav#mainnav button.active svg{stroke:var(--accent)}
 .topbar .health{display:flex;align-items:center;gap:6px}
 #healthdot{width:8px;height:8px;border-radius:50%;background:var(--red)}
 #healthdot.ok{background:var(--green)}
-main{display:grid;gap:20px;max-width:1200px;margin:0 auto;padding:26px 32px;width:100%}
+main{display:grid;gap:20px;padding:26px 32px;width:100%}
 
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
 .panel h2{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-weight:600}
@@ -160,3 +160,22 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 .tipi:hover{color:var(--accent)}
 
 .chgcell .add{color:var(--green)}.chgcell .rem{color:var(--red)}.chgcell .chg{color:var(--amber)}
+
+/* ---------- v1.2: full-width shell + master-detail overview ---------- */
+#view-settings,#view-license{max-width:1240px}
+.mdlayout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
+.mdrail{display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);padding:10px;position:sticky;top:74px;max-height:calc(100vh - 110px);overflow-y:auto}
+.mdrail .mdsec{font-size:.64rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:12px 10px 4px}
+.mdrail .mdsec:first-child{padding-top:4px}
+.mdrow{display:flex;align-items:center;gap:8px;background:none;border:1px solid transparent;border-radius:var(--radius-sm);color:var(--text);padding:8px 10px;width:100%;text-align:left;font-size:.86rem;cursor:pointer;font-weight:500}
+.mdrow:hover{background:var(--panel2);border-color:transparent}
+.mdrow.active{background:var(--panel3);box-shadow:inset 3px 0 0 var(--gold)}
+.mdrow .cnt{color:var(--dim);font-variant-numeric:tabular-nums}
+.mdrow .spacer{flex:1}
+.mdrow .chip{font-size:.7rem;font-weight:600}
+.chip.add{color:var(--green)}.chip.rem{color:var(--red)}.chip.chg{color:var(--amber)}
+.mdpane{min-width:0}
+.mdpanehead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mdpanehead .mdtitle{font-weight:650;font-size:.95rem}
+.mdpanehead .spacer{flex:1}
+@media(max-width:980px){.mdlayout{grid-template-columns:1fr}.mdrail{position:static;max-height:none}}
