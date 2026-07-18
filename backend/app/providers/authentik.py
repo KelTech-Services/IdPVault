@@ -267,23 +267,25 @@ class AuthentikAdapter(ProviderAdapter):
                 for gid in (u.get("groups") or []):
                     memberships.append({"group_id": gid, "user_id": uid})
             # Authentik has no direct per-user app assignments (those buckets stay
-            # empty); app access is granted by policy bindings on applications. Capture
-            # a reference list of the access-relevant bindings (bound to an application,
-            # with a group or user set) so the UI can show a real "Policy bindings"
-            # count instead of a structurally-zero Assignments column. The bindings
-            # themselves are restored via config backups, not identity restore.
+            # empty); access is granted by policy bindings that reference a group or a
+            # user. Capture those principal-referencing bindings so the UI can show a
+            # real "Policy bindings" count instead of a structurally-zero Assignments
+            # column. NOTE: a binding's `target` is a pbm_uuid that the public API does
+            # not expose on applications/flows (verified against 2026.5.4), so bindings
+            # can NOT be attributed to a specific app here - we count every binding
+            # with a group/user principal instead. The bindings themselves are restored
+            # via config backups, not identity restore.
             groups = self._paged(c, "/api/v3/core/groups/")
             group_ref = [{"id": g.get("pk"), "name": g.get("name")} for g in groups]
             apps = self._paged(c, "/api/v3/core/applications/")
             app_ref = [{"id": a.get("pk"), "name": a.get("name")} for a in apps]
-            app_pks = {a.get("pk") for a in apps}
             bindings = self._paged(c, "/api/v3/policies/bindings/")
             app_policy_bindings = [
-                {"app_id": b.get("target"), "group_id": b.get("group"),
+                {"target": b.get("target"), "group_id": b.get("group"),
                  "user_id": b.get("user"), "order": b.get("order"),
                  "enabled": b.get("enabled")}
                 for b in bindings
-                if b.get("target") in app_pks and (b.get("group") or b.get("user"))
+                if b.get("group") or b.get("user")
             ]
             return {"users": users, "group_memberships": memberships,
                     "app_group_assignments": [], "app_user_assignments_direct": [],
