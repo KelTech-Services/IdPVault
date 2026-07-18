@@ -344,6 +344,11 @@ async function runDiff(){
   } catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
 }
 function diffView(ref){
+  const pre0 = document.getElementById('diffout');
+  if(window._diffOpenRef === ref && !pre0.classList.contains('hidden')){
+    pre0.classList.add('hidden'); window._diffOpenRef = null; return;   // second click collapses
+  }
+  window._diffOpenRef = ref;
   const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
   const kind = ref.slice(0, i1), rt = ref.slice(i1+1, i2), i = +ref.slice(i2+1);
   const x = (window._diffData || {})[rt]; if(!x) return;
