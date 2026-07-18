@@ -8,7 +8,7 @@
 --tag-violet-bg:#241a33;--tag-blue-bg:#0f2438;--tag-amber-bg:#33230f;--tag-green-bg:#0e2b20;--tag-red-bg:#331519;--tag-dim-bg:#1a232e;
 --btn-hover-border:#33465a;--on-accent:#06101c;--del-bg:#2a1418;--del-border:#5a2a30;--on-red:#0d0d0f;
 --placeholder:#556575;--modal-scrim:rgba(4,7,11,.66);--login-grad:#141e2b;
-font-size:15.5px}
+font-size:15px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter var',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-optical-sizing:auto;min-height:100vh;-webkit-font-smoothing:antialiased}
 
@@ -34,7 +34,7 @@ nav#mainnav button.active svg{stroke:var(--accent)}
 
 .content{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto}
 .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:15px 32px;background:var(--topbar-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
-.topbar h1{font-size:1.15rem;font-weight:650;letter-spacing:-.01em}
+.topbar h1{font-size:1.35rem;font-weight:650;letter-spacing:-.01em}
 .topbar-right{display:flex;align-items:center;gap:16px;font-size:.76rem;color:var(--dim)}
 .topbar .health{display:flex;align-items:center;gap:6px}
 #healthdot{width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -42,7 +42,7 @@ nav#mainnav button.active svg{stroke:var(--accent)}
 main{display:grid;gap:16px;padding:22px 28px;width:100%}
 
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px}
-.panel h2{font-size:.74rem;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-weight:600}
+.panel h2{font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-weight:600}
 .panel h2 .spacer{flex:1}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(224px,1fr));gap:12px}
 .card{background:linear-gradient(180deg,var(--panel),var(--card-grad-to));border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
@@ -165,7 +165,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 #view-settings,#view-license{max-width:1240px}
 .mdlayout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
 .mdrail{display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);padding:10px;position:sticky;top:74px;max-height:calc(100vh - 110px);overflow-y:auto}
-.mdrail .mdsec{font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:12px 10px 4px}
+.mdrail .mdsec{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:12px 10px 4px}
 .mdrail .mdsec:first-child{padding-top:4px}
 .mdrow{display:flex;align-items:center;gap:8px;background:none;border:1px solid transparent;border-radius:var(--radius-sm);color:var(--text);padding:8px 10px;width:100%;text-align:left;font-size:.9rem;cursor:pointer;font-weight:500}
 .mdrow:hover{background:var(--panel2);border-color:transparent}
@@ -178,7 +178,7 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 #ex_objpanel table{table-layout:fixed}
 #ex_objpanel td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mdpanehead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.mdpanehead .mdtitle{font-weight:650;font-size:.95rem}
+.mdpanehead .mdtitle{font-weight:650;font-size:1.1rem}
 .mdpanehead .spacer{flex:1}
 @media(max-width:980px){.mdlayout{grid-template-columns:1fr}.mdrail{position:static;max-height:none}}
 
