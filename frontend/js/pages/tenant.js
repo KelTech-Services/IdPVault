@@ -289,7 +289,7 @@ function updateSnapButtons(){
   const n = selectedSnaps.length;
   const diffBtn = document.getElementById('diffbtn');
   if(diffBtn){ diffBtn.disabled = n !== 2;
-    diffBtn.innerHTML = n === 2 ? 'Compare selected' : 'Compare (select 2)'; }
+    diffBtn.innerHTML = (n === 2 ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
   const del = document.getElementById('delsnapsbtn');
   if(del){ del.classList.toggle('hidden', me.role !== 'admin' || n === 0);
     del.textContent = `Delete selected (${n})`; }
@@ -363,7 +363,7 @@ async function runDiff(){
       <td>${DIFF_TAG[kind]}</td><td>${esc(rt.replace(/_/g,' '))}</td>
       <td>${esc(objLabel(obj))}</td>
       <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length>8 ? ' …' : '') : '-'}</td>
-      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View</button></td></tr>`;
+      <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button></td></tr>`;
     Object.keys(d).sort().forEach(rt => {
       const x = d[rt];
       x.added.forEach((o,i)=>{ add++; out.push(mk('added', rt, o, null, `a:${rt}:${i}`)); });
@@ -834,7 +834,7 @@ async function exLoadObjects(){
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
       <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
-      <td class="rowact" style="text-align:right">${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore…</button>` : ''}</td></tr>`).join('');
+      <td class="rowact" style="text-align:right">${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function exViewObject(oid){
@@ -888,7 +888,7 @@ function _trendsBtnSync(){
   btn.disabled = !_tChartData;
   btn.title = _tChartData ? 'Trend charts: changes per backup, object counts, backup size'
                           : 'Trend charts need at least 2 backups';
-  btn.textContent = !_tChartData || row.classList.contains('hidden') ? 'Show Trends' : 'Hide Trends';
+  btn.innerHTML = (!_tChartData || row.classList.contains('hidden') ? 'Show Trends' : 'Hide Trends') + ' ' + TIPI;
 }
 function ovToggleCharts(){
   const row = document.getElementById('t_chartrow');
@@ -1001,7 +1001,7 @@ async function exLoadUsersObjects(){
       <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}${o.email && o.email !== o.object_name ? ` <span class="muted" style="font-size:.78rem">${esc(o.email)}</span>` : ''}</td>
       <td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${exStatusTag(o.status)}</td>
-      <td class="rowact" style="text-align:right">${canW && !inactive && o.status === 'deleted' && d.latest_identity_snapshot ? `<button class="ghost" onclick="event.stopPropagation();exRestoreUser('${esc(o.key)}')" title="Recreate this user from the latest Users &amp; Access backup (additive create-only restore; dry-run preview first)">Restore…</button>` : ''}</td></tr>`).join('');
+      <td class="rowact" style="text-align:right">${canW && !inactive && o.status === 'deleted' && d.latest_identity_snapshot ? `<button class="ghost" onclick="event.stopPropagation();exRestoreUser('${esc(o.key)}')" title="Recreate this user from the latest Users &amp; Access backup (additive create-only restore; dry-run preview first)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function exViewUser(oid){

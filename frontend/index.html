@@ -119,9 +119,9 @@
   </section>
   <section class="panel">
     <h2>Live State <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
-      <button id="t_ov_trends" onclick="ovToggleCharts()" title="Trend charts: changes per backup, object counts, backup size">Show Trends</button>
-      <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider</button>
-      <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider</button></h2>
+      <button id="t_ov_trends" onclick="ovToggleCharts()" title="Trend charts: changes per backup, object counts, backup size">Show Trends <span class="tipi">ⓘ</span></button>
+      <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider <span class="tipi">ⓘ</span></button>
+      <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider <span class="tipi">ⓘ</span></button></h2>
     <div class="mdlayout">
       <div class="mdrail" id="ex_cats"><div class="empty">Loading…</div></div>
       <div class="mdpane">
@@ -132,7 +132,7 @@
           <tbody id="ex_objects"></tbody></table>
         </div>
         <div id="ex_detailpanel" class="hidden">
-          <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span><span class="spacer"></span><button id="ex_det_restore" class="hidden" onclick="exRestoreFromDetail()" title="Preview restoring this object (dry-run first, nothing is written until you apply)">Restore this object…</button></div>
+          <div class="mdpanehead"><button onclick="exBackToList()">&larr; Back</button><span class="mdtitle" id="ex_obj_label"></span><span class="spacer"></span><button id="ex_det_restore" class="hidden" onclick="exRestoreFromDetail()" title="Preview restoring this object (dry-run first, nothing is written until you apply)">Restore this object… <span class="tipi">ⓘ</span></button></div>
           <div id="ex_diffinfo" class="muted" style="font-size:.84rem;margin-bottom:10px"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             <div><div class="lbl" id="ex_col_a">In this snapshot</div><pre id="ex_snapjson"></pre></div>
@@ -148,7 +148,7 @@
 <main id="view-t-backups" class="hidden">
   <section class="panel hidden" id="snappanel">
     <h2>Snapshots - <span id="snaptenant"></span><span class="spacer"></span>
-      <button id="diffbtn" disabled title="Select any two backups, then Compare shows exactly what was added, removed, or changed between them." onclick="runDiff()">Compare (select 2)</button>
+      <button id="diffbtn" disabled title="Select any two backups, then Compare shows exactly what was added, removed, or changed between them." onclick="runDiff()">Compare (select 2) <span class="tipi">ⓘ</span></button>
       <button id="delsnapsbtn" class="del hidden" onclick="deleteSnapshots()">Delete selected</button></h2>
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="snapall" onchange="selAllSnaps(this.checked)"></th><th>Timestamp</th><th>Objects</th><th>Size</th><th>Full-DR</th><th>Changes vs previous</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
@@ -276,9 +276,9 @@
 <main id="view-orgs" class="hidden">
   <section class="panel">
     <h2>Client organizations <span class="spacer"></span>
-      <button onclick="exportOrgs()" title="Download all orgs as CSV">Export CSV</button>
-      <button onclick="orgTemplate()" title="Empty CSV with the right columns plus one example row">Template</button>
-      <button onclick="document.getElementById('orgcsvfile').click()" title="Bulk-add orgs from a CSV - existing names are skipped, never overwritten">Import CSV</button>
+      <button onclick="exportOrgs()" title="Download all orgs as CSV">Export CSV <span class="tipi">ⓘ</span></button>
+      <button onclick="orgTemplate()" title="Empty CSV with the right columns plus one example row">Template <span class="tipi">ⓘ</span></button>
+      <button onclick="document.getElementById('orgcsvfile').click()" title="Bulk-add orgs from a CSV - existing names are skipped, never overwritten">Import CSV <span class="tipi">ⓘ</span></button>
       <input type="file" id="orgcsvfile" accept=".csv,text/csv" class="hidden" onchange="importOrgsFile(this)">
       <button id="addorgbtn" class="primary" onclick="toggleOrgForm()">+ Add org</button></h2>
     <div id="orgform" class="hidden">
