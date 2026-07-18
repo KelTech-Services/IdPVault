@@ -23,6 +23,12 @@ def normalize(obj: dict) -> dict:
     for k, v in obj.items():
         if k in VOLATILE_FIELDS or k.endswith("_obj"):
             continue
+        if isinstance(v, list) and v and all(isinstance(x, (int, str, float)) or isinstance(x, bool) for x in v):
+            # Scalar reference lists (m2m ids, redirect URIs, scopes) have SET
+            # semantics in provider APIs and can come back in nondeterministic
+            # order (verified: Authentik's embedded-outpost `providers` list
+            # reshuffles daily). Sort so pure reordering never reads as drift.
+            v = sorted(v, key=lambda x: (type(x).__name__, str(x)))
         out[k] = v
     return out
 

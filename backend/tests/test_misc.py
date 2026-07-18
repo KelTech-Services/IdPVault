@@ -28,3 +28,16 @@ def test_drift_lines_markdown_safe():
     assert lines[0].startswith("[+] ") and lines[1].startswith("[-] ")
     assert lines[2].startswith("[~] ")
     assert not any(line.startswith(("+", "-")) for line in lines)  # markdown-bullet safe
+
+
+def test_normalize_sorts_scalar_reference_lists():
+    """Provider APIs return m2m id lists in nondeterministic order (verified on
+    Authentik's embedded outpost `providers`); pure reordering is not drift."""
+    from app.core.diff import normalize
+    import json
+    a = normalize({"name": "outpost", "providers": [20, 28, 22, 26]})
+    b = normalize({"name": "outpost", "providers": [26, 22, 20, 28]})
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    # dict lists (ordered semantics, e.g. bindings payloads) are left alone
+    c = normalize({"items": [{"a": 1}, {"b": 2}]})
+    assert c["items"] == [{"a": 1}, {"b": 2}]
