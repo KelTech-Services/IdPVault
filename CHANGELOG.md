@@ -3,6 +3,12 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.2] - 2026-07-19
+### Security
+- Hardened snapshot file access: manifest and changes-cache reads/writes now go
+  through a containment-checked path helper, resolving CodeQL path-injection
+  findings. No behavior change.
+
 ## [1.2.1] - 2026-07-19
 ### Fixed
 - CRITICAL (Authentik): the applications list API filters results through the

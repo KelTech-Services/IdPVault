@@ -149,10 +149,15 @@ def prune_identities(tenant_slug: str, keep: int) -> list[str]:
     return doomed
 
 
+def snapshot_file(tenant_slug: str, ts: str, name: str) -> str:
+    """Containment-checked path to a file inside a snapshot dir."""
+    return _contained(os.path.join(snapshot_dir(tenant_slug, ts), name))
+
+
 def read_manifest(tenant_slug: str, ts: str) -> dict | None:
     """Plaintext manifest for a snapshot, or None if missing/corrupt."""
     try:
-        with open(os.path.join(snapshot_dir(tenant_slug, ts), "manifest.json")) as f:
+        with open(snapshot_file(tenant_slug, ts, "manifest.json")) as f:
             return json.load(f)
     except (FileNotFoundError, ValueError, OSError):
         return None
@@ -160,7 +165,7 @@ def read_manifest(tenant_slug: str, ts: str) -> dict | None:
 
 def read_changes_cache(tenant_slug: str, ts: str) -> dict | None:
     try:
-        with open(os.path.join(snapshot_dir(tenant_slug, ts), "changes.json")) as f:
+        with open(snapshot_file(tenant_slug, ts, "changes.json")) as f:
             return json.load(f)
     except (FileNotFoundError, ValueError, OSError):
         return None
@@ -168,7 +173,7 @@ def read_changes_cache(tenant_slug: str, ts: str) -> dict | None:
 
 def write_changes_cache(tenant_slug: str, ts: str, data: dict) -> None:
     try:
-        with open(os.path.join(snapshot_dir(tenant_slug, ts), "changes.json"), "w") as f:
+        with open(snapshot_file(tenant_slug, ts, "changes.json"), "w") as f:
             json.dump(data, f)
     except OSError:
         pass   # cache is best-effort; the diff recomputes next time
