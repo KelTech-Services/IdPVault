@@ -11,6 +11,8 @@ Point IdPVault at your identity providers and it takes scheduled, encrypted snap
 configuration object - apps, flows, policies, groups, mappings, and more. Browse snapshot history,
 diff any two points in time, get alerted on config drift, and restore objects when something breaks.
 
+![IdPVault tenant dashboard - Live State: the provider's current configuration compared against the latest backup](docs/screenshots/tenant-dashboard-dark.png)
+
 ## Features
 
 - Scheduled + on-demand encrypted backups (AES-256-GCM, per-tenant envelope keys)
