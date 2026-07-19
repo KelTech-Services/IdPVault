@@ -3,6 +3,28 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.1] - 2026-07-19
+### Fixed
+- CRITICAL (Authentik): the applications list API filters results through the
+  access-policy engine, so applications protected by a policy binding were
+  silently MISSING from backups and the Live State view. All application
+  fetches now request the full superuser list. The API token's user must be a
+  superuser for complete backups - the docs now say so. If your backups
+  looked smaller than your tenant, run a fresh backup after upgrading.
+- Restore report honesty: a 400 naming a reference field (target, policy,
+  group, ...) is no longer retried with that field dropped, which was turning
+  real errors into "field is required" noise. Bindings whose target no longer
+  exists anywhere are excluded from the plan as calm skips with a clear
+  explanation instead of being attempted and failed.
+### Added
+- Brand icons: the Simple Icons set (pinned, bundled into the image at build
+  time, so the app still makes zero external calls) shows product logos with
+  brand colors in Live State application rows and global search results, with
+  a colored initials fallback; the authentik/okta/auth0 tags carry their
+  logos.
+- Instant tooltips: informational tooltips appear immediately instead of
+  after the browser's long hover delay.
+
 ## [1.2.0] - 2026-07-18
 ### Added
 - Tenant Overview redesigned as a Live State workspace: full-width

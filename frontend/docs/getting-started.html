@@ -9,7 +9,7 @@
 </ol>
 <h3>Connecting each provider</h3>
 <table><tr><th>Provider</th><th>Credential</th><th>How to get it</th></tr>
-<tr><td>Authentik</td><td>API token</td><td>Admin → Tokens &amp; App passwords → create a token for a service account with read (and, for restore, write) permissions.</td></tr>
+<tr><td>Authentik</td><td>API token</td><td>Admin → Tokens &amp; App passwords → create a token for a <b>superuser</b> service account (Authentik hides policy-protected applications from non-superusers, so a complete backup requires one; add write permissions for restore).</td></tr>
 <tr><td>Okta</td><td>SSWS API token</td><td>Admin → Security → API → Tokens. Created under an admin account; inherits that account's permissions.</td></tr>
 <tr><td>Auth0</td><td>Client ID + Client Secret</td><td>Create a <b>Machine-to-Machine application</b> authorized for the Management API. IdPVault mints short-lived tokens automatically, so there are no expiring pasted tokens.</td></tr></table>
 <p>All credentials are encrypted at rest with envelope encryption (AES-256-GCM) the moment they are saved.</p>
