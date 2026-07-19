@@ -232,6 +232,8 @@ async function backupNow(id, btn){
     toast(`Snapshot ${fmtSnap(r.manifest.timestamp)} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
     if(snapTenantId === id) showSnaps(id, window._snapSlug);
     loadDashboard();
+    const bt = _tenants.find(x => x.id === id);
+    if(bt && currentTenantId === id && location.hash.endsWith('/overview')) renderTenantOverview(bt);
   } catch(e){ toast('Backup failed: '+e.message, true); }
   btn.disabled = false; btn.textContent = 'Backup now';
 }

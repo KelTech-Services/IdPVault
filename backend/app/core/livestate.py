@@ -129,6 +129,16 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
     return summary
 
 
+def note_backup(tenant_id: int, manifest: dict) -> None:
+    """A backup just captured live state, so drift is zero by definition.
+    Update the cached summary immediately - the UI reflects the backup without
+    waiting for the next poll interval."""
+    summary = {"source": "snapshot", "latest_snapshot": manifest.get("timestamp"),
+               "counts": manifest.get("counts") or {}, "categories": {},
+               "drift": {"added": 0, "removed": 0, "changed": 0}}
+    _store(tenant_id, datetime.now(timezone.utc), summary)
+
+
 def _store(tenant_id: int, checked_at: datetime, summary: dict) -> None:
     from app.models.db import SessionLocal, TenantState
     with SessionLocal() as db:

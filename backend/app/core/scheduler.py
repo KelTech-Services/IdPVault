@@ -126,6 +126,11 @@ def run_backup(tenant_id: int, trigger: str = "scheduled") -> dict:
                 storage.prune(t.slug, t.retention_keep)
             db.commit()
             log.info("backup done tenant=%s ts=%s drift=%s", t.slug, manifest["timestamp"], bool(drift))
+            try:
+                from app.core import livestate
+                livestate.note_backup(t.id, manifest)
+            except Exception:
+                log.debug("post-backup live-state refresh failed", exc_info=True)
             from app.core.alerts import alert_backup_completed
             alert_backup_completed(t.name, manifest["timestamp"],
                                    sum(manifest["counts"].values()), drift)

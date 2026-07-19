@@ -24,6 +24,9 @@ All notable changes to IdPVault are documented here. Format loosely follows
   logos.
 - Instant tooltips: informational tooltips appear immediately instead of
   after the browser's long hover delay.
+- Unbacked changes updates the moment a backup completes (drift is zero by
+  definition right after a backup) instead of waiting for the next live-state
+  poll; Backup now also refreshes the Overview in place.
 
 ## [1.2.0] - 2026-07-18
 ### Added
