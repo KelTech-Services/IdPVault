@@ -358,3 +358,42 @@ function provTag(p){
   const u = '/vendor/simple-icons/' + esc(p) + '.svg';
   return `<span class="tag ${esc(p)}"><span class="appicon pi" style="-webkit-mask-image:url(${u});mask-image:url(${u})"></span>${esc(p)}</span>`;
 }
+
+/* ---------- instant tooltips: replace native title delay with our own box ---------- */
+(function(){
+  let box = null;
+  function ensure(){
+    if(!box){ box = document.createElement('div'); box.id = 'tipbox'; box.className = 'hidden'; document.body.appendChild(box); }
+    return box;
+  }
+  function show(el){
+    const t = el.dataset.tip; if(!t) return;
+    const b = ensure();
+    b.textContent = t;
+    b.classList.remove('hidden');
+    b.style.left = '0px'; b.style.top = '0px';
+    const r = el.getBoundingClientRect(), bw = b.offsetWidth, bh = b.offsetHeight;
+    let x = r.left + r.width / 2 - bw / 2;
+    x = Math.max(8, Math.min(x, window.innerWidth - bw - 8));
+    let y = r.bottom + 8;
+    if(y + bh > window.innerHeight - 8) y = r.top - bh - 8;
+    b.style.left = x + 'px'; b.style.top = y + 'px';
+  }
+  function hide(){ if(box) box.classList.add('hidden'); }
+  document.addEventListener('mouseover', function(e){
+    const el = e.target.closest ? e.target.closest('[title], [data-tip]') : null;
+    if(!el){ hide(); return; }
+    if(el.hasAttribute('title')){
+      const t = el.getAttribute('title');
+      el.removeAttribute('title');
+      if(t){ el.dataset.tip = t; if(!el.hasAttribute('aria-label')) el.setAttribute('aria-label', t); }
+    }
+    if(el.dataset.tip) show(el); else hide();
+  });
+  document.addEventListener('mouseout', function(e){
+    const el = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if(el && !(e.relatedTarget && el.contains(e.relatedTarget))) hide();
+  });
+  document.addEventListener('scroll', hide, true);
+  document.addEventListener('click', hide, true);
+})();

@@ -213,3 +213,5 @@ html:not([data-theme="light"]) .appicon.si-dk{background:var(--text)}
 [data-theme="light"] .appicon.si-lt{background:var(--dim)}
 .appicon.pi{width:12px;height:12px;margin-right:5px;vertical-align:-2px;background:currentColor}
 .appchip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-size:.55rem;font-weight:700;color:#fff;margin-right:7px;vertical-align:-3px;letter-spacing:0}
+
+#tipbox{position:fixed;z-index:120;background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:.78rem;max-width:360px;color:var(--text);box-shadow:var(--shadow);pointer-events:none;line-height:1.5}

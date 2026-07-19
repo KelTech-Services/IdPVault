@@ -40,6 +40,7 @@ class AuthentikAdapter(ProviderAdapter):
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
         self._pk_remap: dict = {}
+        self._live_pks: set = set()
 
     def natural_key(self, resource_type: str, obj: dict) -> str:
         field = self._NK.get(resource_type)
@@ -64,6 +65,8 @@ class AuthentikAdapter(ProviderAdapter):
         objects that were deleted and recreated (new pk) resolve — including
         recreations from PREVIOUS restore runs."""
         self._pk_remap = {}
+        self._live_pks = {str(o["pk"]) for objs in live_export.values()
+                          for o in objs if isinstance(o, dict) and o.get("pk")}
         for rtype, field in self._NK.items():
             live_by_key = {o.get(field): o.get("pk")
                            for o in live_export.get(rtype, []) if o.get(field) is not None}
@@ -197,9 +200,15 @@ class AuthentikAdapter(ProviderAdapter):
                 return seg + app.removeprefix(prefix).replace("_", "/") + "/"
         return None
 
+    # Reference fields carry MEANING - dropping them to appease a 400 would
+    # change what the object connects, and it hides the real error ("target
+    # does not exist" became "target is required" once popped). Never pop.
+    _NEVER_POP = {"target", "policy", "group", "user", "stage", "flow", "provider"}
+
     def _send(self, c, method: str, path: str, payload: dict):
         """Write with self-heal: on 400, drop the exact fields Authentik's error
-        body names (DRF returns {"field": ["problem"]}) and retry — bounded."""
+        body names (DRF returns {"field": ["problem"]}) and retry — bounded.
+        Reference fields are exempt: a 400 naming one is a REAL error."""
         payload = dict(payload)
         r = None
         for _ in range(6):
@@ -210,7 +219,8 @@ class AuthentikAdapter(ProviderAdapter):
                 err = r.json()
             except Exception:
                 return r
-            bad = [k for k in err.keys() if k in payload] if isinstance(err, dict) else []
+            bad = ([k for k in err.keys() if k in payload and k not in self._NEVER_POP]
+                   if isinstance(err, dict) else [])
             if not bad:
                 return r
             for k in bad:
@@ -229,6 +239,18 @@ class AuthentikAdapter(ProviderAdapter):
                                f"(model {obj.get('meta_model_name')!r})")
         payload = self._remap_refs({k: v for k, v in obj.items()
                                     if k not in self.READONLY_FIELDS})
+        # Bindings whose target is gone from the live tenant (Authentik keeps
+        # orphaned bindings when their object is deleted, so snapshots can carry
+        # them) cannot be recreated via the API - fail with an honest message
+        # instead of a cryptic 400.
+        if resource_type in ("policy_bindings", "flow_stage_bindings") and self._live_pks:
+            tgt = payload.get("target")
+            if tgt is not None and str(tgt) not in self._live_pks:
+                raise RuntimeError(
+                    f"binding target {str(tgt)[:36]} does not exist in the live tenant "
+                    "(this binding was already orphaned when the snapshot was taken). "
+                    "Restore or recreate the object it points at first, then re-add "
+                    "the binding in Authentik.")
         old_pk = obj.get("pk") or obj.get("brand_uuid")
         # Authentik detail routes for applications/flows are keyed by SLUG, not pk.
         lookup_field = {"applications": "slug", "flows": "slug"}.get(resource_type)
@@ -251,6 +273,8 @@ class AuthentikAdapter(ProviderAdapter):
             if old_pk is not None and new_pk:
                 # later objects in THIS run referencing the old pk follow the new one
                 self._pk_remap[str(old_pk)] = new_pk
+            if new_pk:
+                self._live_pks.add(str(new_pk))
             return ("created", str(new_pk))
 
     def export_identities(self) -> dict[str, list[dict]]:
