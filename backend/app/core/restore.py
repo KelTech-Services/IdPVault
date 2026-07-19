@@ -62,11 +62,15 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
                 action = "update" if fields else "identical"
             if unsupported and action == "identical":
                 continue  # unchanged unsupported objects would just be noise
+            reason = None
+            if not unsupported and action != "identical":
+                reason = adapter.unrestorable_reason(rtype, obj)
             items.append({"resource_type": rtype, "object_id": key,
                           "object_name": obj_name(obj), "action": action,
                           "changed_fields": fields[:30],
                           "managed": bool(obj.get("managed")),
-                          "restorable": not unsupported,
+                          "restorable": not unsupported and reason is None,
+                          "reason": reason,
                           "_obj": obj, "_live": live})
     return items
 
@@ -100,8 +104,10 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
             obj = item.pop("_obj")
             live_obj = item.pop("_live")
             if not item.get("restorable", True):
-                item["status"] = "unsupported"
-                item["error"] = f"{item['resource_type']}: not auto-restorable yet"
+                # A known reason = calm skip with the explanation; no reason =
+                # the type itself is not auto-restorable (informational).
+                item["status"] = "skipped" if item.get("reason") else "unsupported"
+                item["error"] = item.pop("reason", None) or f"{item['resource_type']}: not auto-restorable yet"
                 continue
             if mode == "dry_run":
                 item["status"] = "planned" if item["action"] != "identical" else "skipped"

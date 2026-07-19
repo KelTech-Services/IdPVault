@@ -4,7 +4,10 @@ import httpx
 from app.providers.base import ProviderAdapter
 
 RESOURCES = {
-    "applications": "/api/v3/core/applications/",
+    # superuser_full_list: WITHOUT it Authentik filters this list through the
+    # access-policy engine, so every policy-protected app silently vanishes
+    # from exports (requires the token's user to be a superuser).
+    "applications": "/api/v3/core/applications/?superuser_full_list=true",
     "providers": "/api/v3/providers/all/",
     "flows": "/api/v3/flows/instances/",
     "stages": "/api/v3/stages/all/",
@@ -41,6 +44,7 @@ class AuthentikAdapter(ProviderAdapter):
         super().__init__(base_url, credentials)
         self._pk_remap: dict = {}
         self._live_pks: set = set()
+        self._snap_pks: set = set()
 
     def natural_key(self, resource_type: str, obj: dict) -> str:
         field = self._NK.get(resource_type)
@@ -67,6 +71,8 @@ class AuthentikAdapter(ProviderAdapter):
         self._pk_remap = {}
         self._live_pks = {str(o["pk"]) for objs in live_export.values()
                           for o in objs if isinstance(o, dict) and o.get("pk")}
+        self._snap_pks = {str(o["pk"]) for objs in snap_export.values()
+                          for o in objs if isinstance(o, dict) and o.get("pk")}
         for rtype, field in self._NK.items():
             live_by_key = {o.get(field): o.get("pk")
                            for o in live_export.get(rtype, []) if o.get(field) is not None}
@@ -75,6 +81,19 @@ class AuthentikAdapter(ProviderAdapter):
                 new = live_by_key.get(key)
                 if key is not None and old is not None and new is not None and new != old:
                     self._pk_remap[str(old)] = new
+
+    def unrestorable_reason(self, resource_type: str, obj: dict) -> str | None:
+        if resource_type not in ("policy_bindings", "flow_stage_bindings"):
+            return None
+        tgt = obj.get("target")
+        if tgt is None:
+            return None
+        t = str(tgt)
+        if t in self._pk_remap or t in self._live_pks or t in self._snap_pks:
+            return None   # resolves live, or will once this run recreates its object
+        return ("target object no longer exists anywhere - this binding was already "
+                "orphaned when the snapshot was taken. Re-add it in Authentik if "
+                "still needed.")
 
     def compare_form(self, resource_type: str, obj: dict) -> dict:
         # Compare with references remapped, so a binding pointing at a recreated
@@ -111,9 +130,15 @@ class AuthentikAdapter(ProviderAdapter):
             return c.get("/api/v3/core/users/me/").status_code == 200
 
     def _paged(self, c: httpx.Client, path: str) -> list[dict]:
+        # httpx REPLACES a URL's query string when params= is given - merge any
+        # query baked into the path (e.g. superuser_full_list) instead.
+        from urllib.parse import parse_qsl, urlsplit
+        s = urlsplit(path)
+        base_params = dict(parse_qsl(s.query))
+        path = s.path
         out, page = [], 1
         while True:
-            r = c.get(path, params={"page": page, "page_size": 100})
+            r = c.get(path, params={**base_params, "page": page, "page_size": 100})
             r.raise_for_status()
             body = r.json()
             out.extend(body.get("results", []))
@@ -301,7 +326,7 @@ class AuthentikAdapter(ProviderAdapter):
             # via config backups, not identity restore.
             groups = self._paged(c, "/api/v3/core/groups/")
             group_ref = [{"id": g.get("pk"), "name": g.get("name")} for g in groups]
-            apps = self._paged(c, "/api/v3/core/applications/")
+            apps = self._paged(c, "/api/v3/core/applications/?superuser_full_list=true")
             app_ref = [{"id": a.get("pk"), "name": a.get("name")} for a in apps]
             bindings = self._paged(c, "/api/v3/policies/bindings/")
             app_policy_bindings = [

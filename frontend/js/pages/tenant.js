@@ -458,7 +458,7 @@ function renderRestore(res){
       <div>${box}</div>
       <div class="act-${it.action}">${it.action}</div>
       <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
-      <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,60):''}</div></div>`;
+      <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,180):''}</div></div>`;
     }).join('');
 }
 function setAllRestore(v){ document.querySelectorAll('#r_items .r-sel').forEach(b=>b.checked=v); updateRestoreCount(); }

@@ -19,6 +19,12 @@ class ProviderAdapter(ABC):
     # Whether export_identities/apply_identities are implemented for this provider.
     supports_identity: bool = False
 
+    def unrestorable_reason(self, resource_type: str, obj: dict) -> str | None:
+        """Adapters return a human reason when an object CANNOT be restored via
+        the provider API (e.g. a binding whose target no longer exists). The
+        planner then excludes it calmly instead of attempting and failing."""
+        return None
+
     def begin_restore(self, snap_export: dict, live_export: dict) -> None:
         """Hook called once before a restore plan is executed — adapters may build
         remap state (e.g. old-id -> live-id by natural key). Default: no-op."""
