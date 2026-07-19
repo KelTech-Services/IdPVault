@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.3] - 2026-07-19
+### Security
+- Snapshot read, delete, and cache-file paths are now built and containment-checked
+  inline at every filesystem access (normalized path + prefix check on the data
+  directory), verified locally with CodeQL to produce zero path-injection findings.
+  Replaces the 1.2.2 helper approach. No behavior change.
+
 ## [1.2.2] - 2026-07-19
 ### Security
 - Hardened snapshot file access: manifest and changes-cache reads/writes now go
