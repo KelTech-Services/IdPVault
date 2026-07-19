@@ -206,3 +206,10 @@ a{color:var(--accent)}a:hover{color:var(--accent2)}
 .lvrow:hover{background:var(--panel2)}
 .lvrow .spacer{flex:1}
 .lvrow .idpart{color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.72rem;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- bundled brand icons (Simple Icons) + initials fallback ---------- */
+.appicon{display:inline-block;width:16px;height:16px;vertical-align:-3px;margin-right:7px;background:var(--si,var(--dim));-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+html:not([data-theme="light"]) .appicon.si-dk{background:var(--text)}
+[data-theme="light"] .appicon.si-lt{background:var(--dim)}
+.appicon.pi{width:12px;height:12px;margin-right:5px;vertical-align:-2px;background:currentColor}
+.appchip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-size:.55rem;font-weight:700;color:#fff;margin-right:7px;vertical-align:-3px;letter-spacing:0}

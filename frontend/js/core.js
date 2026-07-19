@@ -314,3 +314,47 @@ function initTzPicker(current){
   if(current && !zones.includes(current)) zones = [current, ...zones];
   sel.innerHTML = zones.map(z=>`<option value="${z}"${z===current?' selected':''}>${z}</option>`).join('');
 }
+
+/* ---------- Simple Icons (bundled in the image; the app never calls out) ---------- */
+let _si = null, _siPromise = null;
+function siNorm(s){
+  return String(s || '').toLowerCase()
+    .replace(/\+/g, 'plus').replace(/\./g, 'dot').replace(/&/g, 'and')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+function siLoad(){
+  if(_siPromise) return _siPromise;
+  _siPromise = fetch('/vendor/simple-icons/si-map.json')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { _si = d; return d; })
+    .catch(() => null);
+  return _siPromise;
+}
+
+function siFind(name){
+  if(!_si || !_si.colors) return null;
+  const n = siNorm(name);
+  if(!n) return null;
+  const slug = (n in _si.colors) ? n : (_si.alias && _si.alias[n]) || null;
+  return slug ? {slug: slug, hex: _si.colors[slug] || '888888'} : null;
+}
+function _chipHue(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
+function appIconHtml(name){
+  const m = siFind(name);
+  if(m){
+    const r = parseInt(m.hex.slice(0, 2), 16), g = parseInt(m.hex.slice(2, 4), 16), b = parseInt(m.hex.slice(4, 6), 16);
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    const cls = 'appicon' + (lum < 0.18 ? ' si-dk' : '') + (lum > 0.82 ? ' si-lt' : '');
+    const u = '/vendor/simple-icons/' + m.slug + '.svg';
+    return `<span class="${cls}" style="--si:#${m.hex};-webkit-mask-image:url(${u});mask-image:url(${u})"></span>`;
+  }
+  const nm = String(name || '').trim();
+  if(!nm) return '';
+  const init = (nm.split(/\s+/).map(w => w[0]).join('').slice(0, 2)).toUpperCase();
+  return `<span class="appchip" style="background:hsl(${_chipHue(nm)},35%,32%)">${esc(init)}</span>`;
+}
+function provTag(p){
+  const u = '/vendor/simple-icons/' + esc(p) + '.svg';
+  return `<span class="tag ${esc(p)}"><span class="appicon pi" style="-webkit-mask-image:url(${u});mask-image:url(${u})"></span>${esc(p)}</span>`;
+}

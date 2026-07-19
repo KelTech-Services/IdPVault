@@ -98,7 +98,7 @@ async function loadTenants(){
                   : (!identOk ? `disabled title="${LIC_TIP_IDENTITY}"` : '');
       return `<tr>
       <td>${esc(t.name)}${t.org_name?` <span class="muted" style="font-size:.72rem">· ${esc(t.org_name)}</span>`:''}${inactive?' <span class="muted" style="font-size:.72rem" title="'+LIC_TIP_TENANT+'">(license paused) <span class="tipi">ⓘ</span></span>':''}</td>
-      <td><span class="tag ${t.provider}">${t.provider}</span></td>
+      <td>${provTag(t.provider)}</td>
       <td class="muted">${esc(t.slug)}</td>
       <td class="muted">${esc(cronLabel(t.schedule_cron))}</td>
       <td class="muted">${t.retention_keep}</td>
@@ -840,9 +840,12 @@ function exStatusTag(status){
   const map = _ex && _ex.mode === 'current' ? EX_STATUS_CURRENT : EX_STATUS;
   return map[status] || esc(status);
 }
+const APP_ICON_CATS = {applications: 1, apps: 1, clients: 1};
 async function exLoadObjects(){
   if(!_ex || !_ex.cat) return;
   if(_ex.cat === 'users') return exLoadUsersObjects();
+  const icons = !!APP_ICON_CATS[_ex.cat];
+  if(icons) await siLoad();
   const q = v('ex_search');
   const tb = document.getElementById('ex_objects');
   tb.innerHTML = skelRows(4);
@@ -866,7 +869,7 @@ async function exLoadObjects(){
     const canW = me.role === 'admin' || me.role === 'org_admin';
     const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
-      <td title="${esc(o.object_name||'-')}">${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+      <td title="${esc(o.object_name||'-')}">${icons ? appIconHtml(o.object_name) : ''}${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
       <td class="rowact" style="text-align:right">${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
@@ -1248,13 +1251,14 @@ async function liveSearch(){
   box.classList.remove('hidden');
   box.innerHTML = '<div class="empty">Searching…</div>';
   try{
+    await siLoad();
     const d = await api(`/tenants/${_ex.tenantId}/live/search?q=${encodeURIComponent(q)}`);
     const groups = {};
     d.results.forEach(r => { (groups[r.category] = groups[r.category] || []).push(r); });
     let html = '';
     Object.keys(groups).sort().forEach(cat => {
       html += `<div class="lvgroup">${esc(ovLabel(cat))} (${groups[cat].length})</div>` +
-        groups[cat].map(r => `<div class="lvrow" onclick="lvOpen('${esc(cat)}', '${esc(r.object_id)}')"><span>${esc(r.object_name || '-')}</span><span class="spacer"></span><span class="idpart">${esc(r.object_id)}</span></div>`).join('');
+        groups[cat].map(r => `<div class="lvrow" onclick="lvOpen('${esc(cat)}', '${esc(r.object_id)}')"><span>${APP_ICON_CATS[cat] ? appIconHtml(r.object_name) : ''}${esc(r.object_name || '-')}</span><span class="spacer"></span><span class="idpart">${esc(r.object_id)}</span></div>`).join('');
     });
     if(_ex.identity && !d.users_included)
       html += '<p class="muted" style="font-size:.8rem;margin-top:12px">Users are not searched yet - open the Users category (or Refresh Users from provider) to load the directory, then search again.</p>';
