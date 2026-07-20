@@ -3,6 +3,16 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.6] - 2026-07-20
+### Added
+- Users & Access restore can now revert profile changes on existing users. The
+  dry-run preview lists users whose profile fields differ from the snapshot
+  (with the changed fields), each individually selectable and UNCHECKED by
+  default - reverting a live user is always an explicit opt-in. Reverts never
+  touch credentials, MFA, or lifecycle status, and Auth0 email addresses are
+  deliberately excluded (email changes trigger verification side effects).
+  Restore reports show a "reverted" count.
+
 ## [1.2.5] - 2026-07-20
 ### Added
 - Background job queue: manual backups, Users & Access backups, and Users &

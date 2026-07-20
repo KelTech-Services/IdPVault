@@ -104,8 +104,9 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
         live = adapter.export_identities()
 
         live_by_key = {_ukey(u): u for u in live.get("users", [])}
-        users_plan, recreate_users = [], []
+        users_plan, recreate_users, revert_users = [], [], []
         RECREATE_LIST_CAP = 1000
+        revertable = 0
         for u in snap.get("users", []):
             k = _ukey(u)
             lv = live_by_key.get(k)
@@ -115,6 +116,13 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                     recreate_users.append(_ulabel(u))
             elif json.dumps(u, sort_keys=True) != json.dumps(lv, sort_keys=True):
                 users_plan.append({"user_id": k, "action": "update"})
+                fields = adapter.revertable_diff(u, lv)
+                if fields:
+                    revertable += 1
+                    if len(revert_users) < RECREATE_LIST_CAP:
+                        entry = _ulabel(u)
+                        entry["fields"] = fields
+                        revert_users.append(entry)
             else:
                 users_plan.append({"user_id": k, "action": "identical"})
 
@@ -131,6 +139,7 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
         summary = {
             "users": {"recreate": recreate,
                       "update": sum(1 for u in users_plan if u["action"] == "update"),
+                      "revert": revertable,
                       "identical": sum(1 for u in users_plan if u["action"] == "identical")},
             "group_memberships_to_add": len(mem_add),
             "app_group_assignments_to_add": len(ag_add),
@@ -162,6 +171,8 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
         return {"summary": summary, "manual_steps": manual_steps,
                 "recreate_users": recreate_users,
                 "recreate_truncated": recreate > len(recreate_users),
+                "revert_users": revert_users,
+                "revert_truncated": revertable > len(revert_users),
                 "note": "Provenance-preserving: group-inherited access is restored via group "
                         "memberships + group→app assignments; only genuinely DIRECT user→app "
                         "assignments are recreated as direct. Apply (write) is a separate step."}
@@ -169,9 +180,12 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
 
 def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                            only_keys: list | None = None,
-                           job_id: int | None = None) -> dict:
+                           job_id: int | None = None,
+                           revert_keys: list | None = None) -> dict:
     """Write path: recreate missing users + re-add missing edges. Additive,
-    idempotent, per-object reporting. Persists a RestoreRun report."""
+    idempotent, per-object reporting. Persists a RestoreRun report.
+    revert_keys: explicitly selected existing users whose profile fields are
+    reverted to the snapshot values (opt-in per user, never default)."""
     from app.core import crypto, storage
     from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
     from app.providers import get_adapter
@@ -189,7 +203,8 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
             from app.core.jobs import sampler
             stop_progress = sampler(adapter, job_id)  # no reliable total - shows live call count
         try:
-            report = adapter.apply_identities(snap, set(only_keys) if only_keys else None)
+            report = adapter.apply_identities(snap, set(only_keys) if only_keys else None,
+                                              revert_keys=set(revert_keys) if revert_keys else None)
         finally:
             if stop_progress:
                 stop_progress()

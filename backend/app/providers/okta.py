@@ -230,12 +230,14 @@ class OktaAdapter(ProviderAdapter):
             raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
         return r
 
-    def apply_identities(self, snap: dict, only_keys=None) -> dict:
+    def apply_identities(self, snap: dict, only_keys=None, revert_keys=None) -> dict:
         """Additive restore: recreate missing users (by login), then re-add missing
         memberships / group->app / direct user->app edges. Everything resolved by
         NATURAL KEY (login / group name / app label) so recreated-object id changes
-        don't break edges. Idempotent: existing users/edges are skipped."""
-        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
+        don't break edges. Idempotent: existing users/edges are skipped.
+        revert_keys: logins of EXISTING users whose profile is reverted to the
+        snapshot values (explicit opt-in per user; credentials/MFA untouched)."""
+        rep = {"users": {"created": 0, "reverted": 0, "existing": 0, "skipped": 0, "failed": []},
                "group_memberships": {"added": 0, "skipped": 0, "failed": []},
                "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
                "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
@@ -289,6 +291,26 @@ class OktaAdapter(ProviderAdapter):
                         rep["users"]["created"] += 1
                 except Exception as e:
                     rep["users"]["failed"].append({"user": login, "error": str(e)[:200]})
+
+            # 1b) profile reverts — explicitly selected EXISTING users only.
+            # POST to /users/{id} is Okta's partial profile update; status,
+            # credentials, and MFA are never touched.
+            if revert_keys:
+                live_by_login = {(u.get("profile") or {}).get("login"): u
+                                 for u in live.get("users", []) if (u.get("profile") or {}).get("login")}
+                for u in snap.get("users", []):
+                    login = (u.get("profile") or {}).get("login")
+                    if not login or login not in revert_keys:
+                        continue
+                    lv = live_by_login.get(login)
+                    if lv is None or not self.revertable_diff(u, lv):
+                        continue  # missing live = recreate path; identical = nothing to do
+                    try:
+                        self._write(c, "POST", f"/api/v1/users/{live_user[login]}",
+                                    json={"profile": u.get("profile", {})})
+                        rep["users"]["reverted"] += 1
+                    except Exception as e:
+                        rep["users"]["failed"].append({"user": login, "error": str(e)[:200]})
 
             live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
             live_ag = {(e["app_id"], e["group_id"]) for e in live.get("app_group_assignments", [])}

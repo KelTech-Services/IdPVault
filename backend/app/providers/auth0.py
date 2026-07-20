@@ -278,14 +278,20 @@ class Auth0Adapter(ProviderAdapter):
                     "app_group_assignments": [], "app_user_assignments_direct": [],
                     "group_ref": group_ref, "app_ref": []}
 
-    def apply_identities(self, snap: dict, only_keys=None) -> dict:
+    # email changes via the Auth0 API trigger verification side effects - never
+    # part of a profile revert (login is the match key, so it can't differ anyway)
+    _REVERT_EXCLUDE = ProviderAdapter._REVERT_EXCLUDE | {"email", "login"}
+
+    def apply_identities(self, snap: dict, only_keys=None, revert_keys=None) -> dict:
         """Additive restore: recreate missing users (by email/login), then re-add
         missing role assignments and organization memberships. Resolved by natural
         key ((kind, name) for roles/orgs; login for users) so recreated-object id
         changes don't break edges. Recreated users are BLOCKED with a random
-        password (Auth0 requires one) - admin sends a reset, then unblocks."""
+        password (Auth0 requires one) - admin sends a reset, then unblocks.
+        revert_keys: logins of EXISTING users whose name/username revert to
+        snapshot values (email deliberately excluded)."""
         import secrets as pysecrets
-        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
+        rep = {"users": {"created": 0, "reverted": 0, "existing": 0, "skipped": 0, "failed": []},
                "group_memberships": {"added": 0, "skipped": 0, "failed": []},
                "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
                "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
@@ -339,6 +345,34 @@ class Auth0Adapter(ProviderAdapter):
                 else:
                     live_user[login] = r.json().get("user_id")
                     rep["users"]["created"] += 1
+
+            # 1b) profile reverts — explicitly selected EXISTING users only.
+            # Deliberately limited to name/username: email changes have
+            # verification side effects and are excluded (see _REVERT_EXCLUDE).
+            if revert_keys:
+                from urllib.parse import quote
+                live_by_login = {(u.get("profile") or {}).get("login"): u
+                                 for u in live.get("users", [])}
+                for u in snap.get("users", []):
+                    prof = u.get("profile") or {}
+                    login = prof.get("login")
+                    if not login or login not in revert_keys:
+                        continue
+                    lv = live_by_login.get(login)
+                    if lv is None or not self.revertable_diff(u, lv):
+                        continue
+                    payload = {"name": prof.get("displayName") or None}
+                    if prof.get("username"):
+                        payload["username"] = prof["username"]
+                    payload = {k: v for k, v in payload.items() if v is not None}
+                    if not payload:
+                        continue
+                    r = self._req(c, "PATCH", f"/api/v2/users/{quote(live_user[login], safe='')}",
+                                  json=payload)
+                    if r.status_code >= 400:
+                        rep["users"]["failed"].append({"user": login, "error": r.text[:180]})
+                    else:
+                        rep["users"]["reverted"] += 1
 
             # 2) role assignments + organization memberships (one bucket, kind-dispatched)
             live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}

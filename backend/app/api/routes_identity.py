@@ -93,6 +93,7 @@ class IdApplyIn(BaseModel):
     snapshot_ts: str
     confirm: bool = False  # must be true — guards against accidental writes
     selection: list[str] | None = None  # user natural keys to recreate; None = all missing
+    revert_selection: list[str] | None = None  # existing users whose profile reverts (opt-in only)
 
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
@@ -112,7 +113,8 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
     jid = enqueue("identity_restore", tenant_id, request.state.user["username"],
                   params={"snapshot_ts": body.snapshot_ts,
                           "actor": request.state.user["username"],
-                          "selection": body.selection})
+                          "selection": body.selection,
+                          "revert_selection": body.revert_selection})
     return {"job_id": jid, "status": "queued"}
 
 

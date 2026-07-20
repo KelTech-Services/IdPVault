@@ -347,11 +347,13 @@ class AuthentikAdapter(ProviderAdapter):
             raise RuntimeError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
         return r
 
-    def apply_identities(self, snap: dict, only_keys=None) -> dict:
+    def apply_identities(self, snap: dict, only_keys=None, revert_keys=None) -> dict:
         """Additive restore: create missing users (by username), re-add group
         memberships. App access is governed by config policy bindings (restore config
-        for that). Resolved by natural key so recreated-object ids don't break edges."""
-        rep = {"users": {"created": 0, "existing": 0, "skipped": 0, "failed": []},
+        for that). Resolved by natural key so recreated-object ids don't break edges.
+        revert_keys: usernames of EXISTING users whose fields (name, email,
+        active, type, path, attributes) are reverted to snapshot values."""
+        rep = {"users": {"created": 0, "reverted": 0, "existing": 0, "skipped": 0, "failed": []},
                "group_memberships": {"added": 0, "skipped": 0, "failed": []},
                "app_group_assignments": {"added": 0, "skipped": 0, "failed": []},
                "app_user_assignments_direct": {"added": 0, "skipped": 0, "failed": []}}
@@ -390,6 +392,29 @@ class AuthentikAdapter(ProviderAdapter):
                     rep["users"]["created"] += 1
                 except Exception as e:
                     rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})
+
+            # profile reverts — explicitly selected EXISTING users only (PATCH;
+            # credentials are never touched - they aren't in snapshots anyway)
+            if revert_keys:
+                live_by_name = {u.get("username"): u for u in live.get("users", []) if u.get("username")}
+                for u in snap.get("users", []):
+                    uname = u.get("username")
+                    if not uname or uname not in revert_keys:
+                        continue
+                    lv = live_by_name.get(uname)
+                    if lv is None or not self.revertable_diff(u, lv):
+                        continue
+                    try:
+                        body = {"username": uname, "name": u.get("name") or uname,
+                                "email": u.get("email") or "",
+                                "is_active": bool(u.get("is_active", True)),
+                                "type": u.get("type") or "internal",
+                                "path": u.get("path") or "users",
+                                "attributes": u.get("attributes") or {}}
+                        self._write(c, "PATCH", f"/api/v3/core/users/{live_user[uname]}/", json=body)
+                        rep["users"]["reverted"] += 1
+                    except Exception as e:
+                        rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})
 
             live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
             for e in snap.get("group_memberships", []):

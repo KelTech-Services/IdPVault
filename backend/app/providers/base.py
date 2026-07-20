@@ -73,5 +73,23 @@ class ProviderAdapter(ABC):
         stay empty. NOT part of the config export — separate cadence/storage."""
         raise NotImplementedError(f"{self.name}: identity backup not implemented")
 
-    def apply_identities(self, snap: dict, only_keys=None) -> dict:
+    # Fields never revertable via API: server ids and computed/lifecycle fields.
+    # Providers may extend (e.g. Auth0 adds email - changing it has verification
+    # side effects, so it is deliberately not reverted).
+    _REVERT_EXCLUDE = {"id", "pk", "created", "status", "connection"}
+
+    def revertable_diff(self, snap_u: dict, live_u: dict) -> list[str]:
+        """Profile fields that differ between snapshot and live AND would be
+        changed by a profile revert. Diffs the 'profile' dict when present
+        (Okta/Auth0 shape), else top-level fields (Authentik shape), minus
+        _REVERT_EXCLUDE. Empty list = nothing revertable."""
+        sp, lp = snap_u.get("profile"), live_u.get("profile")
+        if isinstance(sp, dict) or isinstance(lp, dict):
+            sp, lp = sp or {}, lp or {}
+            return sorted(k for k in set(sp) | set(lp)
+                          if k not in self._REVERT_EXCLUDE and sp.get(k) != lp.get(k))
+        return sorted(k for k in set(snap_u) | set(live_u)
+                      if k not in self._REVERT_EXCLUDE and snap_u.get(k) != live_u.get(k))
+
+    def apply_identities(self, snap: dict, only_keys=None, revert_keys=None) -> dict:
         raise NotImplementedError(f"{self.name}: identity restore apply not implemented")

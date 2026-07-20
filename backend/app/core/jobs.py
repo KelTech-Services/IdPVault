@@ -153,7 +153,8 @@ def execute(job_id: int) -> None:
             from app.core.identity import apply_identity_restore
             result = apply_identity_restore(tid, params["snapshot_ts"],
                                             params.get("actor", "api"),
-                                            params.get("selection"), job_id=job_id)
+                                            params.get("selection"), job_id=job_id,
+                                            revert_keys=params.get("revert_selection"))
         else:
             raise ValueError(f"unknown job kind {kind}")
         _finish(job_id, "ok", result=_trim(kind, result))

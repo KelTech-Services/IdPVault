@@ -687,9 +687,11 @@ function renderIdentityRestore(p){
   const gm = p.summary.group_memberships_to_add||0;
   const ag = p.summary.app_group_assignments_to_add||0;
   const au = p.summary.app_user_assignments_direct_to_add||0;
+  const nRev = u.revert||0, nOther = (u.update||0) - nRev;
   document.getElementById('ir_summary').innerHTML =
     `<b>Preview:</b> <span class="ev-add">${u.recreate} recreate</span> · <span class="muted">${u.identical} identical</span>` +
-    (u.update>0?` · <span class="muted">${u.update} differ (create-only: left untouched)</span>`:'') +
+    (nRev>0?` · ${nRev} with revertable profile changes`:'') +
+    (nOther>0?` · <span class="muted">${nOther} differ (non-revertable fields only)</span>`:'') +
     (_idApplyable(p)?'':' · <span class="muted">nothing to apply - live already matches this snapshot</span>');
   const list = p.recreate_users || [];
   const selectable = list.length>0 && list.length<=RECREATE_SELECT_MAX && !p.recreate_truncated;
@@ -701,13 +703,23 @@ function renderIdentityRestore(p){
         <div>user / ${esc(x.label||x.key)}${x.email&&x.email!==(x.label||x.key)?` <span class="muted">${esc(x.email)}</span>`:''}</div>
         <div class="st-planned">missing in live</div></div>`).join('')
     : (list.length ? `<div class="restore-item"><div></div><div class="act-create">recreate</div><div>${list.length}${p.recreate_truncated?'+':''} users - too many to select individually; Apply restores all</div><div class="st-planned">missing in live</div></div>` : '');
+  const rlist = p.revert_users || [];
+  const rSelectable = rlist.length>0 && rlist.length<=RECREATE_SELECT_MAX && !p.revert_truncated;
+  const revbar = rSelectable && rlist.length>1 ? `<div style="margin:8px 0 4px"><span class="muted" style="font-size:.76rem">Profile reverts (opt-in, unchecked by default):</span> <button onclick="setAllReverts(true)">Select all reverts</button> <button onclick="setAllReverts(false)">Unselect reverts</button></div>` : '';
+  const revRows = rSelectable
+    ? rlist.map(x=>`<div class="restore-item">
+        <div><input type="checkbox" class="ir-rev" value="${esc(x.key)}" onchange="updateIdentityCount()"></div>
+        <div class="act-update">revert</div>
+        <div>user / ${esc(x.label||x.key)}${x.email&&x.email!==(x.label||x.key)?` <span class="muted">${esc(x.email)}</span>`:''} <span class="muted">- ${esc((x.fields||[]).join(', '))}</span></div>
+        <div class="st-planned">profile differs</div></div>`).join('')
+    : (rlist.length ? `<div class="restore-item"><div></div><div class="act-update">revert</div><div>${rlist.length}${p.revert_truncated?'+':''} users with profile changes - too many to select individually; reverts are per-user opt-in and unavailable for this snapshot</div><div class="st-planned">profile differs</div></div>` : '');
   const agg = [];
   if(gm) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>group memberships</div><div class="ev-add">+${gm} to re-add</div></div>`);
   if(ag) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>app assignments (via group)</div><div class="ev-add">+${ag} to re-add</div></div>`);
   if(au) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>app assignments (direct user)</div><div class="ev-add">+${au} to re-add</div></div>`);
   const extra = (p.manual_steps&&p.manual_steps.length?`<div style="margin-top:10px"><b>Manual steps after restore:</b><ul style="margin:6px 0 0 18px">${p.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'')
     + (p.note?`<p class="muted" style="font-size:.8rem;margin-top:8px">${esc(p.note)}</p>`:'');
-  document.getElementById('ir_items').innerHTML = selbar + IR_HEAD + userRows + agg.join('') + extra;
+  document.getElementById('ir_items').innerHTML = selbar + IR_HEAD + userRows + revbar + revRows + agg.join('') + extra;
   if(window._irPreselect){
     const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
     if(boxes.length){
@@ -719,37 +731,46 @@ function renderIdentityRestore(p){
   updateIdentityCount();
 }
 function setAllIdentity(v){ document.querySelectorAll('#ir_items .ir-sel').forEach(b=>b.checked=v); updateIdentityCount(); }
+function setAllReverts(v){ document.querySelectorAll('#ir_items .ir-rev').forEach(b=>b.checked=v); updateIdentityCount(); }
 function updateIdentityCount(){
   const p = _irCtx && _irCtx.preview; if(!p) return;
   const btn = document.getElementById('ir_applybtn');
   if(!_idApplyable(p)){ btn.classList.add('hidden'); return; }
   btn.classList.remove('hidden'); btn.disabled = false;
   const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
-  if(boxes.length){
-    const n = boxes.filter(b=>b.checked).length;
-    btn.textContent = `Apply restore (${n} user${n===1?'':'s'})`;
+  const revs = [...document.querySelectorAll('#ir_items .ir-rev')];
+  const m = revs.filter(b=>b.checked).length;
+  if(boxes.length || revs.length){
+    const n = boxes.length ? boxes.filter(b=>b.checked).length : (p.summary.users.recreate||0);
+    btn.textContent = `Apply restore (${n} recreate${m?`, ${m} revert`:''})`;
   } else btn.textContent = 'Apply restore';
 }
 
 function _idApplyable(p){
   const u = p.summary.users;
-  return (u.recreate||0) + (p.summary.group_memberships_to_add||0)
+  return (u.recreate||0) + (u.revert||0) + (p.summary.group_memberships_to_add||0)
        + (p.summary.app_group_assignments_to_add||0) + (p.summary.app_user_assignments_direct_to_add||0) > 0;
 }
 async function identityApply(){
   const p = _irCtx && _irCtx.preview; if(!p) return;
   let selection = null;
   const boxes = [...document.querySelectorAll('#ir_items .ir-sel')];
+  const revBoxes = [...document.querySelectorAll('#ir_items .ir-rev')];
+  let revertSel = revBoxes.filter(b=>b.checked).map(b=>b.value);
+  if(!revertSel.length) revertSel = null;
   if(boxes.length){
     selection = boxes.filter(b=>b.checked).map(b=>b.value);
-    if(selection.length===0 && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
+    if(selection.length===0 && !revertSel && !confirm('No users selected to recreate. Continue anyway (memberships/assignments only)?')) return;
   }
   const n = selection ? selection.length : (p.summary.users.recreate||0);
-  if(!confirm(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
+  const revTxt = revertSel ? ` OVERWRITES profile fields on ${revertSel.length} existing user(s) with snapshot values,` : '';
+  if(!confirm(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s),${revTxt} and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
   document.getElementById('ir_summary').textContent = 'Restore queued…';
   document.getElementById('ir_applybtn').disabled = true;
   try{
-    const payload = {snapshot_ts:_irCtx.ts, confirm:true}; if(selection) payload.selection = selection;
+    const payload = {snapshot_ts:_irCtx.ts, confirm:true};
+    if(selection) payload.selection = selection;
+    if(revertSel) payload.revert_selection = revertSel;
     const q = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
     const j = await waitForJob(q.job_id, (jj)=>{
       if(jj.status === 'running')
@@ -760,7 +781,8 @@ async function identityApply(){
     r.manual_steps = r.manual_steps || [];
     const rep = r.summary;
     const row = (cat) => { const c=rep[cat]||{};
-      const done = [c.created!=null?c.created+' created':null, c.added!=null?c.added+' added':null,
+      const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
+                    c.added!=null?c.added+' added':null,
                     c.existing!=null?c.existing+' existing':null, c.skipped!=null?c.skipped+' skipped':null]
                    .filter(Boolean).join(' · ');
       return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${c.failed?`<span class="st-failed">${c.failed} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`; };
