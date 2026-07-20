@@ -225,11 +225,16 @@ async function saveTenant(){
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
 async function backupNow(id, btn){
-  btn.disabled = true; btn.textContent = 'Backing up…';
+  btn.disabled = true; btn.textContent = 'Queued…';
   try {
-    const r = await api(`/tenants/${id}/backup`, {method:'POST'});
-    const c = r.manifest.counts, total = Object.values(c).reduce((a,b)=>a+b,0);
-    toast(`Snapshot ${fmtSnap(r.manifest.timestamp)} complete - ${total} objects across ${Object.keys(c).length} types.` + (r.drift_detected ? ' ⚠ Drift detected vs previous snapshot.' : ''));
+    const q = await api(`/tenants/${id}/backup`, {method:'POST'});
+    const j = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status==='running') btn.textContent = 'Backing up…';
+    });
+    const res = j.result || {};
+    if(res.skipped === 'license') throw new Error('backup skipped - over the license tenant limit');
+    const c = res.counts || {}, total = Object.values(c).reduce((a,b)=>a+b,0);
+    toast(`Snapshot ${res.timestamp ? fmtSnap(res.timestamp) : ''} complete - ${total} objects across ${Object.keys(c).length} types.` + (res.drift ? ' ⚠ Drift detected vs previous snapshot.' : ''));
     if(snapTenantId === id) showSnaps(id, window._snapSlug);
     loadDashboard();
     const bt = _tenants.find(x => x.id === id);
@@ -639,10 +644,20 @@ function deleteIdentitySnapshots(){
   });
 }
 async function identityBackupNow(){
-  document.getElementById('id_estimate').textContent = 'Backing up users & access… (throttled to respect Okta API limits - may take a while on large orgs)';
+  const est = document.getElementById('id_estimate');
+  est.textContent = 'Users & Access backup queued…';
   try{
-    const r = await api(`/tenants/${_idCtx.tenantId}/identity/backup`, {method:'POST'});
-    toast(`Users & Access backup done - ${r.api_calls} API calls in ${Math.round(r.duration_ms/1000)}s.`);
+    const q = await api(`/tenants/${_idCtx.tenantId}/identity/backup`, {method:'POST'});
+    const j = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status !== 'running') return;
+      const pct = jobPct(jj);
+      est.textContent = 'Backing up users & access… '
+        + (pct != null ? pct + '%' : (jj.progress_done ? jj.progress_done + ' API calls' : ''))
+        + ' (throttled to respect provider API limits - may take a while on large orgs)';
+    });
+    const res = j.result || {};
+    if(res.skipped === 'license') throw new Error('requires a paid license');
+    toast(`Users & Access backup done - ${res.api_calls} API calls in ${Math.round((res.duration_ms||0)/1000)}s.`);
     loadIdentityEstimate(); loadIdentitySnaps();
   }catch(e){ toast('Users & Access backup failed: '+e.message, true); loadIdentityEstimate(); }
 }
@@ -731,11 +746,18 @@ async function identityApply(){
   }
   const n = selection ? selection.length : (p.summary.users.recreate||0);
   if(!confirm(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s) and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
-  document.getElementById('ir_summary').textContent = 'Applying… (throttled; may take a while)';
+  document.getElementById('ir_summary').textContent = 'Restore queued…';
   document.getElementById('ir_applybtn').disabled = true;
   try{
     const payload = {snapshot_ts:_irCtx.ts, confirm:true}; if(selection) payload.selection = selection;
-    const r = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
+    const q = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
+    const j = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status === 'running')
+        document.getElementById('ir_summary').textContent = 'Applying… '
+          + (jj.progress_done ? jj.progress_done + ' API calls' : '') + ' (throttled; may take a while)';
+    });
+    const r = j.result || {};
+    r.manual_steps = r.manual_steps || [];
     const rep = r.summary;
     const row = (cat) => { const c=rep[cat]||{};
       const done = [c.created!=null?c.created+' created':null, c.added!=null?c.added+' added':null,

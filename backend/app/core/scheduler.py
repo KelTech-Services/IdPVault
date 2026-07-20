@@ -55,19 +55,19 @@ def load_tenant_jobs() -> None:
     scheduler.add_job(livestate_sweep, IntervalTrigger(minutes=5),
                       id="live-state-sweep", replace_existing=True)
     with SessionLocal() as db:
+        from app.core.jobs import scheduled_config_backup, scheduled_identity_backup
         for t in db.query(Tenant).filter(Tenant.schedule_cron.isnot(None)).all():
-            scheduler.add_job(run_backup, cron_trigger(t.schedule_cron),
+            scheduler.add_job(scheduled_config_backup, cron_trigger(t.schedule_cron),
                               args=[t.id], id=f"backup-{t.id}", replace_existing=True)
             log.info("scheduled config backup tenant=%s cron=%s tz=%s", t.slug, t.schedule_cron, org_timezone())
-        from app.core.identity import run_identity_backup
         for t in db.query(Tenant).filter(Tenant.identity_enabled == True,  # noqa: E712
                                          Tenant.identity_schedule_cron.isnot(None)).all():
-            scheduler.add_job(run_identity_backup, cron_trigger(t.identity_schedule_cron),
+            scheduler.add_job(scheduled_identity_backup, cron_trigger(t.identity_schedule_cron),
                               args=[t.id], id=f"identity-{t.id}", replace_existing=True)
             log.info("scheduled identity backup tenant=%s cron=%s", t.slug, t.identity_schedule_cron)
 
 
-def run_backup(tenant_id: int, trigger: str = "scheduled") -> dict:
+def run_backup(tenant_id: int, trigger: str = "scheduled", job_id: int | None = None) -> dict:
     """Full backup pass for one tenant. Called by cron or the API.
     Always records a BackupRun row (ok or failed); emits Event rows on drift."""
     from app.core import crypto, storage
@@ -90,7 +90,15 @@ def run_backup(tenant_id: int, trigger: str = "scheduled") -> dict:
             creds = crypto.decrypt(t.enc_credentials, data_key).decode()
             adapter = get_adapter(t.provider, t.base_url, creds)
 
-            export = adapter.export()
+            stop_progress = None
+            if job_id is not None:
+                from app.core.jobs import sampler
+                stop_progress = sampler(adapter, job_id)  # config backups: live call count, no total
+            try:
+                export = adapter.export()
+            finally:
+                if stop_progress:
+                    stop_progress()
             manifest = storage.write_snapshot(t.slug, data_key, export)
 
             manifest["db_dump"] = None

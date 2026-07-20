@@ -4,8 +4,7 @@ snapshot listings need read access to the tenant."""
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.core.identity import (apply_identity_restore, estimate_next,
-                                plan_identity_restore, run_identity_backup)
+from app.core.identity import estimate_next, plan_identity_restore
 from app.core.security import require_tenant_read, require_tenant_write
 from app.models.db import IdentitySnapshot, SessionLocal, Tenant
 
@@ -44,10 +43,12 @@ def backup(tenant_id: int, request: Request) -> dict:
     _write(request, tenant_id)
     _require_identity_license(tenant_id)
     _require_identity_supported(tenant_id)
-    try:
-        return run_identity_backup(tenant_id)
-    except ValueError as e:
-        raise HTTPException(404, str(e))
+    with SessionLocal() as db:
+        if db.get(Tenant, tenant_id) is None:
+            raise HTTPException(404, "tenant not found")
+    from app.core.jobs import enqueue
+    jid = enqueue("identity_backup", tenant_id, request.state.user["username"])
+    return {"job_id": jid, "status": "queued"}
 
 
 @router.get("/tenants/{tenant_id}/identity/snapshots")
@@ -100,15 +101,19 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
     _require_identity_license(tenant_id)
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")
-    try:
-        return apply_identity_restore(tenant_id, body.snapshot_ts,
-                                      request.state.user["username"], body.selection)
-    except NotImplementedError as e:
-        raise HTTPException(501, str(e))
-    except FileNotFoundError:
-        raise HTTPException(404, "identity snapshot not found")
-    except ValueError as e:
-        raise HTTPException(404, str(e))
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        from app.core import storage
+        if body.snapshot_ts not in storage.list_identity_snapshots(t.slug):
+            raise HTTPException(404, "identity snapshot not found")
+    from app.core.jobs import enqueue
+    jid = enqueue("identity_restore", tenant_id, request.state.user["username"],
+                  params={"snapshot_ts": body.snapshot_ts,
+                          "actor": request.state.user["username"],
+                          "selection": body.selection})
+    return {"job_id": jid, "status": "queued"}
 
 
 class IdentitySnapshotDeleteIn(BaseModel):

@@ -215,3 +215,16 @@ html:not([data-theme="light"]) .appicon.si-dk{background:var(--text)}
 .appchip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;font-size:.55rem;font-weight:700;color:#fff;margin-right:7px;vertical-align:-3px;letter-spacing:0}
 
 #tipbox{position:fixed;z-index:120;background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:.78rem;max-width:360px;color:var(--text);box-shadow:var(--shadow);pointer-events:none;line-height:1.5}
+
+
+/* ---------- nav activity area (background jobs) ---------- */
+#navjobs{margin:8px 10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel2);font-size:.78rem}
+#navjobs .njtitle{font-weight:600;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+#navjobs .njrow{padding:4px 0;cursor:pointer;border-radius:5px}
+#navjobs .njrow:hover{background:var(--panel3)}
+#navjobs .njlabel{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#navjobs .njbar{height:4px;border-radius:2px;background:var(--border);margin-top:4px;overflow:hidden;position:relative}
+#navjobs .njfill{height:100%;background:var(--accent);border-radius:2px;transition:width .8s ease}
+#navjobs .njind .njfill{width:30%;position:absolute;animation:njslide 1.6s linear infinite}
+@keyframes njslide{from{left:-30%}to{left:100%}}
+#navjobs .njmeta{color:var(--dim);margin-top:2px;font-size:.72rem}

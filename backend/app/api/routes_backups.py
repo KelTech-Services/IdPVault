@@ -9,7 +9,6 @@ from app.core.security import require_admin, require_tenant_read, require_tenant
 
 from app.core import crypto, storage
 from app.core.diff import diff_exports
-from app.core.scheduler import run_backup
 from app.models.db import AuditLog, SessionLocal, Tenant
 
 router = APIRouter(tags=["backups"])
@@ -24,8 +23,9 @@ def trigger_backup(tenant_id: int, request: Request) -> dict:
         raise HTTPException(402, "this tenant is over your license's tenant limit - "
                                  "backups are paused for it until a license is added "
                                  "in Settings → License")
-    result = run_backup(tenant_id, trigger="manual")
-    return {"manifest": result["manifest"], "drift_detected": bool(result["drift"])}
+    from app.core.jobs import enqueue
+    jid = enqueue("config_backup", tenant_id, request.state.user["username"])
+    return {"job_id": jid, "status": "queued"}
 
 
 @router.get("/tenants/{tenant_id}/snapshots")

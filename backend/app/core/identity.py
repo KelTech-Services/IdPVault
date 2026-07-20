@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 DEFAULT_RATE_PER_MIN = 300
 
 
-def run_identity_backup(tenant_id: int) -> dict:
+def run_identity_backup(tenant_id: int, job_id: int | None = None) -> dict:
     from app.core import crypto, storage
     from app.core import license as lic
     from app.models.db import IdentitySnapshot, SessionLocal, Tenant
@@ -28,7 +28,19 @@ def run_identity_backup(tenant_id: int) -> dict:
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             creds = crypto.decrypt(t.enc_credentials, data_key).decode()
             adapter = get_adapter(t.provider, t.base_url, creds)
-            payload = adapter.export_identities()
+            stop_progress = None
+            if job_id is not None:
+                from app.core.jobs import sampler
+                last = db.query(IdentitySnapshot).filter(
+                    IdentitySnapshot.tenant_id == tenant_id,
+                    IdentitySnapshot.status == "ok").order_by(IdentitySnapshot.id.desc()).first()
+                expected = last.api_calls if (last and last.api_calls) else None
+                stop_progress = sampler(adapter, job_id, expected)
+            try:
+                payload = adapter.export_identities()
+            finally:
+                if stop_progress:
+                    stop_progress()
             manifest = storage.write_identities(t.slug, data_key, payload)
             calls = getattr(getattr(adapter, "_rl", None), "calls", 0)
             dur = int((time.monotonic() - started) * 1000)
@@ -156,7 +168,8 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
 
 
 def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
-                           only_keys: list | None = None) -> dict:
+                           only_keys: list | None = None,
+                           job_id: int | None = None) -> dict:
     """Write path: recreate missing users + re-add missing edges. Additive,
     idempotent, per-object reporting. Persists a RestoreRun report."""
     from app.core import crypto, storage
@@ -171,7 +184,15 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
         snap = storage.read_identities(t.slug, snapshot_ts, data_key)
-        report = adapter.apply_identities(snap, set(only_keys) if only_keys else None)
+        stop_progress = None
+        if job_id is not None:
+            from app.core.jobs import sampler
+            stop_progress = sampler(adapter, job_id)  # no reliable total - shows live call count
+        try:
+            report = adapter.apply_identities(snap, set(only_keys) if only_keys else None)
+        finally:
+            if stop_progress:
+                stop_progress()
 
         summary = {}
         for cat, r in report.items():

@@ -287,3 +287,23 @@ class RestoreRun(Base):
     results: Mapped[dict] = mapped_column(JSON, default=dict)   # {"items": [...]} per-object detail
     at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class Job(Base):
+    """Background job row (see app.core.jobs). One per backup/restore run,
+    manual or scheduled - the UI's nav activity area polls these."""
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(20))    # config_backup | identity_backup | identity_restore
+    trigger: Mapped[str] = mapped_column(String(12), default="manual")   # manual | scheduled
+    status: Mapped[str] = mapped_column(String(10), default="queued", index=True)  # queued | running | ok | failed
+    progress_done: Mapped[int] = mapped_column(Integer, default=0)
+    progress_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)  # params in; trimmed result / error out
+    requested_by: Mapped[str] = mapped_column(String(80), default="scheduler")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -207,6 +207,7 @@ async function showApp(){
   if(me.theme) applyTheme(me.theme);
   initSchedPickers();
   health(); setInterval(health, 30000);
+  startJobsPoll();
   setInterval(()=>{ const fv = document.getElementById('view-fleet'); if(fv && !fv.classList.contains('hidden')) loadDashboard(); }, 60000);
   // the router needs the visible-tenant list before it can render the nav or pick a landing page
   try { _tenants = await api('/tenants'); } catch { _tenants = []; }
@@ -397,3 +398,73 @@ function provTag(p){
   document.addEventListener('scroll', hide, true);
   document.addEventListener('click', hide, true);
 })();
+
+
+/* ---------- background jobs (nav activity area + page progress) ---------- */
+let _jobsTimer = null;
+let _jobsPrev = {};   // job id -> last seen status, to detect completion transitions
+window._jobDoneHooks = window._jobDoneHooks || [];
+const JOB_KIND_LABEL = {config_backup: 'Config backup',
+                        identity_backup: 'Users & Access backup',
+                        identity_restore: 'Users & Access restore'};
+
+function jobPct(j){
+  return (j.progress_total && j.progress_total > 0)
+    ? Math.min(100, Math.round(100 * j.progress_done / j.progress_total)) : null;
+}
+
+async function pollJobs(){
+  let jobs;
+  try { jobs = await api('/jobs/active'); } catch { return; }  // transient failures stay silent
+  renderNavJobs(jobs);
+  jobs.forEach(j => {
+    const prev = _jobsPrev[j.id];
+    if((prev === 'queued' || prev === 'running') && (j.status === 'ok' || j.status === 'failed')){
+      (window._jobDoneHooks || []).forEach(fn => { try { fn(j); } catch {} });
+    }
+    _jobsPrev[j.id] = j.status;
+  });
+}
+
+function startJobsPoll(){
+  if(_jobsTimer) return;
+  pollJobs();
+  _jobsTimer = setInterval(pollJobs, 4000);
+}
+
+function renderNavJobs(jobs){
+  const box = document.getElementById('navjobs');
+  if(!box) return;
+  if(!jobs.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.classList.remove('hidden');
+  box.innerHTML = '<div class="njtitle" title="Backups and restores currently queued or running. Click a row to open that tenant.">Activity <span class="tipi">ⓘ</span></div>' + jobs.map(j => {
+    const pct = jobPct(j);
+    const label = `${esc(j.tenant_name)} · ${JOB_KIND_LABEL[j.kind] || esc(j.kind)}`;
+    let body = '';
+    if(j.status === 'running'){
+      body = pct != null
+        ? `<div class="njbar"><div class="njfill" style="width:${pct}%"></div></div><div class="njmeta">${pct}%</div>`
+        : `<div class="njbar njind"><div class="njfill"></div></div><div class="njmeta">${j.progress_done ? j.progress_done + ' API calls' : 'running'}</div>`;
+    } else if(j.status === 'queued'){
+      body = '<div class="njmeta">queued</div>';
+    } else if(j.status === 'ok'){
+      body = '<div class="njmeta st-created">done</div>';
+    } else {
+      body = `<div class="njmeta st-failed" title="${esc(j.error || 'unknown error')}">failed <span class="tipi">ⓘ</span></div>`;
+    }
+    return `<div class="njrow" onclick="jobJump(${j.tenant_id})">`
+         + `<div class="njlabel">${label}</div>${body}</div>`;
+  }).join('');
+}
+
+function jobJump(tid){ try { onTenantSelect(String(tid)); } catch {} }
+
+async function waitForJob(jobId, onTick){
+  for(;;){
+    const j = await api('/jobs/' + jobId);
+    if(onTick) try { onTick(j); } catch {}
+    if(j.status === 'ok') return j;
+    if(j.status === 'failed') throw new Error(j.error || 'job failed');
+    await new Promise(r => setTimeout(r, 2500));
+  }
+}

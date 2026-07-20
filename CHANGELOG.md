@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.5] - 2026-07-20
+### Added
+- Background job queue: manual backups, Users & Access backups, and Users &
+  Access restores now run as background jobs instead of holding the request
+  open. Long operations survive closed browser tabs, and the response is
+  immediate.
+- Activity area in the sidebar: shows every queued and running backup or
+  restore (including scheduled nightly backups) with live progress, and
+  briefly shows completions and failures. Org-scoped users only see jobs for
+  tenants in their org.
+- Live progress on the Users & Access page and restore dialog (percent when a
+  prior run gives an expected total, live API-call count otherwise).
+- Jobs interrupted by an app restart are marked failed on boot instead of
+  appearing to run forever.
+
 ## [1.2.4] - 2026-07-20
 ### Added
 - Database schema management now uses Alembic migrations. Upgrades are applied
