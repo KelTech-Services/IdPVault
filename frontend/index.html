@@ -161,7 +161,9 @@
     <tbody id="snapbody"></tbody></table>
   </section>
   <section class="panel hidden" id="rhpanel">
-    <h2>Restore history <span class="tipi" title="Every restore preview and apply is permanently recorded: who ran it, when, from which snapshot, and the per-object outcome. Click View for the full report.">ⓘ</span></h2>
+    <h2>Restore history <span class="tipi" title="Every restore is permanently recorded: who ran it, when, from which snapshot, and the per-object outcome. Click View for the full report. Dry-run previews are recorded too - tick 'include previews' to see them.">ⓘ</span>
+      <span class="spacer"></span>
+      <label style="font-size:.76rem;font-weight:400;color:var(--dim);display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="rh_previews" onchange="loadRestoreHistory(snapTenantId)"> include previews</label></h2>
     <table><thead><tr><th>When</th><th>Type</th><th>Actor</th><th>From snapshot</th><th>Summary</th><th style="width:70px"></th></tr></thead>
     <tbody id="rh_body"></tbody></table>
   </section>

@@ -287,8 +287,10 @@ async function loadRestoreHistory(id){
   document.getElementById('rhpanel').classList.remove('hidden');
   tb.innerHTML = skelRows(6);
   try{
-    const runs = await api(`/tenants/${id}/restore/runs`);
-    if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, 'No restores yet - every restore preview and apply is recorded here.'); return; }
+    let runs = await api(`/tenants/${id}/restore/runs`);
+    if(!document.getElementById('rh_previews').checked)
+      runs = runs.filter(r => r.mode !== 'dry_run');   // actual restores only by default
+    if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, 'No restores yet - every restore is recorded here when it runs.'); return; }
     tb.innerHTML = runs.map(r =>
       `<tr><td>${fmtLocal(r.at)}</td><td>${RH_MODE[r.mode] || esc(r.mode)}</td><td>${esc(r.actor)}</td>`
       + `<td>${fmtSnap(r.snapshot_ts)}</td><td class="muted" style="font-size:.78rem">${esc(rhSummary(r))}</td>`
