@@ -245,6 +245,7 @@ class OktaAdapter(ProviderAdapter):
             live = self.export_identities()
             live_user = {(u.get("profile") or {}).get("login"): u.get("id")
                          for u in live.get("users", []) if (u.get("profile") or {}).get("login")}
+            live_uids = {str(u.get("id")) for u in live.get("users", []) if u.get("id")}
             live_group = {g["name"]: g["id"] for g in live.get("group_ref", []) if g.get("name")}
             live_group_ids = {g["id"] for g in live.get("group_ref", [])}
             live_app = {a["label"]: a["id"] for a in live.get("app_ref", []) if a.get("label")}
@@ -278,6 +279,9 @@ class OktaAdapter(ProviderAdapter):
                 if login in live_user:
                     rep["users"]["existing"] += 1
                     continue
+                if str(u.get("id")) in live_uids:
+                    rep["users"]["existing"] += 1   # renamed live (same server id) - revert, never duplicate
+                    continue
                 if only_keys is not None and login not in only_keys:
                     rep["users"]["skipped"] += 1
                     continue
@@ -298,15 +302,17 @@ class OktaAdapter(ProviderAdapter):
             if revert_keys:
                 live_by_login = {(u.get("profile") or {}).get("login"): u
                                  for u in live.get("users", []) if (u.get("profile") or {}).get("login")}
+                live_by_id = {str(u.get("id")): u for u in live.get("users", []) if u.get("id")}
                 for u in snap.get("users", []):
                     login = (u.get("profile") or {}).get("login")
                     if not login or login not in revert_keys:
                         continue
-                    lv = live_by_login.get(login)
+                    # match by login; fall back to immutable id (renamed user)
+                    lv = live_by_login.get(login) or live_by_id.get(str(u.get("id")))
                     if lv is None or not self.revertable_diff(u, lv):
                         continue  # missing live = recreate path; identical = nothing to do
                     try:
-                        self._write(c, "POST", f"/api/v1/users/{live_user[login]}",
+                        self._write(c, "POST", f"/api/v1/users/{lv.get('id')}",
                                     json={"profile": u.get("profile", {})})
                         rep["users"]["reverted"] += 1
                     except Exception as e:

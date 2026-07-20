@@ -12,6 +12,10 @@ All notable changes to IdPVault are documented here. Format loosely follows
   touch credentials, MFA, or lifecycle status, and Auth0 email addresses are
   deliberately excluded (email changes trigger verification side effects).
   Restore reports show a "reverted" count.
+- Renamed users are recognized by their immutable server id (Authentik pk,
+  Okta id, Auth0 user_id): a username change appears as a revertable change
+  instead of a recreate, and apply never creates a duplicate of a renamed
+  user.
 
 ## [1.2.5] - 2026-07-20
 ### Added

@@ -104,12 +104,19 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
         live = adapter.export_identities()
 
         live_by_key = {_ukey(u): u for u in live.get("users", [])}
+        # Immutable-server-id fallback: a renamed user's natural key changes,
+        # but the pk/id never does (and same-tenant ids are never reused), so a
+        # rename shows as a revertable change instead of a recreate+duplicate.
+        live_by_id = {str(u.get("id")): u for u in live.get("users", [])
+                      if u.get("id") is not None}
         users_plan, recreate_users, revert_users = [], [], []
         RECREATE_LIST_CAP = 1000
         revertable = 0
         for u in snap.get("users", []):
             k = _ukey(u)
             lv = live_by_key.get(k)
+            if lv is None and u.get("id") is not None:
+                lv = live_by_id.get(str(u.get("id")))   # rename detection
             if lv is None:
                 users_plan.append({"user_id": k, "action": "recreate"})
                 if len(recreate_users) < RECREATE_LIST_CAP:

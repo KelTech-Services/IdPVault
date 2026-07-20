@@ -360,6 +360,7 @@ class AuthentikAdapter(ProviderAdapter):
         with self._client() as c:
             live = self.export_identities()
             live_user = {u.get("username"): u.get("id") for u in live.get("users", []) if u.get("username")}
+            live_uids = {str(u.get("id")) for u in live.get("users", []) if u.get("id") is not None}
             live_group = {g["name"]: g["id"] for g in live.get("group_ref", []) if g.get("name")}
             live_group_ids = {g["id"] for g in live.get("group_ref", [])}
             snap_user_name = {u.get("id"): u.get("username") for u in snap.get("users", [])}
@@ -379,6 +380,9 @@ class AuthentikAdapter(ProviderAdapter):
                 if uname in live_user:
                     rep["users"]["existing"] += 1
                     continue
+                if str(u.get("id")) in live_uids:
+                    rep["users"]["existing"] += 1   # renamed live (same pk) - revert, never duplicate
+                    continue
                 if only_keys is not None and uname not in only_keys:
                     rep["users"]["skipped"] += 1
                     continue
@@ -397,11 +401,13 @@ class AuthentikAdapter(ProviderAdapter):
             # credentials are never touched - they aren't in snapshots anyway)
             if revert_keys:
                 live_by_name = {u.get("username"): u for u in live.get("users", []) if u.get("username")}
+                live_by_id = {str(u.get("id")): u for u in live.get("users", []) if u.get("id") is not None}
                 for u in snap.get("users", []):
                     uname = u.get("username")
                     if not uname or uname not in revert_keys:
                         continue
-                    lv = live_by_name.get(uname)
+                    # match by username; fall back to immutable pk (renamed user)
+                    lv = live_by_name.get(uname) or live_by_id.get(str(u.get("id")))
                     if lv is None or not self.revertable_diff(u, lv):
                         continue
                     try:
@@ -411,7 +417,7 @@ class AuthentikAdapter(ProviderAdapter):
                                 "type": u.get("type") or "internal",
                                 "path": u.get("path") or "users",
                                 "attributes": u.get("attributes") or {}}
-                        self._write(c, "PATCH", f"/api/v3/core/users/{live_user[uname]}/", json=body)
+                        self._write(c, "PATCH", f"/api/v3/core/users/{lv.get('id')}/", json=body)
                         rep["users"]["reverted"] += 1
                     except Exception as e:
                         rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})

@@ -260,7 +260,7 @@
 <div id="idrestoremodal" class="modal hidden">
   <div class="box">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access restore - <span id="ir_tenant"></span></h2>
-    <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is create-only and additive: it recreates missing users and re-adds memberships/assignments; it never modifies or deletes existing users.</p>
+    <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is additive: it recreates missing users, re-adds memberships/assignments, and changes existing users only when you explicitly select them for a profile revert. It never deletes anything.</p>
     <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
       <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
       <button onclick="closeIdentityRestore()">Close</button></div>

@@ -299,6 +299,7 @@ class Auth0Adapter(ProviderAdapter):
             live = self.export_identities()
             live_user = {(u.get("profile") or {}).get("login"): u.get("id")
                          for u in live.get("users", [])}
+            live_uids = {str(u.get("id")) for u in live.get("users", []) if u.get("id")}
             live_group = {(g.get("kind"), g.get("name")): g["id"]
                           for g in live.get("group_ref", []) if g.get("name")}
             live_group_ids = {g["id"] for g in live.get("group_ref", [])}
@@ -315,6 +316,9 @@ class Auth0Adapter(ProviderAdapter):
                     continue
                 if login in live_user:
                     rep["users"]["existing"] += 1
+                    continue
+                if str(u.get("id")) in live_uids:
+                    rep["users"]["existing"] += 1   # email changed live (same user_id) - never duplicate
                     continue
                 if only_keys is not None and login not in only_keys:
                     rep["users"]["skipped"] += 1
@@ -353,12 +357,14 @@ class Auth0Adapter(ProviderAdapter):
                 from urllib.parse import quote
                 live_by_login = {(u.get("profile") or {}).get("login"): u
                                  for u in live.get("users", [])}
+                live_by_id = {str(u.get("id")): u for u in live.get("users", []) if u.get("id")}
                 for u in snap.get("users", []):
                     prof = u.get("profile") or {}
                     login = prof.get("login")
                     if not login or login not in revert_keys:
                         continue
-                    lv = live_by_login.get(login)
+                    # match by login; fall back to immutable user_id
+                    lv = live_by_login.get(login) or live_by_id.get(str(u.get("id")))
                     if lv is None or not self.revertable_diff(u, lv):
                         continue
                     payload = {"name": prof.get("displayName") or None}
@@ -367,7 +373,7 @@ class Auth0Adapter(ProviderAdapter):
                     payload = {k: v for k, v in payload.items() if v is not None}
                     if not payload:
                         continue
-                    r = self._req(c, "PATCH", f"/api/v2/users/{quote(live_user[login], safe='')}",
+                    r = self._req(c, "PATCH", f"/api/v2/users/{quote(str(lv.get('id')), safe='')}",
                                   json=payload)
                     if r.status_code >= 400:
                         rep["users"]["failed"].append({"user": login, "error": r.text[:180]})
