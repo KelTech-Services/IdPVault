@@ -86,9 +86,9 @@ engine = create_engine(get_settings().database_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
-# Lightweight additive migrations for columns added after a table already exists.
-# create_all() only creates missing tables; it never alters existing ones.
-# (Real migration tooling — Alembic — is the v0.5+ plan; this covers additive-only.)
+# FROZEN AT v1.2.3 - never extend these lists. They exist only to reconcile
+# pre-Alembic installs up to the v1.2.3 baseline schema; all schema changes
+# after v1.2.3 are Alembic revisions in app/migrations/versions/.
 _COLUMN_MIGRATIONS = [
     ("tenants", "enc_db_url", "BYTEA"),
     ("tenants", "identity_enabled", "BOOLEAN DEFAULT FALSE"),
@@ -114,8 +114,20 @@ _TYPE_MIGRATIONS = [
 ]
 
 
-def init_db() -> None:
-    Base.metadata.create_all(engine)
+# Tables that existed at the v1.2.3 Alembic baseline. Pre-Alembic installs
+# are reconciled to exactly this set before being stamped at the baseline;
+# tables added after v1.2.3 arrive via Alembic revisions only.
+_BASELINE_TABLES = [
+    "tenants", "tenant_state", "orgs", "snapshots", "audit_log", "users",
+    "auth_sessions", "mfa_trusts", "settings", "backup_runs", "events",
+    "identity_snapshots", "restore_runs",
+]
+
+_ALEMBIC_BASELINE = "0001_baseline"
+
+
+def _legacy_reconcile() -> None:
+    """Bring a pre-Alembic database up to the v1.2.3 baseline. Frozen."""
     from sqlalchemy import text
     with engine.begin() as conn:
         for table, col, coltype in _COLUMN_MIGRATIONS:
@@ -123,6 +135,51 @@ def init_db() -> None:
                 f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {coltype}'))
         for table, col, coltype in _TYPE_MIGRATIONS:
             conn.execute(text(f'ALTER TABLE {table} ALTER COLUMN {col} TYPE {coltype}'))
+
+
+def _alembic_cfg():
+    import os
+    from alembic.config import Config
+    cfg = Config()
+    cfg.set_main_option(
+        "script_location",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "migrations"))
+    return cfg
+
+
+def init_db() -> None:
+    """Boot-time schema management.
+
+    Three paths:
+    - Fresh install: create_all() builds the full current schema, stamp head
+      (no revisions run - the models are authoritative for new databases).
+    - Pre-Alembic install (<= v1.2.3): reconcile to exactly the v1.2.3
+      baseline, stamp the baseline revision, then upgrade to head.
+    - Alembic-managed install: upgrade to head.
+    """
+    from alembic import command
+    from sqlalchemy import inspect
+    insp = inspect(engine)
+    fresh = not insp.has_table("users")
+    cfg = _alembic_cfg()
+    if fresh:
+        Base.metadata.create_all(engine)
+        _legacy_reconcile()
+        with engine.begin() as conn:
+            cfg.attributes["connection"] = conn
+            command.stamp(cfg, "head")
+        return
+    if not insp.has_table("alembic_version"):
+        baseline = [Base.metadata.tables[t] for t in _BASELINE_TABLES]
+        Base.metadata.create_all(engine, tables=baseline)
+        _legacy_reconcile()
+        with engine.begin() as conn:
+            cfg.attributes["connection"] = conn
+            command.stamp(cfg, _ALEMBIC_BASELINE)
+    with engine.begin() as conn:
+        cfg.attributes["connection"] = conn
+        command.upgrade(cfg, "head")
 
 
 class User(Base):

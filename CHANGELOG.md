@@ -3,6 +3,16 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.4] - 2026-07-20
+### Added
+- Database schema management now uses Alembic migrations. Upgrades are applied
+  automatically at boot; existing installs are adopted in place on first boot
+  after updating, and fresh installs are unaffected. No operator action needed.
+### Changed
+- License page: the hard-refresh note now only suggests a refresh if paid
+  features do not appear after installing a key (the app already refreshes
+  itself in most cases).
+
 ## [1.2.3] - 2026-07-19
 ### Security
 - Snapshot read, delete, and cache-file paths are now built and containment-checked
