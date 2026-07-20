@@ -349,6 +349,7 @@ class Auth0Adapter(ProviderAdapter):
                 else:
                     live_user[login] = r.json().get("user_id")
                     rep["users"]["created"] += 1
+                    self._rec_name(rep["users"], "created_names", login)
 
             # 1b) profile reverts — explicitly selected EXISTING users only.
             # Deliberately limited to name/username: email changes have
@@ -379,6 +380,7 @@ class Auth0Adapter(ProviderAdapter):
                         rep["users"]["failed"].append({"user": login, "error": r.text[:180]})
                     else:
                         rep["users"]["reverted"] += 1
+                        self._rec_name(rep["users"], "reverted_names", login)
 
             # 2) role assignments + organization memberships (one bucket, kind-dispatched)
             live_mem = {(e["group_id"], e["user_id"]) for e in live.get("group_memberships", [])}
@@ -406,6 +408,9 @@ class Auth0Adapter(ProviderAdapter):
                     if r.status_code >= 400:
                         raise RuntimeError(f"HTTP {r.status_code}: {r.text[:150]}")
                     rep["group_memberships"]["added"] += 1
+                    self._rec_name(rep["group_memberships"], "added_names",
+                                   f"{snap_login.get(e['user_id']) or e['user_id']} in "
+                                   f"{(snap_gref.get(e['group_id']) or {}).get('name') or e['group_id']}")
                 except Exception as ex:
                     rep["group_memberships"]["failed"].append(
                         {"edge": f"{lg}/{lu}", "error": str(ex)[:150]})

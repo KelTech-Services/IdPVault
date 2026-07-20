@@ -295,6 +295,28 @@ async function loadRestoreHistory(id){
       + `<td style="text-align:right"><button class="ghost" onclick="viewRestoreRun(${r.id})">View</button></td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
 }
+function renderIdentityReportHTML(results){
+  const rep = (results || {}).report || {};
+  const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
+  const NAME_KEYS = {created_names:'created', reverted_names:'reverted', added_names:'added'};
+  const rows = ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(cat => {
+    const c = rep[cat] || {};
+    const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
+                  c.added!=null?c.added+' added':null, c.existing!=null?c.existing+' existing':null,
+                  c.skipped!=null?c.skipped+' skipped':null].filter(Boolean).join(' · ');
+    const failedN = Array.isArray(c.failed) ? c.failed.length : (c.failed || 0);
+    let names = '';
+    Object.keys(NAME_KEYS).forEach(k => {
+      if(Array.isArray(c[k]) && c[k].length)
+        names += `<div style="margin-top:3px"><span class="muted">${NAME_KEYS[k]}:</span> <span class="ev-add">${c[k].map(n=>esc(n)).join('</span><span class="muted"> · </span><span class="ev-add">')}</span></div>`;
+    });
+    if(Array.isArray(c.failed) && c.failed.length)
+      names += `<div style="margin-top:3px"><span class="st-failed">failed:</span> ${c.failed.map(f=>`${esc(f.user||f.edge||'?')} <span class="muted">- ${esc(String(f.error||'').slice(0,100))}</span>`).join('<br>')}</div>`;
+    return `<div class="restore-item"${names?' style="align-items:start"':''}><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}${names?`<div style="font-size:.78rem">${names}</div>`:''}</div><div>${failedN?`<span class="st-failed">${failedN} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`;
+  }).join('');
+  const ms = (results || {}).manual_steps || [];
+  return H + rows + (ms.length ? `<div style="margin-top:10px"><b>Manual steps:</b><ul style="margin:6px 0 0 18px">${ms.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>` : '');
+}
 async function viewRestoreRun(runId){
   const box = document.getElementById('rh_detail');
   document.getElementById('rhmodal').classList.remove('hidden');
@@ -305,21 +327,15 @@ async function viewRestoreRun(runId){
       `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
     const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
     if(r.mode === 'identity_apply'){
-      const rep = (r.results || {}).report || {};
-      const rows = ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(cat => {
-        const c = rep[cat] || {};
-        const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
-                      c.added!=null?c.added+' added':null, c.existing!=null?c.existing+' existing':null,
-                      c.skipped!=null?c.skipped+' skipped':null].filter(Boolean).join(' · ');
-        const failedN = Array.isArray(c.failed) ? c.failed.length : (c.failed || 0);
-        return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${failedN?`<span class="st-failed">${failedN} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`;
-      }).join('');
-      const ms = (r.results || {}).manual_steps || [];
-      box.innerHTML = H + rows + (ms.length ? `<div style="margin-top:10px"><b>Manual steps:</b><ul style="margin:6px 0 0 18px">${ms.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>` : '');
+      box.innerHTML = renderIdentityReportHTML(r.results || {});
       return;
     }
-    const items = (r.results || {}).items || [];
-    box.innerHTML = items.length ? H + items.map(it => {
+    // audit view: only what was actually touched - identical/skipped rows are
+    // hidden and summarized in a footer so the totals still reconcile
+    const all = (r.results || {}).items || [];
+    const items = all.filter(it => it.action !== 'identical' && it.status !== 'skipped');
+    const hidden = all.length - items.length;
+    box.innerHTML = (items.length ? H + items.map(it => {
       const fc = it.field_changes || [];
       const chg = fc.length
         ? `<div style="font-size:.78rem;margin-top:3px">` + fc.slice(0,6).map(ch=>
@@ -330,7 +346,8 @@ async function viewRestoreRun(runId){
         + `<div class="act-${it.action}">${esc(it.action||'-')}</div>`
         + `<div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${chg}</div>`
         + `<div class="st-${esc(it.status||'planned')}">${esc(it.status||'planned')}${it.error?': '+esc(it.error).slice(0,180):''}</div></div>`;
-    }).join('') : '<span class="muted">No per-object detail recorded for this run.</span>';
+    }).join('') : '<span class="muted">Nothing was changed by this run.</span>')
+      + (hidden ? `<p class="muted" style="font-size:.78rem;margin-top:8px">${hidden} identical or skipped object(s) not shown.</p>` : '');
   }catch(e){ box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
 }
 
@@ -902,17 +919,28 @@ async function identityApply(){
     });
     const r = j.result || {};
     r.manual_steps = r.manual_steps || [];
-    const rep = r.summary;
-    const row = (cat) => { const c=rep[cat]||{};
-      const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
-                    c.added!=null?c.added+' added':null,
-                    c.existing!=null?c.existing+' existing':null, c.skipped!=null?c.skipped+' skipped':null]
-                   .filter(Boolean).join(' · ');
-      return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${c.failed?`<span class="st-failed">${c.failed} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`; };
     document.getElementById('ir_summary').innerHTML = `<b>Applied:</b> snapshot ${fmtSnap(_irCtx.ts)}`;
-    document.getElementById('ir_items').innerHTML = IR_HEAD +
-      ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(row).join('') +
-      (r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
+    let html = null;
+    if(r.restore_run_id){
+      // the stored run carries the WHO/WHAT name lists - render from it
+      try{
+        const run = await api(`/tenants/${_idCtx.tenantId}/restore/runs/${r.restore_run_id}`);
+        html = renderIdentityReportHTML(run.results || {});
+      }catch{}
+    }
+    if(html == null){
+      const rep = r.summary || {};
+      const row = (cat) => { const c=rep[cat]||{};
+        const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
+                      c.added!=null?c.added+' added':null,
+                      c.existing!=null?c.existing+' existing':null, c.skipped!=null?c.skipped+' skipped':null]
+                     .filter(Boolean).join(' · ');
+        return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${c.failed?`<span class="st-failed">${c.failed} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`; };
+      html = IR_HEAD +
+        ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(row).join('') +
+        (r.manual_steps.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${r.manual_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
+    }
+    document.getElementById('ir_items').innerHTML = html;
     document.getElementById('ir_applybtn').classList.add('hidden');
     toast('Users & Access restore applied - see the report.');
     loadIdentitySnaps();

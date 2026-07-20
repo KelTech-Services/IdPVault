@@ -316,7 +316,8 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
 
         summary = {}
         for cat, r in report.items():
-            summary[cat] = {k: (len(v) if isinstance(v, list) else v) for k, v in r.items()}
+            summary[cat] = {k: (len(v) if isinstance(v, list) else v)
+                            for k, v in r.items() if not k.endswith("_names")}
         created = report["users"]["created"]
         manual = []
         if created:

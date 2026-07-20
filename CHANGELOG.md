@@ -10,6 +10,14 @@ All notable changes to IdPVault are documented here. Format loosely follows
   viewer. Each row shows when, who, type, source snapshot, and a summary;
   View reopens the full per-object report exactly as it looked at run time.
   Org-scoped users only see runs for tenants in their org.
+- Users & Access restore reports now record WHO was touched: the names of
+  created and reverted users and of added memberships/assignments appear in
+  the report and in restore history (runs from before this release show
+  counts only - the names were not captured then).
+### Changed
+- Config restore reports in restore history show only what was actually
+  touched; identical and skipped objects are summarized in a footer instead
+  of listed row by row.
 
 ## [1.2.7] - 2026-07-20
 ### Added

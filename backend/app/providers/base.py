@@ -91,5 +91,14 @@ class ProviderAdapter(ABC):
         return sorted(k for k in set(snap_u) | set(live_u)
                       if k not in self._REVERT_EXCLUDE and snap_u.get(k) != live_u.get(k))
 
+    @staticmethod
+    def _rec_name(rep_cat: dict, key: str, name: str, cap: int = 500) -> None:
+        """Record WHO/WHAT was touched in an identity restore report (capped).
+        The counts stay authoritative; these lists feed the restore report and
+        the permanent restore history."""
+        lst = rep_cat.setdefault(key, [])
+        if len(lst) < cap:
+            lst.append(str(name)[:250])
+
     def apply_identities(self, snap: dict, only_keys=None, revert_keys=None) -> dict:
         raise NotImplementedError(f"{self.name}: identity restore apply not implemented")

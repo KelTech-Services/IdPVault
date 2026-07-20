@@ -293,6 +293,7 @@ class OktaAdapter(ProviderAdapter):
                     else:
                         live_user[login] = r.json().get("id")
                         rep["users"]["created"] += 1
+                        self._rec_name(rep["users"], "created_names", login)
                 except Exception as e:
                     rep["users"]["failed"].append({"user": login, "error": str(e)[:200]})
 
@@ -315,6 +316,7 @@ class OktaAdapter(ProviderAdapter):
                         self._write(c, "POST", f"/api/v1/users/{lv.get('id')}",
                                     json={"profile": u.get("profile", {})})
                         rep["users"]["reverted"] += 1
+                        self._rec_name(rep["users"], "reverted_names", login)
                     except Exception as e:
                         rep["users"]["failed"].append({"user": login, "error": str(e)[:200]})
 
@@ -334,6 +336,9 @@ class OktaAdapter(ProviderAdapter):
                 try:
                     self._write(c, "PUT", f"/api/v1/groups/{lg}/users/{lu}")
                     rep["group_memberships"]["added"] += 1
+                    self._rec_name(rep["group_memberships"], "added_names",
+                                   f"{snap_user_login.get(e['user_id']) or e['user_id']} in "
+                                   f"{snap_group_name.get(e['group_id']) or e['group_id']}")
                 except Exception as ex:
                     rep["group_memberships"]["failed"].append({"edge": f"{lg}/{lu}", "error": str(ex)[:150]})
 
@@ -349,6 +354,9 @@ class OktaAdapter(ProviderAdapter):
                 try:
                     self._write(c, "PUT", f"/api/v1/apps/{la}/groups/{lg}")
                     rep["app_group_assignments"]["added"] += 1
+                    self._rec_name(rep["app_group_assignments"], "added_names",
+                                   f"{snap_group_name.get(e['group_id']) or e['group_id']} -> "
+                                   f"{snap_app_label.get(e['app_id']) or e['app_id']}")
                 except Exception as ex:
                     rep["app_group_assignments"]["failed"].append({"edge": f"{la}/{lg}", "error": str(ex)[:150]})
 
@@ -365,6 +373,9 @@ class OktaAdapter(ProviderAdapter):
                     self._write(c, "POST", f"/api/v1/apps/{la}/users",
                                 json={"id": lu, "scope": "USER"})
                     rep["app_user_assignments_direct"]["added"] += 1
+                    self._rec_name(rep["app_user_assignments_direct"], "added_names",
+                                   f"{snap_user_login.get(e['user_id']) or e['user_id']} -> "
+                                   f"{snap_app_label.get(e['app_id']) or e['app_id']}")
                 except Exception as ex:
                     rep["app_user_assignments_direct"]["failed"].append({"edge": f"{la}/{lu}", "error": str(ex)[:150]})
         return rep

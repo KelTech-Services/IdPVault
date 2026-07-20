@@ -394,6 +394,7 @@ class AuthentikAdapter(ProviderAdapter):
                     r = self._write(c, "POST", "/api/v3/core/users/", json=body)
                     live_user[uname] = r.json().get("pk")
                     rep["users"]["created"] += 1
+                    self._rec_name(rep["users"], "created_names", uname)
                 except Exception as e:
                     rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})
 
@@ -419,6 +420,7 @@ class AuthentikAdapter(ProviderAdapter):
                                 "attributes": u.get("attributes") or {}}
                         self._write(c, "PATCH", f"/api/v3/core/users/{lv.get('id')}/", json=body)
                         rep["users"]["reverted"] += 1
+                        self._rec_name(rep["users"], "reverted_names", uname)
                     except Exception as e:
                         rep["users"]["failed"].append({"user": uname, "error": str(e)[:200]})
 
@@ -435,6 +437,9 @@ class AuthentikAdapter(ProviderAdapter):
                 try:
                     self._write(c, "POST", f"/api/v3/core/groups/{lg}/add_user/", json={"pk": lu})
                     rep["group_memberships"]["added"] += 1
+                    self._rec_name(rep["group_memberships"], "added_names",
+                                   f"{snap_user_name.get(e['user_id']) or e['user_id']} in "
+                                   f"{snap_group_name.get(e['group_id']) or e['group_id']}")
                 except Exception as ex:
                     rep["group_memberships"]["failed"].append({"edge": f"{lg}/{lu}", "error": str(ex)[:150]})
         return rep
