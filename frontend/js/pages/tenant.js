@@ -461,10 +461,16 @@ function renderRestore(res){
     res.items.map((it,i)=>{
       const actionable = (it.action==='create'||it.action==='update') && it.restorable!==false;
       const box = (isDry && actionable) ? `<input type="checkbox" class="r-sel" data-i="${i}" checked onchange="updateRestoreCount()">` : '';
-      return `<div class="restore-item">
+      const fc = it.field_changes||[];
+      const chg = fc.length
+        ? `<div style="font-size:.78rem;margin-top:3px">` + fc.slice(0,6).map(ch=>
+            `<div style="margin-top:2px"><span class="muted">${esc(ch.field)}:</span> <span class="ev-delete">${esc(ch.live)}</span> <span class="muted">→</span> <span class="ev-add">${esc(ch.snap)}</span></div>`).join('')
+          + (fc.length>6?`<div class="muted" style="margin-top:2px">+${fc.length-6} more field(s)</div>`:'') + `</div>`
+        : (it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:'');
+      return `<div class="restore-item"${fc.length?' style="align-items:start"':''}>
       <div>${box}</div>
       <div class="act-${it.action}">${it.action}</div>
-      <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${it.changed_fields&&it.changed_fields.length?` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>`:''}</div>
+      <div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${chg}</div>
       <div class="st-${it.status}">${it.status}${it.error?': '+esc(it.error).slice(0,180):''}</div></div>`;
     }).join('');
 }

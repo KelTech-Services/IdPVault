@@ -65,9 +65,15 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
             reason = None
             if not unsupported and action != "identical":
                 reason = adapter.unrestorable_reason(rtype, obj)
+            field_changes = []
+            if action == "update":
+                from app.core.identity import _fmt_val
+                field_changes = [{"field": f, "live": _fmt_val(n_live.get(f)),
+                                  "snap": _fmt_val(n_obj.get(f))} for f in fields[:30]]
             items.append({"resource_type": rtype, "object_id": key,
                           "object_name": obj_name(obj), "action": action,
                           "changed_fields": fields[:30],
+                          "field_changes": field_changes,
                           "managed": bool(obj.get("managed")),
                           "restorable": not unsupported and reason is None,
                           "reason": reason,
