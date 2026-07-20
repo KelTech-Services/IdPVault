@@ -9,5 +9,7 @@
 <tr><td>Backup failed</td><td>a scheduled or manual backup errors (credentials, availability)</td></tr>
 <tr><td>Backup succeeded</td><td>every completed backup (noisy; off by default)</td></tr>
 <tr><td>Restore applied</td><td>a config or Users &amp; Access restore writes to a live tenant</td></tr>
+<tr><td>Users &amp; Access changes detected</td><td>a Users &amp; Access backup finds users, memberships, or assignments changed vs the previous snapshot; the change list is included in the backup message</td></tr>
+<tr><td>Users &amp; Access backup succeeded</td><td>every completed Users &amp; Access backup (noisy; off by default)</td></tr>
 <tr><td>Backup overdue</td><td>a daily self-check finds a scheduled tenant with no recent successful backup - the watchdog for silent failures</td></tr></table>
 <p>Tip: subscribe to <i>drift</i> but not <i>backup succeeded</i> and you'll only hear from IdPVault when something actually changed, failed, or was overdue.</p>

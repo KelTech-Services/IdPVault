@@ -268,6 +268,14 @@
     <div id="ir_items" style="max-height:62vh;overflow:auto"></div>
   </div>
 </div>
+<div id="idcomparemodal" class="modal hidden">
+  <div class="box wide">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access compare - <span id="idc_range"></span></h2>
+    <p class="muted" style="font-size:.82rem;margin-bottom:12px">What changed between two Users &amp; Access backups: users added, removed, and changed (with field values), plus membership and assignment changes. Read-only.</p>
+    <div id="idc_body" style="max-height:66vh;overflow:auto"></div>
+    <div style="margin-top:14px;text-align:right"><button onclick="document.getElementById('idcomparemodal').classList.add('hidden')">Close</button></div>
+  </div>
+</div>
 <main id="view-audit" class="hidden">
   <section class="panel">
     <h2>Audit log <span class="spacer"></span>
@@ -388,7 +396,7 @@
   </section>
   <section class="panel">
     <h2>Alerts - optional</h2>
-    <p class="muted" style="font-size:.82rem;margin:-6px 0 14px">Alerts fire automatically on <b>configuration drift detected</b> and <b>backup failures</b>. They post to this webhook (Slack, Mattermost, Discord, or ntfy) and, if SMTP is configured, also email all admins.</p>
+    <p class="muted" style="font-size:.82rem;margin:-6px 0 14px">Alerts fire automatically on <b>configuration drift</b>, <b>Users &amp; Access changes</b>, and <b>backup failures</b>. They post to this webhook (Slack, Mattermost, Discord, or ntfy) and, if SMTP is configured, also email all admins.</p>
     <div class="formgrid">
       <div style="grid-column:span 2"><label>Alert webhook URL</label><input id="s_webhook" placeholder="https://mattermost.example.com/hooks/… or https://ntfy.example.com/idpvault"></div>
       <div><label>Webhook format</label><select id="s_webhookfmt"><option value="auto">Auto-detect</option><option value="slack">Slack / Mattermost / Discord</option><option value="ntfy">ntfy</option></select></div>

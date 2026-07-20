@@ -17,6 +17,8 @@ ALERT_EVENTS = {
     "backup_failed":   {"label": "Backup failed",                "default": True,  "color": "#ff6b6b"},
     "backup_success":  {"label": "Backup succeeded",             "default": False, "color": "#3ecf8e"},
     "restore_applied": {"label": "Restore applied",              "default": True,  "color": "#4d9fff"},
+    "identity_drift":  {"label": "Users & Access changes detected", "default": True,  "color": "#ffb454"},
+    "identity_backup_success": {"label": "Users & Access backup succeeded", "default": False, "color": "#3ecf8e"},
     "backup_stale":    {"label": "Backup overdue / stale",       "default": True,  "color": "#ff6b6b"},
 }
 
@@ -132,6 +134,34 @@ def alert_backup_completed(tenant_name: str, snapshot_ts: str, total_objects: in
         send_alert("backup_success", f"Backup complete - {tenant_name}",
                    "A backup completed successfully. No changes since the previous snapshot.",
                    fields)
+
+
+def alert_identity_backup_completed(tenant_name: str, snapshot_ts: str,
+                                    counts: dict, drift: dict | None = None) -> None:
+    """Users & Access mirror of alert_backup_completed: ONE alert per run,
+    change details ride in the backup message."""
+    counts = counts or {}
+    fields = {"Tenant": tenant_name, "Snapshot": snapshot_ts,
+              "Users": counts.get("users", 0),
+              "Memberships": counts.get("group_memberships", 0)}
+    if drift:
+        a = sum(len(c.get("added", [])) for c in drift.values())
+        r = sum(len(c.get("removed", [])) for c in drift.values())
+        ch = sum(len(c.get("changed", [])) for c in drift.values())
+        fields["Changes"] = f"+{a} added, -{r} removed, ~{ch} changed"
+        body = ("Users & Access backup completed and detected changes vs the previous "
+                "snapshot:\n\n" + "\n".join(_drift_lines(drift)))
+        try:
+            enabled = _enabled(_cfg())
+        except Exception:
+            enabled = [k for k, v in ALERT_EVENTS.items() if v["default"]]
+        category = "identity_drift" if "identity_drift" in enabled else "identity_backup_success"
+        send_alert(category, f"Users & Access backup complete - changes detected - {tenant_name}",
+                   body, fields)
+    else:
+        send_alert("identity_backup_success", f"Users & Access backup complete - {tenant_name}",
+                   "A Users & Access backup completed successfully. No changes since the "
+                   "previous snapshot.", fields)
 
 
 def alert_failure(tenant_name: str, error: str) -> None:

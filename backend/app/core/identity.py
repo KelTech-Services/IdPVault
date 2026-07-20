@@ -44,6 +44,19 @@ def run_identity_backup(tenant_id: int, job_id: int | None = None) -> dict:
             manifest = storage.write_identities(t.slug, data_key, payload)
             calls = getattr(getattr(adapter, "_rl", None), "calls", 0)
             dur = int((time.monotonic() - started) * 1000)
+            # drift vs the previous identity snapshot -> Event rows + alert
+            drift = None
+            prev_list = storage.list_identity_snapshots(t.slug)
+            if len(prev_list) >= 2:
+                try:
+                    old_snap = storage.read_identities(t.slug, prev_list[-2], data_key)
+                    drift = diff_identities(old_snap, payload)
+                except Exception:
+                    log.exception("identity drift detection failed tenant=%s", t.slug)
+            if drift:
+                from app.core.events import extract_events
+                for ev in extract_events(t.id, manifest["timestamp"], drift):
+                    db.add(ev)
             db.add(IdentitySnapshot(tenant_id=t.id, ts=manifest["timestamp"],
                                     counts=manifest["counts"], size=manifest["size_encrypted"],
                                     api_calls=calls, duration_ms=dur, status="ok"))
@@ -52,7 +65,11 @@ def run_identity_backup(tenant_id: int, job_id: int | None = None) -> dict:
             db.commit()
             log.info("identity backup ok tenant=%s ts=%s calls=%s dur=%sms",
                      t.slug, manifest["timestamp"], calls, dur)
-            return {"manifest": manifest, "api_calls": calls, "duration_ms": dur}
+            from app.core.alerts import alert_identity_backup_completed
+            alert_identity_backup_completed(t.name, manifest["timestamp"],
+                                            manifest["counts"], drift)
+            return {"manifest": manifest, "api_calls": calls, "duration_ms": dur,
+                    "drift": bool(drift)}
         except Exception as e:
             db.rollback()
             from datetime import datetime, timezone
@@ -103,6 +120,66 @@ def _field_changes(fields: list, snap_u: dict, live_u: dict) -> list[dict]:
                 for f in fields]
     return [{"field": f, "live": _fmt_val(live_u.get(f)), "snap": _fmt_val(snap_u.get(f))}
             for f in fields]
+
+
+def diff_identities(old: dict, new: dict) -> dict | None:
+    """Diff two identity snapshots into the same shape diff_exports() produces,
+    so extract_events() and the alert drift-line renderer work unchanged.
+    Users: matched by natural key with immutable-server-id fallback (a rename
+    is a 'changed' user, never remove+add). Edges: set add/remove with
+    readable names synthesized from the snapshots' ref tables."""
+    import json as _j
+    out = {}
+    old_users, new_users = old.get("users", []) or [], new.get("users", []) or []
+    old_by_key = {_ukey(u): u for u in old_users}
+    new_by_key = {_ukey(u): u for u in new_users}
+    old_by_id = {str(u.get("id")): u for u in old_users if u.get("id") is not None}
+    new_by_id = {str(u.get("id")): u for u in new_users if u.get("id") is not None}
+    added, removed, changed = [], [], []
+    for k, ou in old_by_key.items():
+        nu = new_by_key.get(k)
+        if nu is None and ou.get("id") is not None:
+            nu = new_by_id.get(str(ou.get("id")))
+        if nu is None:
+            removed.append(ou)
+        elif _j.dumps(ou, sort_keys=True) != _j.dumps(nu, sort_keys=True):
+            changed.append({"id": _ukey(nu), "before": ou, "after": nu})
+    for k, nu in new_by_key.items():
+        ou = old_by_key.get(k)
+        if ou is None and nu.get("id") is not None:
+            ou = old_by_id.get(str(nu.get("id")))
+        if ou is None:
+            added.append(nu)
+    if added or removed or changed:
+        out["users"] = {"added": added, "removed": removed, "changed": changed}
+
+    gnames, anames, unames = {}, {}, {}
+    for snap in (new, old):
+        for r in snap.get("group_ref", []) or []:
+            if r.get("id") is not None:
+                gnames.setdefault(str(r["id"]), r.get("name") or str(r["id"]))
+        for r in snap.get("app_ref", []) or []:
+            if r.get("id") is not None:
+                anames.setdefault(str(r["id"]), r.get("label") or r.get("name") or str(r["id"]))
+        for u in snap.get("users", []) or []:
+            if u.get("id") is not None:
+                unames.setdefault(str(u["id"]), _ulabel(u)["label"] or _ukey(u))
+
+    def _edges(bucket, keys, fmt):
+        oset = {tuple(str(r.get(k)) for k in keys) for r in old.get(bucket, []) or []}
+        nset = {tuple(str(r.get(k)) for k in keys) for r in new.get(bucket, []) or []}
+        add = [{"id": ":".join(t), "name": fmt(t)} for t in sorted(nset - oset)]
+        rem = [{"id": ":".join(t), "name": fmt(t)} for t in sorted(oset - nset)]
+        if add or rem:
+            out[bucket] = {"added": add, "removed": rem, "changed": []}
+
+    _edges("group_memberships", ("group_id", "user_id"),
+           lambda t: f"{unames.get(t[1], t[1])} in {gnames.get(t[0], t[0])}")
+    _edges("app_group_assignments", ("app_id", "group_id"),
+           lambda t: f"{gnames.get(t[1], t[1])} -> {anames.get(t[0], t[0])}")
+    _edges("app_user_assignments_direct", ("app_id", "user_id"),
+           lambda t: f"{unames.get(t[1], t[1])} -> {anames.get(t[0], t[0])}")
+    return out or None
 
 
 def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:

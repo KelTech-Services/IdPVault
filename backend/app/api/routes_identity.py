@@ -73,6 +73,60 @@ def estimate(tenant_id: int, request: Request) -> dict:
         raise HTTPException(404, str(e))
 
 
+@router.get("/tenants/{tenant_id}/identity/diff")
+def identity_diff(tenant_id: int, old: str, new: str, request: Request) -> dict:
+    """Per-object diff between two Users & Access snapshots: users added,
+    removed, and changed (with field values), plus membership/assignment
+    edges added and removed. Read-only."""
+    _read(request, tenant_id)
+    from app.core import crypto, storage
+    from app.core.identity import _fmt_val, _ulabel, diff_identities
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        data_key = crypto.unwrap_data_key(t.wrapped_data_key)
+        try:
+            o = storage.read_identities(t.slug, old, data_key)
+            n = storage.read_identities(t.slug, new, data_key)
+        except FileNotFoundError:
+            raise HTTPException(404, "identity snapshot not found")
+    d = diff_identities(o, n) or {}
+    CAP = 500
+    out = {"old": old, "new": new, "buckets": {}}
+    for bucket, ch in d.items():
+        if bucket == "users":
+            changed = []
+            for c in ch.get("changed", [])[:CAP]:
+                before, after = c.get("before", {}), c.get("after", {})
+                changes = []
+                bp, ap = before.get("profile"), after.get("profile")
+                if isinstance(bp, dict) or isinstance(ap, dict):
+                    bpp, app_ = bp or {}, ap or {}
+                    for f in sorted(set(bpp) | set(app_)):
+                        if bpp.get(f) != app_.get(f):
+                            changes.append({"field": f, "from": _fmt_val(bpp.get(f)),
+                                            "to": _fmt_val(app_.get(f))})
+                for f in sorted(set(before) | set(after)):
+                    if f != "profile" and before.get(f) != after.get(f):
+                        changes.append({"field": f, "from": _fmt_val(before.get(f)),
+                                        "to": _fmt_val(after.get(f))})
+                entry = _ulabel(after) or _ulabel(before)
+                entry["changes"] = changes[:25]
+                changed.append(entry)
+            out["buckets"]["users"] = {
+                "added": [_ulabel(u) for u in ch.get("added", [])[:CAP]],
+                "removed": [_ulabel(u) for u in ch.get("removed", [])[:CAP]],
+                "changed": changed,
+                "counts": {k: len(ch.get(k, [])) for k in ("added", "removed", "changed")}}
+        else:
+            out["buckets"][bucket] = {
+                "added": [e.get("name") or e.get("id") for e in ch.get("added", [])[:CAP]],
+                "removed": [e.get("name") or e.get("id") for e in ch.get("removed", [])[:CAP]],
+                "counts": {k: len(ch.get(k, [])) for k in ("added", "removed")}}
+    return out
+
+
 class IdRestoreIn(BaseModel):
     snapshot_ts: str
 

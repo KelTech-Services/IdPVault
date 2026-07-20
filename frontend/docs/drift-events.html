@@ -2,7 +2,7 @@
 <h3>How drift detection works</h3>
 <p>Every backup is compared to the previous snapshot, object by object. Runtime noise (timestamps, internal ids, server-managed fields) is excluded, so a detected change means <b>real configuration changed</b>, not API churn.</p>
 <h3>Events</h3>
-<p>Each detected change becomes an event: add, update, or delete, with the object type, its name, and (for updates) which fields changed. Each tenant's Activity page is the change history of that IdP, filterable by change type. Events appear from the second backup onward, because a diff needs two snapshots.</p>
+<p>Each detected change becomes an event: add, update, or delete, with the object type, its name, and (for updates) which fields changed. Each tenant's Activity page is the change history of that IdP, filterable by change type. Events appear from the second backup onward, because a diff needs two snapshots. Users &amp; Access backups feed the same lane: user, membership, and assignment changes appear as events alongside config changes, and each Users &amp; Access snapshot's changes summary is clickable for a full compare with field-level values.</p>
 <h3>Unbacked changes</h3>
 <p>Between backups, IdPVault polls each provider's own event log to count configuration changes that have happened since your last snapshot; that's the <b>Unbacked changes</b> stat on the all-tenants dashboard and on each tenant's Overview strip - click it there to open the Changes page. It's a count (the detail comes from the next backup's diff), and it's your cue to run a backup if something unexpected is moving.</p>
 <h3>The Changes page</h3>

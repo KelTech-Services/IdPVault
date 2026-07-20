@@ -616,9 +616,43 @@ async function loadIdentitySnaps(){
       } else if(i === s.length-1) chgs = '<span class="muted">first snapshot</span>';
       return r.status==='failed'
         ? `<tr>${box}<td>${fmtSnap(r.ts)}</td><td colspan="6" class="st-failed">failed: ${esc(r.error||'')}</td><td></td></tr>`
-        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="chgcell">${chgs}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
+        : `<tr>${box}<td>${fmtSnap(r.ts)}</td><td>${c.users||0}</td><td>${c.group_memberships||0}</td><td>${asg}</td><td class="chgcell">${prev ? `<a href="#" onclick="event.preventDefault();identityCompare('${prev.ts}','${r.ts}')" title="Compare with the previous snapshot - see exactly which users, memberships, and assignments changed" style="text-decoration:none">${chgs} <span class="tipi">ⓘ</span></a>` : chgs}</td><td class="muted">${r.duration_ms?Math.round(r.duration_ms/1000)+'s':'-'}</td><td class="muted">${r.api_calls||'-'}</td><td><button onclick="openIdentityRestore('${r.ts}')">Restore…</button></td></tr>`;
     }).join('');
   }catch(e){ tb.innerHTML=`<tr><td colspan="9" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function identityCompare(oldTs, newTs){
+  document.getElementById('idc_range').textContent = `${fmtSnap(oldTs)} → ${fmtSnap(newTs)}`;
+  const box = document.getElementById('idc_body');
+  box.innerHTML = '<span class="muted">Comparing…</span>';
+  document.getElementById('idcomparemodal').classList.remove('hidden');
+  try{
+    const d = await api(`/tenants/${_idCtx.tenantId}/identity/diff?old=${encodeURIComponent(oldTs)}&new=${encodeURIComponent(newTs)}`);
+    const b = d.buckets || {};
+    if(!Object.keys(b).length){ box.innerHTML = '<span class="muted">No differences between these snapshots.</span>'; return; }
+    const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>CHANGE</div><div>OBJECT</div><div></div></div>`;
+    let html = '';
+    const u = b.users;
+    if(u){
+      const rows = [];
+      (u.added||[]).forEach(x=>rows.push(`<div class="restore-item"><div></div><div class="act-create">added</div><div>user / ${esc(x.label||x.key)}${x.email?` <span class="muted">${esc(x.email)}</span>`:''}</div><div></div></div>`));
+      (u.removed||[]).forEach(x=>rows.push(`<div class="restore-item"><div></div><div class="ev-delete">removed</div><div>user / ${esc(x.label||x.key)}${x.email?` <span class="muted">${esc(x.email)}</span>`:''}</div><div></div></div>`));
+      (u.changed||[]).forEach(x=>{
+        const chg = (x.changes||[]).map(ch=>`<div style="margin-top:2px"><span class="muted">${esc(ch.field)}:</span> <span class="ev-delete">${esc(ch.from)}</span> <span class="muted">→</span> <span class="ev-add">${esc(ch.to)}</span></div>`).join('');
+        rows.push(`<div class="restore-item" style="align-items:start"><div></div><div class="act-update">changed</div><div>user / ${esc(x.label||x.key)}${x.email?` <span class="muted">${esc(x.email)}</span>`:''}<div style="font-size:.78rem;margin-top:3px">${chg}</div></div><div></div></div>`);
+      });
+      const cts = u.counts||{};
+      html += `<h3 style="font-size:.9rem;margin:12px 0 4px">Users <span class="muted" style="font-weight:400">· ${cts.added||0} added, ${cts.removed||0} removed, ${cts.changed||0} changed</span></h3>` + H + rows.join('');
+    }
+    const EDGE_LABEL = {group_memberships:'Group memberships', app_group_assignments:'App assignments (via group)', app_user_assignments_direct:'App assignments (direct)'};
+    Object.keys(EDGE_LABEL).forEach(k=>{
+      const e = b[k]; if(!e) return;
+      const rows = (e.added||[]).map(nm=>`<div class="restore-item"><div></div><div class="act-create">added</div><div>${esc(nm)}</div><div></div></div>`)
+        .concat((e.removed||[]).map(nm=>`<div class="restore-item"><div></div><div class="ev-delete">removed</div><div>${esc(nm)}</div><div></div></div>`));
+      const cts = e.counts||{};
+      html += `<h3 style="font-size:.9rem;margin:14px 0 4px">${EDGE_LABEL[k]} <span class="muted" style="font-weight:400">· ${cts.added||0} added, ${cts.removed||0} removed</span></h3>` + H + rows.join('');
+    });
+    box.innerHTML = html;
+  }catch(e){ box.innerHTML = `<span class="muted">Compare failed: ${esc(e.message)}</span>`; }
 }
 function selIdSnap(cb){
   const ts = cb.dataset.ts;

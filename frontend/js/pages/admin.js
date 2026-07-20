@@ -169,6 +169,8 @@ const ALERT_CATALOG = [
   {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or Users & Access) errors'},
   {key:'backup_success', label:'Backup succeeded',             when:'a backup completes successfully (can be noisy)'},
   {key:'restore_applied',label:'Restore applied',              when:'a config or Users & Access restore is written to a live tenant'},
+  {key:'identity_drift', label:'Users & Access changes detected', when:'a Users & Access backup finds users, memberships, or assignments changed vs the previous snapshot; the change list is included in the backup message'},
+  {key:'identity_backup_success', label:'Users & Access backup succeeded', when:'a Users & Access backup completes successfully (can be noisy)'},
 ];
 function renderAlertEvents(enabled){
   document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
@@ -266,7 +268,7 @@ async function loadSettings(){
     document.getElementById('s_from').value = smtp.from_addr || '';
     document.getElementById('s_webhook').value = s.alert_webhook_url || '';
     document.getElementById('s_webhookfmt').value = s.alert_webhook_format || 'auto';
-    renderAlertEvents(Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied']);
+    renderAlertEvents(Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied','identity_drift']);
     schedSet('sd', s.default_schedule_cron || null);
     schedSet('si', s.default_identity_schedule_cron || null);
     initTzPicker(s.org_timezone || 'UTC');

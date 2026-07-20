@@ -3,6 +3,22 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.7] - 2026-07-20
+### Added
+- Users & Access drift detection: every Users & Access backup is compared to
+  the previous snapshot, and user, membership, and assignment changes become
+  events in the same per-tenant Activity feed as config changes (renames are
+  detected by immutable server id and shown as changes, not remove+add).
+- Users & Access compare: the changes summary on each Users & Access snapshot
+  is now clickable and opens a full compare vs the previous snapshot - users
+  added, removed, and changed with per-field values, plus membership and
+  assignment changes with readable names.
+- Users & Access alerts: two new alert subscriptions in Settings, "Users &
+  Access changes detected" (on by default, change list included in the
+  message, same format as config backup alerts) and "Users & Access backup
+  succeeded" (off by default). Both go to the webhook and admin email like
+  every other alert.
+
 ## [1.2.6] - 2026-07-20
 ### Added
 - Users & Access restore can now revert profile changes on existing users. The
