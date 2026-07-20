@@ -244,7 +244,7 @@
   </div>
 </div>
 <div id="restoremodal" class="modal hidden">
-  <div class="box">
+  <div class="box wide">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore - <span id="r_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="r_snap"></span>. Preview is read-only. Apply writes changed objects back to the live tenant.</p>
     <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
@@ -254,18 +254,18 @@
       <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
       <button onclick="closeRestore()">Close</button></div>
     <div id="r_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
-    <div id="r_items" style="max-height:44vh;overflow:auto"></div>
+    <div id="r_items" style="max-height:62vh;overflow:auto"></div>
   </div>
 </div>
 <div id="idrestoremodal" class="modal hidden">
-  <div class="box">
+  <div class="box wide">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access restore - <span id="ir_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is additive: it recreates missing users, re-adds memberships/assignments, and changes existing users only when you explicitly select them for a profile revert. It never deletes anything.</p>
     <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
       <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
       <button onclick="closeIdentityRestore()">Close</button></div>
     <div id="ir_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
-    <div id="ir_items" style="max-height:44vh;overflow:auto"></div>
+    <div id="ir_items" style="max-height:62vh;overflow:auto"></div>
   </div>
 </div>
 <main id="view-audit" class="hidden">

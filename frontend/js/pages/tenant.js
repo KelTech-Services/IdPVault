@@ -707,11 +707,15 @@ function renderIdentityRestore(p){
   const rSelectable = rlist.length>0 && rlist.length<=RECREATE_SELECT_MAX && !p.revert_truncated;
   const revbar = rSelectable && rlist.length>1 ? `<div style="margin:8px 0 4px"><span class="muted" style="font-size:.76rem">Profile reverts (opt-in, unchecked by default):</span> <button onclick="setAllReverts(true)">Select all reverts</button> <button onclick="setAllReverts(false)">Unselect reverts</button></div>` : '';
   const revRows = rSelectable
-    ? rlist.map(x=>`<div class="restore-item">
+    ? rlist.map(x=>{
+        const chg = (x.changes||[]).map(ch=>
+          `<div style="margin-top:2px"><span class="muted">${esc(ch.field)}:</span> <span class="ev-delete">${esc(ch.live)}</span> <span class="muted">→</span> <span class="ev-add">${esc(ch.snap)}</span></div>`).join('')
+          || `<span class="muted">- ${esc((x.fields||[]).join(', '))}</span>`;
+        return `<div class="restore-item" style="align-items:start">
         <div><input type="checkbox" class="ir-rev" value="${esc(x.key)}" onchange="updateIdentityCount()"></div>
         <div class="act-update">revert</div>
-        <div>user / ${esc(x.label||x.key)}${x.email&&x.email!==(x.label||x.key)?` <span class="muted">${esc(x.email)}</span>`:''} <span class="muted">- ${esc((x.fields||[]).join(', '))}</span></div>
-        <div class="st-planned">profile differs</div></div>`).join('')
+        <div>user / ${esc(x.label||x.key)}${x.email&&x.email!==(x.label||x.key)?` <span class="muted">${esc(x.email)}</span>`:''}<div style="font-size:.78rem;margin-top:3px">${chg}</div></div>
+        <div class="st-planned">profile differs</div></div>`;}).join('')
     : (rlist.length ? `<div class="restore-item"><div></div><div class="act-update">revert</div><div>${rlist.length}${p.revert_truncated?'+':''} users with profile changes - too many to select individually; reverts are per-user opt-in and unavailable for this snapshot</div><div class="st-planned">profile differs</div></div>` : '');
   const agg = [];
   if(gm) agg.push(`<div class="restore-item"><div></div><div class="act-create">add</div><div>group memberships</div><div class="ev-add">+${gm} to re-add</div></div>`);

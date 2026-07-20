@@ -85,6 +85,26 @@ def _ulabel(u: dict) -> dict:
     return {"key": _ukey(u), "label": name, "email": prof.get("email") or u.get("email") or ""}
 
 
+def _fmt_val(v) -> str:
+    """Short, display-safe rendering of a field value for the preview."""
+    import json as _j
+    if v is None or v == "":
+        return "(empty)"
+    s = v if isinstance(v, str) else _j.dumps(v, sort_keys=True)
+    return (s[:117] + "...") if len(s) > 120 else s
+
+
+def _field_changes(fields: list, snap_u: dict, live_u: dict) -> list[dict]:
+    """Per-field live -> snapshot value pairs for the revert preview."""
+    sp, lp = snap_u.get("profile"), live_u.get("profile")
+    if isinstance(sp, dict) or isinstance(lp, dict):
+        sp, lp = sp or {}, lp or {}
+        return [{"field": f, "live": _fmt_val(lp.get(f)), "snap": _fmt_val(sp.get(f))}
+                for f in fields]
+    return [{"field": f, "live": _fmt_val(live_u.get(f)), "snap": _fmt_val(snap_u.get(f))}
+            for f in fields]
+
+
 def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
     """Dry-run: what a restore WOULD do. Read-only."""
     import json
@@ -129,6 +149,7 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                     if len(revert_users) < RECREATE_LIST_CAP:
                         entry = _ulabel(u)
                         entry["fields"] = fields
+                        entry["changes"] = _field_changes(fields, u, lv)
                         revert_users.append(entry)
             else:
                 users_plan.append({"user_id": k, "action": "identical"})
