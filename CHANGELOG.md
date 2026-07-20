@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.8] - 2026-07-20
+### Added
+- Restore history on the Backups page: every restore preview and apply
+  (config and Users & Access) has been recorded since v1.1 - now there is a
+  viewer. Each row shows when, who, type, source snapshot, and a summary;
+  View reopens the full per-object report exactly as it looked at run time.
+  Org-scoped users only see runs for tenants in their org.
+
 ## [1.2.7] - 2026-07-20
 ### Added
 - Users & Access drift detection: every Users & Access backup is compared to

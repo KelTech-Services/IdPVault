@@ -256,12 +256,91 @@ async function deleteFromForm(){
   catch(e){ toast('Delete failed: '+e.message, true); }
 }
 
+/* ---------- restore history (item f: viewer over the RestoreRun audit trail) ---------- */
+const RH_MODE = {dry_run: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">config preview</span>',
+                 apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">config restore</span>',
+                 identity_apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">U&amp;A restore</span>'};
+function rhSummary(r){
+  const s = r.summary || {};
+  if(r.mode === 'identity_apply'){
+    const bits = [];
+    const u = s.users || {};
+    if(u.created) bits.push(u.created + ' users created');
+    if(u.reverted) bits.push(u.reverted + ' reverted');
+    ['group_memberships','app_group_assignments','app_user_assignments_direct'].forEach(k => {
+      const c = s[k] || {};
+      if(c.added) bits.push(c.added + ' ' + k.replace(/_/g,' ') + ' added');
+    });
+    const fails = ['users','group_memberships','app_group_assignments','app_user_assignments_direct']
+      .reduce((n,k) => n + ((s[k]||{}).failed || 0), 0);
+    if(fails) bits.push(fails + ' failed');
+    return bits.join(', ') || 'no changes applied';
+  }
+  const bits = Object.entries(s.actions || {}).map(([k,v]) => v + ' ' + k);
+  if(s.promote) bits.unshift('promote ' + s.promote.source + ' → ' + s.promote.target);
+  const f = (s.statuses || {}).failed;
+  if(f) bits.push(f + ' failed');
+  return bits.join(', ') || '-';
+}
+async function loadRestoreHistory(id){
+  const tb = document.getElementById('rh_body');
+  document.getElementById('rhpanel').classList.remove('hidden');
+  tb.innerHTML = skelRows(6);
+  try{
+    const runs = await api(`/tenants/${id}/restore/runs`);
+    if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, 'No restores yet - every restore preview and apply is recorded here.'); return; }
+    tb.innerHTML = runs.map(r =>
+      `<tr><td>${fmtLocal(r.at)}</td><td>${RH_MODE[r.mode] || esc(r.mode)}</td><td>${esc(r.actor)}</td>`
+      + `<td>${fmtSnap(r.snapshot_ts)}</td><td class="muted" style="font-size:.78rem">${esc(rhSummary(r))}</td>`
+      + `<td style="text-align:right"><button class="ghost" onclick="viewRestoreRun(${r.id})">View</button></td></tr>`).join('');
+  }catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
+}
+async function viewRestoreRun(runId){
+  const box = document.getElementById('rh_detail');
+  document.getElementById('rhmodal').classList.remove('hidden');
+  box.innerHTML = '<span class="muted">Loading…</span>';
+  try{
+    const r = await api(`/tenants/${snapTenantId}/restore/runs/${runId}`);
+    document.getElementById('rh_title').textContent =
+      `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
+    const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
+    if(r.mode === 'identity_apply'){
+      const rep = (r.results || {}).report || {};
+      const rows = ['users','group_memberships','app_group_assignments','app_user_assignments_direct'].map(cat => {
+        const c = rep[cat] || {};
+        const done = [c.created!=null?c.created+' created':null, c.reverted?c.reverted+' reverted':null,
+                      c.added!=null?c.added+' added':null, c.existing!=null?c.existing+' existing':null,
+                      c.skipped!=null?c.skipped+' skipped':null].filter(Boolean).join(' · ');
+        const failedN = Array.isArray(c.failed) ? c.failed.length : (c.failed || 0);
+        return `<div class="restore-item"><div></div><div class="act-create">${cat.replace(/_/g,' ')}</div><div>${done||'-'}</div><div>${failedN?`<span class="st-failed">${failedN} failed</span>`:'<span class="st-created">ok</span>'}</div></div>`;
+      }).join('');
+      const ms = (r.results || {}).manual_steps || [];
+      box.innerHTML = H + rows + (ms.length ? `<div style="margin-top:10px"><b>Manual steps:</b><ul style="margin:6px 0 0 18px">${ms.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>` : '');
+      return;
+    }
+    const items = (r.results || {}).items || [];
+    box.innerHTML = items.length ? H + items.map(it => {
+      const fc = it.field_changes || [];
+      const chg = fc.length
+        ? `<div style="font-size:.78rem;margin-top:3px">` + fc.slice(0,6).map(ch=>
+            `<div style="margin-top:2px"><span class="muted">${esc(ch.field)}:</span> <span class="ev-delete">${esc(ch.live)}</span> <span class="muted">→</span> <span class="ev-add">${esc(ch.snap)}</span></div>`).join('')
+          + (fc.length>6?`<div class="muted" style="margin-top:2px">+${fc.length-6} more field(s)</div>`:'') + `</div>`
+        : (it.changed_fields && it.changed_fields.length ? ` <span class="muted">(${it.changed_fields.slice(0,5).join(', ')})</span>` : '');
+      return `<div class="restore-item"${fc.length?' style="align-items:start"':''}><div></div>`
+        + `<div class="act-${it.action}">${esc(it.action||'-')}</div>`
+        + `<div>${esc(it.resource_type)} / ${esc(it.object_name||it.object_id||'-')}${chg}</div>`
+        + `<div class="st-${esc(it.status||'planned')}">${esc(it.status||'planned')}${it.error?': '+esc(it.error).slice(0,180):''}</div></div>`;
+    }).join('') : '<span class="muted">No per-object detail recorded for this run.</span>';
+  }catch(e){ box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
+}
+
 /* ---------- snapshots & diff ---------- */
 async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
   document.getElementById('snappanel').classList.remove('hidden');
   window._snapSlug = slug;
   updateSnapButtons();
+  loadRestoreHistory(id);
   const sb = document.getElementById('snapbody');
   sb.innerHTML = skelRows(9);
   try {

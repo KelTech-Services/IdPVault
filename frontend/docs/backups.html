@@ -13,6 +13,8 @@
 <li><b>Restore…</b> - see the <b>Config restore</b> doc.</li>
 <li><b>Delete</b> - admins can select any number of backups (config or Users &amp; Access, or select all) and permanently delete them. Deleting requires re-entering your password, and every deletion (and denied attempt) is recorded in the audit log.</li>
 </ul>
+<h3>Restore history</h3>
+<p>Every restore preview and apply (config and Users &amp; Access) is permanently recorded and listed on the Backups page: who ran it, when, from which snapshot, and a summary. <b>View</b> reopens the full per-object report exactly as it looked at run time - the audit trail for restores.</p>
 <h3>What backups can't include</h3>
 <p>Identity providers deliberately redact secret material (client secrets, private keys, SAML signing certificates) from their export APIs; no backup product can capture them. A restored app therefore comes back with regenerated credentials; the restore report flags exactly which ones.</p>
 <h3>Full-DR for self-hosted Authentik</h3>

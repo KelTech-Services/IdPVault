@@ -160,6 +160,11 @@
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="snapall" onchange="selAllSnaps(this.checked)"></th><th>Timestamp</th><th>Type</th><th>Status</th><th>Objects</th><th>Size</th><th>Full-DR</th><th>Changes vs previous</th><th></th></tr></thead>
     <tbody id="snapbody"></tbody></table>
   </section>
+  <section class="panel hidden" id="rhpanel">
+    <h2>Restore history <span class="tipi" title="Every restore preview and apply is permanently recorded: who ran it, when, from which snapshot, and the per-object outcome. Click View for the full report.">ⓘ</span></h2>
+    <table><thead><tr><th>When</th><th>Type</th><th>Actor</th><th>From snapshot</th><th>Summary</th><th style="width:70px"></th></tr></thead>
+    <tbody id="rh_body"></tbody></table>
+  </section>
   <section class="panel hidden" id="browsepanel">
     <h2>Browse - <span id="b_label"></span><span class="spacer"></span>
       <input id="b_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._bs); window._bs=setTimeout(browseObjects, 300)">
@@ -266,6 +271,13 @@
       <button onclick="closeIdentityRestore()">Close</button></div>
     <div id="ir_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
     <div id="ir_items" style="max-height:62vh;overflow:auto"></div>
+  </div>
+</div>
+<div id="rhmodal" class="modal hidden">
+  <div class="box wide">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Restore report - <span id="rh_title"></span></h2>
+    <div id="rh_detail" style="max-height:68vh;overflow:auto"></div>
+    <div style="margin-top:14px;text-align:right"><button onclick="document.getElementById('rhmodal').classList.add('hidden')">Close</button></div>
   </div>
 </div>
 <div id="idcomparemodal" class="modal hidden">
