@@ -68,6 +68,31 @@ def probe_target(db_url: str, timeout: int = 30) -> dict:
     return {"version": version, "kind": "authentik", "tables": total}
 
 
+# pg_dump's SET preamble can name parameters NEWER than the target server:
+# pg_dump 17 emits "SET transaction_timeout = 0;" (parameter new in PostgreSQL
+# 17), which a 16.x server rejects - and with ON_ERROR_STOP that one line
+# aborts the whole restore. These preamble SETs are session tuning, never
+# data, so stripping the ones the server cannot know is safe. Applied only
+# when the server major version is older than the parameter's.
+_VERSION_GATED_SETS = [(17, b"SET transaction_timeout")]
+
+
+def sanitize_dump_for_server(sql: bytes, server_version: str) -> bytes:
+    try:
+        major = int(str(server_version).split(".")[0])
+    except Exception:
+        return sql
+    head, rest = sql[:4096], sql[4096:]
+    for needs, prefix in _VERSION_GATED_SETS:
+        if major >= needs:
+            continue
+        idx = head.find(prefix)
+        if idx != -1:
+            end = head.find(b"\n", idx)
+            head = head[:idx] + (head[end + 1:] if end != -1 else b"")
+    return head + rest
+
+
 def psql_restore(db_url: str, sql: bytes, timeout: int = 1800,
                  progress_cb=None) -> dict:
     """Apply a plain-SQL dump with psql. ON_ERROR_STOP + --single-transaction

@@ -97,7 +97,9 @@ def run_fulldr_restore(tenant_id: int, snapshot_ts: str, actor: str,
                 f"dump' checked. ({str(re_)[:200]})")
 
     # 2) Decrypt the snapshot dump and apply it atomically with real progress.
-    sql = storage.read_dbdump(slug, snapshot_ts, data_key)
+    from app.core.dbdump import sanitize_dump_for_server
+    sql = sanitize_dump_for_server(storage.read_dbdump(slug, snapshot_ts, data_key),
+                                   probe["version"])
     _prog = None
     if job_id is not None:
         from app.core.jobs import set_progress
