@@ -282,19 +282,22 @@ function rhSummary(r){
   if(f) bits.push(f + ' failed');
   return bits.join(', ') || '-';
 }
-async function loadRestoreHistory(id){
-  const tb = document.getElementById('rh_body');
-  document.getElementById('rhpanel').classList.remove('hidden');
+async function loadRestoreHistory(id, kind){
+  // Each page owns its own history: Backups = config runs, U&A = identity runs.
+  const isId = kind === 'identity';
+  const tb = document.getElementById(isId ? 'rh_body_id' : 'rh_body');
+  document.getElementById(isId ? 'rhpanel_id' : 'rhpanel').classList.remove('hidden');
   tb.innerHTML = skelRows(6);
   try{
     let runs = await api(`/tenants/${id}/restore/runs`);
-    if(!document.getElementById('rh_previews').checked)
+    runs = runs.filter(r => isId ? r.mode === 'identity_apply' : r.mode !== 'identity_apply');
+    if(!isId && !document.getElementById('rh_previews').checked)
       runs = runs.filter(r => r.mode !== 'dry_run');   // actual restores only by default
-    if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, 'No restores yet - every restore is recorded here when it runs.'); return; }
+    if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, isId ? 'No Users & Access restores yet - every restore is recorded here when it runs.' : 'No config restores yet - every restore is recorded here when it runs.'); return; }
     tb.innerHTML = runs.map(r =>
       `<tr><td>${fmtLocal(r.at)}</td><td>${RH_MODE[r.mode] || esc(r.mode)}</td><td>${esc(r.actor)}</td>`
       + `<td>${fmtSnap(r.snapshot_ts)}</td><td class="muted" style="font-size:.78rem">${esc(rhSummary(r))}${r.note?`<div style="font-style:italic;margin-top:2px">"${esc(r.note)}"</div>`:''}</td>`
-      + `<td style="text-align:right"><button class="ghost" onclick="viewRestoreRun(${r.id})">View</button></td></tr>`).join('');
+      + `<td style="text-align:right"><button class="ghost" onclick="viewRestoreRun(${id},${r.id})">View</button></td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
 }
 function renderIdentityReportHTML(results){
@@ -319,12 +322,12 @@ function renderIdentityReportHTML(results){
   const ms = (results || {}).manual_steps || [];
   return H + rows + (ms.length ? `<div style="margin-top:10px"><b>Manual steps:</b><ul style="margin:6px 0 0 18px">${ms.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>` : '');
 }
-async function viewRestoreRun(runId){
+async function viewRestoreRun(tid, runId){
   const box = document.getElementById('rh_detail');
   document.getElementById('rhmodal').classList.remove('hidden');
   box.innerHTML = '<span class="muted">Loading…</span>';
   try{
-    const r = await api(`/tenants/${snapTenantId}/restore/runs/${runId}`);
+    const r = await api(`/tenants/${tid}/restore/runs/${runId}`);
     document.getElementById('rh_title').textContent =
       `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
     const notice = r.note ? `<p class="muted" style="font-size:.82rem;font-style:italic;margin-bottom:8px">Justification from ${esc(r.actor)}: "${esc(r.note)}"</p>` : '';
@@ -753,6 +756,7 @@ let selectedIdSnaps = [];
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
   document.getElementById('ospanel_id').classList.remove('hidden');
+  loadRestoreHistory(_idCtx.tenantId, 'identity');
   selectedIdSnaps = []; updateIdSnapButtons();
   tb.innerHTML = skelRows(9);
   try{

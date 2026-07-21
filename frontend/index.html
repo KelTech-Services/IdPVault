@@ -220,6 +220,11 @@
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Changes vs previous</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
   </section>
+  <section class="panel hidden" id="rhpanel_id">
+    <h2>Restore history <span class="tipi" title="Every Users &amp; Access restore is permanently recorded: who ran it, when, from which snapshot, the justification, and the per-object outcome. Click View for the full report.">ⓘ</span></h2>
+    <table><thead><tr><th>When</th><th>Type</th><th>Actor</th><th>From snapshot</th><th>Summary</th><th style="width:70px"></th></tr></thead>
+    <tbody id="rh_body_id"></tbody></table>
+  </section>
   <section class="panel hidden" id="ospanel_id">
     <h2>Find in backups <span class="tipi" title="Search the change history for a user, membership, or assignment by name. Shows when it changed or was deleted and which snapshot to restore it from. Objects that never changed while IdPVault was watching do not appear here.">ⓘ</span>
       <span class="spacer"></span><input id="os_q_id" placeholder="user or group name…" style="width:260px" oninput="clearTimeout(window._osi); window._osi=setTimeout(()=>objectSearch('identity'), 350)"></h2>
