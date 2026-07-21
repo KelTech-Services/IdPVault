@@ -18,6 +18,10 @@ All notable changes to IdPVault are documented here. Format loosely follows
 - Config restore reports in restore history show only what was actually
   touched; identical and skipped objects are summarized in a footer instead
   of listed row by row.
+- Restore history lists actual restores by default; dry-run previews are
+  still recorded and can be shown with "include previews".
+- "Backup now" buttons that trigger a config backup are now labeled "Backup
+  config now" so they are not mistaken for a Users & Access backup.
 
 ## [1.2.7] - 2026-07-20
 ### Added

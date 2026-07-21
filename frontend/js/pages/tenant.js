@@ -56,7 +56,7 @@ function renderTenantOverviewView(t, state, dash){
     <div class="stat"><span class="sl">Schedule</span><span class="sv">${esc(cronLabel(t.schedule_cron))}</span><span class="ss">keep ${t.retention_keep} snapshots</span></div>
     <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
     <div class="stat last" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/changes'" title="Open the Changes page - investigate what changed vs the latest backup"><span class="sl">Unbacked changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
-    ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup now</button></span>` : ''}`;
+    ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup config now</button></span>` : ''}`;
   body.innerHTML = inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '';
 }
 async function overviewRefresh(){
@@ -103,9 +103,9 @@ async function loadTenants(){
       <td class="muted">${esc(cronLabel(t.schedule_cron))}</td>
       <td class="muted">${t.retention_keep}</td>
       <td style="white-space:nowrap">${canW ? `
-        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup now${lockT?' '+TIPI:''}</button>
+        <button ${lockT} onclick="backupNow(${t.id}, this)">Backup config now${lockT?' '+TIPI:''}</button>
         <button onclick="location.hash='#/t/${t.id}/settings'">Edit</button>` : isViewer ? `
-        <button disabled title="${MSP_TIP}">Backup now ${TIPI}</button>
+        <button disabled title="${MSP_TIP}">Backup config now ${TIPI}</button>
         <button disabled title="${MSP_TIP}">Edit ${TIPI}</button>` : ''}
         <button onclick="location.hash='#/t/${t.id}/backups'">Snapshots</button>
         ${canW ? (t.supports_identity===false ? `<button disabled title="Users &amp; Access backup isn't supported for this provider yet">Users &amp; Access ${TIPI}</button>` : `<button ${lockI} onclick="location.hash='#/t/${t.id}/identity'">Users &amp; Access${lockI?' '+TIPI:''}</button>`) : isViewer ? `<button disabled title="${MSP_TIP}">Users &amp; Access ${TIPI}</button>` : ''}
@@ -240,7 +240,7 @@ async function backupNow(id, btn){
     const bt = _tenants.find(x => x.id === id);
     if(bt && currentTenantId === id && location.hash.endsWith('/overview')) renderTenantOverview(bt);
   } catch(e){ toast('Backup failed: '+e.message, true); }
-  btn.disabled = false; btn.textContent = 'Backup now';
+  btn.disabled = false; btn.textContent = 'Backup config now';
 }
 async function deleteFromForm(){
   const t = _tenants.find(x=>x.id===editingId); if(!t) return;
