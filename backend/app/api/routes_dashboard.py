@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Request
 
 from app.core import crypto
-from app.models.db import BackupRun, Event, SessionLocal, Snapshot, Tenant
+from app.models.db import BackupRun, Event, IdentitySnapshot, SessionLocal, Snapshot, Tenant
 from app.providers import get_adapter
 
 router = APIRouter(tags=["dashboard"])
@@ -34,7 +34,11 @@ def summary(request: Request) -> dict:
                 .order_by(BackupRun.id.desc()).first()
             snaps = db.query(Snapshot).filter(Snapshot.tenant_id == t.id)
             snap_count = snaps.count()
-            storage = sum(s.size for s in snaps.all())
+            from app.core import storage as _st
+            storage = sum(s.size + _st.dbdump_size(t.slug, s.ts) for s in snaps.all())
+            storage += sum(s.size for s in db.query(IdentitySnapshot).filter(
+                IdentitySnapshot.tenant_id == t.id,
+                IdentitySnapshot.status == "ok").all())   # storage covers BOTH backup types
             out["storage_bytes"] += storage
             healthy = bool(last and last.status == "ok" and
                            last.at >= now - timedelta(hours=26))
@@ -88,10 +92,23 @@ def trends(request: Request, days: int = 14) -> dict:
             d = r.at.strftime("%Y-%m-%d")
             if d in run_daily:
                 run_daily[d]["ok" if r.status == "ok" else "failed"] += 1
+        for r in db.query(IdentitySnapshot).filter(IdentitySnapshot.at >= start).all():
+            if not _ok(r.tenant_id):     # Users & Access runs count too
+                continue
+            d = r.at.strftime("%Y-%m-%d")
+            if d in run_daily:
+                run_daily[d]["ok" if r.status == "ok" else "failed"] += 1
+        from app.core import storage as _st
         names = {t.id: t.name for t in db.query(Tenant).all()}
+        slugs = {t.id: t.slug for t in db.query(Tenant).all()}
         storage: dict[int, int] = {}
         for s in db.query(Snapshot).all():
             if not _ok(s.tenant_id):
+                continue
+            storage[s.tenant_id] = storage.get(s.tenant_id, 0) + s.size \
+                + _st.dbdump_size(slugs.get(s.tenant_id, ""), s.ts)
+        for s in db.query(IdentitySnapshot).filter(IdentitySnapshot.status == "ok").all():
+            if not _ok(s.tenant_id):     # Users & Access snapshot sizes count too
                 continue
             storage[s.tenant_id] = storage.get(s.tenant_id, 0) + s.size
     return {"days": day_keys,

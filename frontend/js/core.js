@@ -25,6 +25,8 @@ function applyTheme(t){
             btn.title = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode'; }
   if(typeof renderCharts === 'function' && window._trendsReady !== false) try{ renderCharts(); }catch{}
   if(typeof renderTenantCharts === 'function') try{ renderTenantCharts(); }catch{}
+  if(typeof renderBackupsCharts === 'function') try{ renderBackupsCharts(); }catch{}
+  if(typeof renderIdentityCharts === 'function') try{ renderIdentityCharts(); }catch{}
 }
 async function toggleTheme(){
   const next = (document.documentElement.dataset.theme === 'light') ? 'dark' : 'light';

@@ -110,6 +110,13 @@ def has_dbdump(tenant_slug: str, ts: str) -> bool:
     return os.path.exists(os.path.join(snapshot_dir(tenant_slug, ts), "pgdump.sql.enc"))
 
 
+def dbdump_size(tenant_slug: str, ts: str) -> int:
+    try:
+        return os.path.getsize(os.path.join(snapshot_dir(tenant_slug, ts), "pgdump.sql.enc"))
+    except Exception:   # no dump, bad slug/ts (e.g. deleted tenant) -> just 0
+        return 0
+
+
 def identity_dir(tenant_slug: str, ts: str) -> str:
     return _contained(os.path.join(get_settings().data_dir, _safe_slug(tenant_slug),
                                    "identities", _safe_ts(ts)))

@@ -114,9 +114,9 @@
 <main id="view-t-overview" class="hidden">
   <section class="statusbar" id="t_overview_cards"></section>
   <section class="chartgrid hidden" id="t_chartrow">
-    <div class="card"><div class="lbl2">Changes per Config backup <span class="tipi" title="Objects added, removed, and changed in each config backup compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_t_changes"></div></div>
-    <div class="card"><div class="lbl2">Objects over time <span class="tipi" title="Total configuration objects captured in each backup - a sudden drop can mean something was deleted">ⓘ</span></div><div class="chart" id="ch_t_objects"></div></div>
-    <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Total size of each backup in MB (encrypted snapshot plus the Full-DR database dump when enabled)">ⓘ</span></div><div class="chart" id="ch_t_size"></div></div>
+    <div class="card"><div class="lbl2">Changes per backup <span class="tipi" title="Objects added, removed, and changed in each backup (config and Users & Access) compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_t_changes"></div></div>
+    <div class="card"><div class="lbl2">Objects over time <span class="tipi" title="Objects captured in each backup - config objects and Users & Access objects as separate lines. A sudden drop can mean something was deleted">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--accent)"></i>config <i class="legsw" style="background:var(--gold)"></i>users &amp; access</span></div><div class="chart" id="ch_t_objects"></div></div>
+    <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Size of each backup in MB - config (encrypted snapshot plus the Full-DR database dump when enabled) and Users & Access as separate lines">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--accent)"></i>config <i class="legsw" style="background:var(--gold)"></i>users &amp; access</span></div><div class="chart" id="ch_t_size"></div></div>
   </section>
   <section class="panel">
     <h2>Live State <span id="t_overview_src" class="muted" style="text-transform:none;letter-spacing:0;font-weight:500"></span><span class="spacer"></span>
@@ -153,6 +153,11 @@
   </section>
 </main>
 <main id="view-t-backups" class="hidden">
+  <section class="chartgrid hidden" id="b_chartrow">
+    <div class="card"><div class="lbl2">Changes per Config backup <span class="tipi" title="Objects added, removed, and changed in each config backup compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_b_changes"></div></div>
+    <div class="card"><div class="lbl2">Objects over time <span class="tipi" title="Total configuration objects captured in each config backup - a sudden drop can mean something was deleted">ⓘ</span></div><div class="chart" id="ch_b_objects"></div></div>
+    <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Total size of each config backup in MB (encrypted snapshot plus the Full-DR database dump when enabled)">ⓘ</span></div><div class="chart" id="ch_b_size"></div></div>
+  </section>
   <section class="panel hidden" id="snappanel">
     <h2>Snapshots <span class="spacer"></span>
       <button id="diffbtn" disabled title="Select any two backups, then Compare shows exactly what was added, removed, or changed between them." onclick="runDiff()">Compare (select 2) <span class="tipi">ⓘ</span></button>
@@ -212,6 +217,12 @@
   </section>
 </main>
 <main id="view-t-identity" class="hidden">
+  <section class="chartgrid hidden" id="id_chartrow">
+    <div class="card"><div class="lbl2">Changes per Users &amp; Access backup <span class="tipi" title="Users, memberships, and assignments added, removed, and changed in each Users & Access backup compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_id_changes"></div></div>
+    <div class="card"><div class="lbl2">Directory over time <span class="tipi" title="Users, group memberships, and app assignments captured in each Users & Access backup - a sudden drop can mean mass deprovisioning">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--accent)"></i>users <i class="legsw" style="background:var(--green)"></i>memberships <i class="legsw" style="background:var(--gold)"></i>assignments</span></div><div class="chart" id="ch_id_dir"></div></div>
+    <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Size of each Users & Access backup in MB - grows with directory size; a sudden drop can mean mass deprovisioning">ⓘ</span></div><div class="chart" id="ch_id_size"></div></div>
+    <div class="card"><div class="lbl2">Backup duration <span class="tipi" title="How long each Users & Access backup took - user APIs are rate limited, so this grows with directory size. Hover a bar for the API call count">ⓘ</span></div><div class="chart" id="ch_id_effort"></div></div>
+  </section>
   <section class="panel hidden" id="idpanel">
     <h2>Users &amp; Access <span class="spacer"></span>
       <button class="mutating" onclick="identityBackupNow()">Back up now</button>

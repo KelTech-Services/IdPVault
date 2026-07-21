@@ -59,9 +59,23 @@ def snapshots(tenant_id: int, request: Request) -> list[dict]:
             raise HTTPException(404, "tenant not found")
         rows = db.query(IdentitySnapshot).filter(IdentitySnapshot.tenant_id == tenant_id)\
             .order_by(IdentitySnapshot.id.desc()).limit(60).all()
+        # drift totals per snapshot for the trend charts (events written at backup time)
+        from sqlalchemy import func
+        from app.models.db import Event
+        chg: dict[str, dict[str, int]] = {}
+        if rows:
+            for ts, et, n in db.query(Event.snapshot_ts, Event.event_type, func.count())\
+                    .filter(Event.tenant_id == tenant_id,
+                            Event.snapshot_ts.in_([r.ts for r in rows]))\
+                    .group_by(Event.snapshot_ts, Event.event_type).all():
+                key = {"add": "added", "delete": "removed", "update": "changed"}.get(et)
+                if key:
+                    chg.setdefault(ts, {"added": 0, "removed": 0, "changed": 0})[key] = n
         return [{"ts": r.ts, "counts": r.counts, "size": r.size, "api_calls": r.api_calls,
                  "duration_ms": r.duration_ms, "status": r.status, "error": r.error,
-                 "at": r.at.isoformat()} for r in rows]
+                 "at": r.at.isoformat(),
+                 "changes": chg.get(r.ts, {"added": 0, "removed": 0, "changed": 0})}
+                for r in rows]
 
 
 @router.get("/tenants/{tenant_id}/identity/estimate")

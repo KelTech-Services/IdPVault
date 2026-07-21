@@ -30,7 +30,7 @@ async function loadDashboard(){
       <div class="card ${covClass}"><div class="lbl2">Data coverage</div><div class="big">${cov.total? (pct===100?'Excellent':pct+'%') : '-'}</div><div class="sub">${cov.ok}/${cov.total} tenant(s) backed up on schedule</div></div>
       <div class="card"><div class="lbl2">Tenants</div><div class="big">${d.tenants.length}</div><div class="sub">${d.tenants.map(t=>t.provider).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||'none'}</div></div>
       <div class="card ${unbacked>0?'warn':''}" style="cursor:pointer" onclick="toggleUnbacked()"><div class="lbl2">Unbacked config changes</div><div class="big">${unbacked===0?'0':unbacked}</div><div class="sub">since last backup · click for breakdown</div></div>
-      <div class="card"><div class="lbl2">Storage used</div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
+      <div class="card"><div class="lbl2">Storage used <span class="tipi" title="All backups across all tenants - config snapshots, Full-DR database dumps, and Users & Access snapshots">ⓘ</span></div><div class="big">${fmtBytes(d.storage_bytes)}</div><div class="sub">${d.events_7d} change events in 7 days</div></div>`;
     if(!document.getElementById('unbackedpanel').classList.contains('hidden')) renderUnbacked();
     loadCharts();
     loadRenewals();

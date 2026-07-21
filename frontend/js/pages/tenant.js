@@ -426,6 +426,7 @@ async function showSnaps(id, slug){
   window._snapSlug = slug;
   updateSnapButtons();
   loadRestoreHistory(id);
+  loadBackupsCharts(id);
   const sb = document.getElementById('snapbody');
   sb.innerHTML = skelRows(9);
   try {
@@ -791,6 +792,10 @@ async function loadIdentitySnaps(){
   tb.innerHTML = skelRows(9);
   try{
     const s = await api(`/tenants/${_idCtx.tenantId}/identity/snapshots`);
+    _idChartData = s.filter(r => r.status === 'ok').reverse().slice(-30);
+    const chrow = document.getElementById('id_chartrow');
+    if(chrow && _idChartData.length >= 2){ chrow.classList.remove('hidden'); renderIdentityCharts(); }
+    else if(chrow) chrow.classList.add('hidden');
     if(!s.length){ tb.innerHTML=emptyRow(9, EI.users, 'No Users & Access snapshots yet - enable Users & Access backup on the tenant (Edit) and run one.'); return; }
     const asgOf = c => _idCtx.provider === 'authentik'
       ? (c.app_policy_bindings||0)
@@ -1239,11 +1244,15 @@ async function loadTenantCharts(t){
   _tChartData = null; row.classList.add('hidden'); _trendsBtnSync();
   try{
     const snaps = await api(`/tenants/${t.id}/snapshots`);
-    if(snaps.length < 2 || t.id !== currentTenantId) return;
+    let idsnaps = [];
+    if(t.identity_enabled){
+      try{ idsnaps = (await api(`/tenants/${t.id}/identity/snapshots`)).filter(r => r.status === 'ok').reverse().slice(-30); }catch{}
+    }
+    if((snaps.length < 2 && idsnaps.length < 2) || t.id !== currentTenantId) return;
     const last = snaps.slice(-30);
     const changes = await Promise.all(last.map(s => api(`/tenants/${t.id}/snapshots/${s.ts}/changes`).catch(() => null)));
     if(t.id !== currentTenantId) return;
-    _tChartData = {snaps: last, changes};
+    _tChartData = {snaps: last, changes, idsnaps};
     row.classList.remove('hidden');
     renderTenantCharts();
   }catch{}
@@ -1253,47 +1262,162 @@ function _tsShort(ts){
   const d = snapDate(ts); if(!d) return String(ts);
   return (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
 }
+function _chHelpers(){
+  const light = document.documentElement.dataset.theme === 'light';
+  return {
+    G: _cssVar('--green'), R: _cssVar('--red'), A: _cssVar('--amber'),
+    B: _cssVar('--accent'), GD: _cssVar('--gold'),
+    base: { background: 'transparent' },
+    opts: el => ({ dom: el, theme: light ? 'light' : 'dark' }),
+    ax: kind => ([{orient:'left', grid:{visible:false}, tick:{tickCount:4},
+         label:{style:{fontSize:10}, formatMethod: kind === 'mb' ? (v => v + ' MB') : (kind === 's' ? (v => v + 's') : (v => (+v % 1 === 0 ? v : '')))}},
+        {orient:'bottom', label:{style:{fontSize:9}, sampling:true}, tick:{visible:false}}]),
+    grad: c => ({gradient:'linear', x0:0.5, y0:0, x1:0.5, y1:1,
+         stops:[{offset:0, color:c, opacity:0.35},{offset:1, color:c, opacity:0.03}]})
+  };
+}
+function _chRender(VC, specs, opts, store){
+  specs.forEach(([id, spec]) => {
+    const el = document.getElementById(id); if(!el) return;
+    el.innerHTML = '';
+    try { const ch = new VC(spec, opts(el)); ch.renderSync ? ch.renderSync() : ch.render(); store.push(ch); }
+    catch(e){ console.warn('chart', id, e); }
+  });
+}
+function _idTotals(counts){
+  const c = counts || {};
+  return {users: c.users || 0, memberships: c.group_memberships || 0,
+          assignments: (c.app_group_assignments || 0) + (c.app_user_assignments_direct || 0) + (c.app_policy_bindings || 0)};
+}
 function renderTenantCharts(){
   const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
   const row = document.getElementById('t_chartrow');
   if(!VC || !_tChartData || !row || row.classList.contains('hidden')) return;
   _tCharts.forEach(c => { try{ c.release(); }catch{} }); _tCharts = [];
-  const light = document.documentElement.dataset.theme === 'light';
-  const G = _cssVar('--green'), R = _cssVar('--red'), A = _cssVar('--amber'), B = _cssVar('--accent'), GD = _cssVar('--gold');
-  const base = { background: 'transparent' };
-  const opts = el => ({ dom: el, theme: light ? 'light' : 'dark' });
-  const chRows = [], objRows = [], szRows = [];
+  const H = _chHelpers();
+  /* Both backup types merged onto one timeline, sorted by raw timestamp. */
+  const merged = [];
   _tChartData.snaps.forEach((s, i) => {
+    const c = _tChartData.changes[i];
+    merged.push({ts: s.ts, kind: 'config', n: s.objects || 0,
+      mb: Math.round(((s.size || 0) + (s.db_dump_size || 0)) / 1048576 * 100) / 100,
+      c: (c && !c.first) ? c : null});
+  });
+  (_tChartData.idsnaps || []).forEach(r => {
+    const t = _idTotals(r.counts);
+    merged.push({ts: r.ts, kind: 'users & access', n: t.users + t.memberships + t.assignments,
+      mb: Math.round((r.size || 0) / 1048576 * 100) / 100, c: r.changes || null});
+  });
+  merged.sort((a, b) => a.ts < b.ts ? -1 : 1);
+  const chRows = [], objRows = [], szRows = [];
+  merged.forEach(m => {
+    const x = _tsShort(m.ts);
+    objRows.push({ts: x, kind: m.kind, n: m.n});
+    szRows.push({ts: x, kind: m.kind, mb: m.mb});
+    if(m.c) ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: m.c[k] || 0}));
+  });
+  const specs = [
+    ['ch_t_changes', {...H.base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
+      seriesField:'type', stack:true, color:[H.G, H.R, H.A], barMaxWidth:26,
+      bar:{style:{cornerRadius:[3, 3, 0, 0]}},
+      legends:{visible:false}, axes: H.ax('int')}],
+    ['ch_t_objects', {...H.base, type:'line', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
+      seriesField:'kind', invalidType:'link', color:[H.B, H.GD],
+      point:{visible:false}, line:{style:{curveType:'monotone'}},
+      legends:{visible:false}, axes: H.ax('int')}],
+    ['ch_t_size', {...H.base, type:'line', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
+      seriesField:'kind', invalidType:'link', color:[H.B, H.GD],
+      point:{visible:false}, line:{style:{curveType:'monotone'}},
+      legends:{visible:false},
+      tooltip:{mark:{content:[{key: d => d.kind, value: d => d.mb + ' MB'}]}}, axes: H.ax('mb')}],
+  ];
+  _chRender(VC, specs, H.opts, _tCharts);
+}
+/* ---------- Backups page: config-only trend charts ---------- */
+let _bCharts = [], _bChartData = null;
+async function loadBackupsCharts(id){
+  const row = document.getElementById('b_chartrow');
+  if(!row) return;
+  _bChartData = null; row.classList.add('hidden');
+  try{
+    const snaps = await api(`/tenants/${id}/snapshots`);
+    if(snaps.length < 2 || snapTenantId !== id) return;
+    const last = snaps.slice(-30);
+    const changes = await Promise.all(last.map(s => api(`/tenants/${id}/snapshots/${s.ts}/changes`).catch(() => null)));
+    if(snapTenantId !== id) return;
+    _bChartData = {snaps: last, changes};
+    row.classList.remove('hidden');
+    renderBackupsCharts();
+  }catch{}
+}
+function renderBackupsCharts(){
+  const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
+  const row = document.getElementById('b_chartrow');
+  if(!VC || !_bChartData || !row || row.classList.contains('hidden')) return;
+  _bCharts.forEach(c => { try{ c.release(); }catch{} }); _bCharts = [];
+  const H = _chHelpers();
+  const chRows = [], objRows = [], szRows = [];
+  _bChartData.snaps.forEach((s, i) => {
     const x = _tsShort(s.ts);
     objRows.push({ts: x, n: s.objects || 0});
-    szRows.push({ts: x, mb: Math.round(((s.size || 0) + (s.db_dump_size || 0)) / 1048576 * 10) / 10});
-    const c = _tChartData.changes[i];
+    szRows.push({ts: x, mb: Math.round(((s.size || 0) + (s.db_dump_size || 0)) / 1048576 * 100) / 100});
+    const c = _bChartData.changes[i];
     if(c && !c.first) ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: c[k] || 0}));
   });
-  const ax = kind => ([{orient:'left', grid:{visible:false}, tick:{tickCount:4},
-       label:{style:{fontSize:10}, formatMethod: kind === 'mb' ? (v => v + ' MB') : (v => (+v % 1 === 0 ? v : ''))}},
-      {orient:'bottom', label:{style:{fontSize:9}, sampling:true}, tick:{visible:false}}]);
-  const grad = c => ({gradient:'linear', x0:0.5, y0:0, x1:0.5, y1:1,
-       stops:[{offset:0, color:c, opacity:0.35},{offset:1, color:c, opacity:0.03}]});
   const specs = [
-    ['ch_t_changes', {...base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
-      seriesField:'type', stack:true, color:[G, R, A], barMaxWidth:26,
+    ['ch_b_changes', {...H.base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
+      seriesField:'type', stack:true, color:[H.G, H.R, H.A], barMaxWidth:26,
       bar:{style:{cornerRadius:[3, 3, 0, 0]}},
-      legends:{visible:false}, axes: ax('int')}],
-    ['ch_t_objects', {...base, type:'area', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
-      color:[B], point:{visible:false}, line:{style:{curveType:'monotone'}},
-      area:{style:{fill: grad(B)}}, axes: ax('int')}],
-    ['ch_t_size', {...base, type:'area', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
-      color:[GD], point:{visible:false}, line:{style:{curveType:'monotone'}},
-      area:{style:{fill: grad(GD)}},
-      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: ax('mb')}],
+      legends:{visible:false}, axes: H.ax('int')}],
+    ['ch_b_objects', {...H.base, type:'area', data:[{id:'d', values: objRows}], xField:'ts', yField:'n',
+      color:[H.B], point:{visible:false}, line:{style:{curveType:'monotone'}},
+      area:{style:{fill: H.grad(H.B)}}, axes: H.ax('int')}],
+    ['ch_b_size', {...H.base, type:'area', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
+      color:[H.GD], point:{visible:false}, line:{style:{curveType:'monotone'}},
+      area:{style:{fill: H.grad(H.GD)}},
+      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: H.ax('mb')}],
   ];
-  specs.forEach(([id, spec]) => {
-    const el = document.getElementById(id); if(!el) return;
-    el.innerHTML = '';
-    try { const ch = new VC(spec, opts(el)); ch.renderSync ? ch.renderSync() : ch.render(); _tCharts.push(ch); }
-    catch(e){ console.warn('chart', id, e); }
+  _chRender(VC, specs, H.opts, _bCharts);
+}
+/* ---------- Users & Access page: U&A-only trend charts ---------- */
+let _idCharts = [], _idChartData = null;
+function renderIdentityCharts(){
+  const VC = window.VChart && (window.VChart.VChart || window.VChart.default);
+  const row = document.getElementById('id_chartrow');
+  if(!VC || !_idChartData || !row || row.classList.contains('hidden')) return;
+  _idCharts.forEach(c => { try{ c.release(); }catch{} }); _idCharts = [];
+  const H = _chHelpers();
+  const chRows = [], dirRows = [], szRows = [], efRows = [];
+  _idChartData.forEach(r => {
+    const x = _tsShort(r.ts), t = _idTotals(r.counts);
+    dirRows.push({ts: x, kind: 'users', n: t.users});
+    dirRows.push({ts: x, kind: 'memberships', n: t.memberships});
+    dirRows.push({ts: x, kind: 'assignments', n: t.assignments});
+    szRows.push({ts: x, mb: Math.round((r.size || 0) / 1048576 * 100) / 100});
+    efRows.push({ts: x, s: Math.round((r.duration_ms || 0) / 100) / 10, calls: r.api_calls || 0});
+    const c = r.changes || {};
+    ['added','removed','changed'].forEach(k => chRows.push({ts: x, type: k, n: c[k] || 0}));
   });
+  const specs = [
+    ['ch_id_changes', {...H.base, type:'bar', data:[{id:'d', values: chRows}], xField:'ts', yField:'n',
+      seriesField:'type', stack:true, color:[H.G, H.R, H.A], barMaxWidth:26,
+      bar:{style:{cornerRadius:[3, 3, 0, 0]}},
+      legends:{visible:false}, axes: H.ax('int')}],
+    ['ch_id_dir', {...H.base, type:'line', data:[{id:'d', values: dirRows}], xField:'ts', yField:'n',
+      seriesField:'kind', color:[H.B, H.G, H.GD],
+      point:{visible:false}, line:{style:{curveType:'monotone'}},
+      legends:{visible:false}, axes: H.ax('int')}],
+    ['ch_id_size', {...H.base, type:'area', data:[{id:'d', values: szRows}], xField:'ts', yField:'mb',
+      color:[H.GD], point:{visible:false}, line:{style:{curveType:'monotone'}},
+      area:{style:{fill: H.grad(H.GD)}},
+      tooltip:{mark:{content:[{key:'size', value: d => d.mb + ' MB'}]}}, axes: H.ax('mb')}],
+    ['ch_id_effort', {...H.base, type:'bar', data:[{id:'d', values: efRows}], xField:'ts', yField:'s',
+      color:[H.B], barMaxWidth:26, bar:{style:{cornerRadius:[3, 3, 0, 0]}},
+      legends:{visible:false},
+      tooltip:{mark:{content:[{key:'duration', value: d => d.s + 's'}, {key:'API calls', value: d => String(d.calls)}]}},
+      axes: H.ax('s')}],
+  ];
+  _chRender(VC, specs, H.opts, _idCharts);
 }
 
 function exRestoreFromDetail(){

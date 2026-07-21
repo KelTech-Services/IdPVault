@@ -16,6 +16,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   restore apply (off by default).
 - Restore applies now re-verify your password (the same protection as
   deleting backups); wrong attempts are audit-logged.
+- Trend charts everywhere backups live: the tenant Overview charts now cover
+  BOTH backup types on one timeline (config and Users & Access as separate
+  lines in the object and size charts), the Backups page gained the
+  config-only chart row, and the Users & Access page gained four of its own:
+  changes per backup, directory over time (users, memberships, assignments),
+  backup size, and backup duration with API call counts per run.
 - Unbacked Users & Access changes: tenants with Users & Access backup enabled
   get a second card on the tenant Overview counting users, memberships, and
   assignments changed since the latest Users & Access snapshot, with a
@@ -34,11 +40,15 @@ All notable changes to IdPVault are documented here. Format loosely follows
   previews only, and the Users & Access page has its own Restore history with
   Users & Access restores only.
 - Renamed for clarity: the Overview and dashboard drift cards are now
-  "Unbacked config changes", the "Changes per backup" chart is now "Changes
-  per Config backup", and the restore-history badge spells out
+  "Unbacked config changes", the Backups page chart is "Changes per Config
+  backup", and the restore-history badge spells out
   "Users & Access restore".
 - Refresh Users from provider now also refreshes the Unbacked Users & Access
   changes card, at no extra API cost.
+- The dashboard Storage used stat and storage-by-tenant chart now count ALL
+  backups: config snapshots, Full-DR database dumps, and Users & Access
+  snapshots (previously config snapshots only). The backups-per-day chart
+  now includes Users & Access runs.
 ### Fixed
 - Deleting or pruning config snapshots removed the files but left their
   database rows, inflating the dashboard storage stat; pruned Users & Access
