@@ -4,13 +4,10 @@
 <h3>One email per backup</h3>
 <p>Change detection happens during backups, so the backup notification and the change details arrive as <b>one</b> message: "Backup complete - changes detected", with a per-object list ([+] added, [-] removed, [~] changed). No-change backups send a plain success message (if subscribed).</p>
 <h3>Event subscriptions</h3>
-<p>Email and webhook subscriptions are configured separately: each event category can go to admin email, to the webhook, to both, or to neither.</p>
-<table><tr><th>Event</th><th>Fires when</th></tr>
-<tr><td>Changes detected during backup</td><td>a backup finds config changed vs the previous snapshot - the recommended always-on alert; the change list is included in the backup message</td></tr>
-<tr><td>Backup failed</td><td>a scheduled or manual backup errors (credentials, availability)</td></tr>
-<tr><td>Backup succeeded</td><td>every completed backup (noisy; off by default)</td></tr>
-<tr><td>Restore applied</td><td>a config or Users &amp; Access restore writes to a live tenant</td></tr>
-<tr><td>Users &amp; Access changes detected</td><td>a Users &amp; Access backup finds users, memberships, or assignments changed vs the previous snapshot; the change list is included in the backup message</td></tr>
-<tr><td>Users &amp; Access backup succeeded</td><td>every completed Users &amp; Access backup (noisy; off by default)</td></tr>
-<tr><td>Backup overdue</td><td>a daily self-check finds a scheduled tenant with no recent successful backup - the watchdog for silent failures</td></tr></table>
-<p>Tip: subscribe to <i>drift</i> but not <i>backup succeeded</i> and you'll only hear from IdPVault when something actually changed, failed, or was overdue.</p>
+<p>Email and webhook subscriptions are configured separately: each alert type can go to admin email, to the webhook, to both, or to neither.</p>
+<table><tr><th>Alert type</th><th>Covers</th></tr>
+<tr><td>Config Backups</td><td>changes detected during a config backup (change list included in the message), config backup failures, and the daily overdue-backup watchdog</td></tr>
+<tr><td>Users &amp; Access Backups</td><td>users, memberships, or assignments changed vs the previous Users &amp; Access snapshot (change list included), and Users &amp; Access backup failures</td></tr>
+<tr><td>Restores</td><td>a config or Users &amp; Access restore writes to a live tenant</td></tr>
+<tr><td>Successful backups too</td><td>ALSO alert when a backup completes with no changes (noisy; off by default). Applies to whichever backup types are checked above, per channel.</td></tr></table>
+<p>With the defaults you only hear from IdPVault when something actually changed, failed, was restored, or went overdue.</p>

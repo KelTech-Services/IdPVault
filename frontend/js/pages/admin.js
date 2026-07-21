@@ -164,17 +164,38 @@ async function importOrgsFile(inp){
   } catch(e){ toast('Import failed: '+e.message, true); }
 }
 /* ---------- settings ---------- */
-const ALERT_CATALOG = [
-  {key:'drift_detected', label:'Changes detected during backup', when:'a backup finds config changed vs the previous snapshot; the change list is included in the backup message'},
-  {key:'backup_failed',  label:'Backup failed',                when:'a scheduled or manual backup (config or Users & Access) errors'},
-  {key:'backup_success', label:'Backup succeeded',             when:'a backup completes successfully (can be noisy)'},
-  {key:'restore_applied',label:'Restore applied',              when:'a config or Users & Access restore is written to a live tenant'},
-  {key:'identity_drift', label:'Users & Access changes detected', when:'a Users & Access backup finds users, memberships, or assignments changed vs the previous snapshot; the change list is included in the backup message'},
-  {key:'identity_backup_success', label:'Users & Access backup succeeded', when:'a Users & Access backup completes successfully (can be noisy)'},
+// Grouped UI over the backend alert categories. The backend categories are
+// unchanged; each group expands to its category list on save.
+const ALERT_GROUPS = [
+  {key:'cfg',      label:'Config Backups',          when:'changes detected during a config backup (change list included in the message), config backup failures, and the overdue-backup watchdog'},
+  {key:'ua',       label:'Users & Access Backups',  when:'users, memberships, or assignments changed vs the previous Users & Access snapshot (change list included), and Users & Access backup failures'},
+  {key:'restores', label:'Restores',                when:'a config or Users & Access restore is written to a live tenant'},
+  {key:'success',  label:'Successful backups too',  when:'also alert when a backup completes with NO changes (noisy; off by default). Applies to whichever backup types are checked above, for this channel.'},
 ];
+function _alertGroupsFromCats(list){
+  return {cfg: list.includes('drift_detected'),
+          ua: list.includes('identity_drift'),
+          restores: list.includes('restore_applied'),
+          success: list.includes('backup_success') || list.includes('identity_backup_success')};
+}
+function _alertCatsFromGroups(g){
+  const cats = [];
+  if(g.cfg){ cats.push('drift_detected', 'backup_failed', 'backup_stale'); if(g.success) cats.push('backup_success'); }
+  if(g.ua){ cats.push('identity_drift'); if(!cats.includes('backup_failed')) cats.push('backup_failed'); if(g.success) cats.push('identity_backup_success'); }
+  if(g.restores) cats.push('restore_applied');
+  return cats;
+}
+function _alertGroupChecks(id){
+  const g = {};
+  document.querySelectorAll(`#${id} input`).forEach(b => g[b.value] = b.checked);
+  return g;
+}
 function renderAlertEvents(enabledEmail, enabledWebhook){
-  const grp = (id, enabled) => document.getElementById(id).innerHTML = ALERT_CATALOG.map(e =>
-    `<label><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)} <span class="tipi" title="${esc(e.when)}">ⓘ</span></label>`).join('');
+  const grp = (id, cats) => {
+    const g = _alertGroupsFromCats(cats);
+    document.getElementById(id).innerHTML = ALERT_GROUPS.map(e =>
+      `<label><input type="checkbox" value="${e.key}" ${g[e.key]?'checked':''}> ${esc(e.label)} <span class="tipi" title="${esc(e.when)}">ⓘ</span></label>`).join('');
+  };
   grp('s_events_email', enabledEmail);
   grp('s_events_webhook', enabledWebhook);
 }
@@ -294,8 +315,8 @@ async function saveSettings(){
             username: v('s_user'), from_addr: v('s_from') },
     alert_webhook_url: v('s_webhook'),
     alert_webhook_format: v('s_webhookfmt'),
-    alert_events_email: [...document.querySelectorAll('#s_events_email input:checked')].map(c=>c.value),
-    alert_events_webhook: [...document.querySelectorAll('#s_events_webhook input:checked')].map(c=>c.value),
+    alert_events_email: _alertCatsFromGroups(_alertGroupChecks('s_events_email')),
+    alert_events_webhook: _alertCatsFromGroups(_alertGroupChecks('s_events_webhook')),
     default_schedule_cron: schedGet('sd') || '',
     default_identity_schedule_cron: schedGet('si') || '',
     org_timezone: v('s_tz') || 'UTC',

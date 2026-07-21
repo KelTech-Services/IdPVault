@@ -5,11 +5,16 @@ All notable changes to IdPVault are documented here. Format loosely follows
 
 ## [1.2.9] - 2026-07-21
 ### Changed
-- Alert subscriptions are now per channel: separate checkbox lists control
-  which event categories are emailed to admins and which are posted to the
-  webhook (check a category in both lists to get it in both places).
-  Existing installs keep their current behavior - the old single list applies
-  to both channels until the new settings are saved.
+- Alert subscriptions are now per channel AND grouped: for email and for the
+  webhook separately, pick Config Backups (changes, failures, overdue
+  watchdog), Users & Access Backups (changes, failures), Restores, and an
+  optional "Successful backups too" (no-change success alerts, off by
+  default, follows whichever backup types are checked). Existing installs
+  keep their current behavior until the new settings are saved.
+### Fixed
+- The overdue-backup watchdog alert had no Settings checkbox, so saving alert
+  settings silently unsubscribed it. It is now part of the Config Backups
+  group and re-enables on the next settings save.
 
 ## [1.2.8] - 2026-07-20
 ### Added
