@@ -3,6 +3,22 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.18] - 2026-07-21
+### Fixed
+- Clones now match snapshot objects to live target objects by natural key
+  (name/slug) ONLY. The restore plan's hybrid matching tried internal ids
+  first - correct for same-tenant restores (a renamed object still matches
+  its own id), but meaningless across two different instances: uuid pks
+  simply never match, while Authentik's sequential integer provider pks
+  collide, so a snapshot provider could id-match a completely unrelated
+  provider that happened to sit at the same pk number in the target. When
+  the types differed this surfaced as a false "already exists but is a
+  different type" failure (deleting anything by that name could never fix
+  it, because no object with that name existed); when the types matched it
+  could silently overwrite the unrelated provider. Same-tenant restores
+  keep hybrid matching unchanged. A re-run clone self-heals prior
+  mismatches, since every object now pairs strictly by name.
+
 ## [1.2.17] - 2026-07-21
 ### Fixed
 - Authentik: cascade failures now propagate through chains. An object blocked

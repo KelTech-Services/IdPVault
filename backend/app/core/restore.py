@@ -31,7 +31,7 @@ def _selected(selection: dict | None, rtype: str, oid: str) -> bool:
 
 
 def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
-               adapter) -> list[dict]:
+               adapter, id_match: bool = True) -> list[dict]:
     items = []
     for rtype in sorted(snap_export.keys(), key=lambda rt: _order_key(rt, adapter.restore_order)):
         # never_restore types stay VISIBLE when they differ from live (so a deleted
@@ -42,15 +42,23 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
         # HYBRID matching: internal id first (a renamed object still matches its
         # own id), then natural key (a deleted+recreated object with a NEW id
         # matches by slug/name/label — prevents duplicate creates on re-restore).
+        # id_match=False for CLONES: ids from two different instances never
+        # correspond — uuid pks simply miss, but Authentik's sequential integer
+        # provider pks COLLIDE, so the snapshot's "Meridian" (pk 40) would
+        # id-match whatever unrelated provider sits at pk 40 in the target and
+        # the "update" would overwrite it. Cross-tenant matching is by natural
+        # key ONLY.
         from app.providers.base import ProviderAdapter as _Base
         live_list = live_export.get(rtype, [])
-        live_by_id = {_Base.natural_key(adapter, rtype, o): o for o in live_list}
+        live_by_id = ({_Base.natural_key(adapter, rtype, o): o for o in live_list}
+                      if id_match else {})
         live_by_nk = {adapter.natural_key(rtype, o): o for o in live_list}
         for obj in snap_export.get(rtype, []):
             key = adapter.natural_key(rtype, obj)
             if not _selected(selection, rtype, key):
                 continue
-            live = live_by_id.get(_Base.natural_key(adapter, rtype, obj)) or live_by_nk.get(key)
+            live = ((live_by_id.get(_Base.natural_key(adapter, rtype, obj)) if id_match else None)
+                    or live_by_nk.get(key))
             if live is None:
                 action, fields = "create", []
             else:
@@ -105,7 +113,8 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
         adapter.begin_restore(snap, live)   # adapters build id-remap state here
-        plan = build_plan(snap, live, selection, adapter)
+        # Clones match by natural key only - see build_plan's id_match note.
+        plan = build_plan(snap, live, selection, adapter, id_match=(t.id == src.id))
 
         # Real 0-100% progress: the plan tells us exactly how many objects will
         # be written, so the job reports done/total per object instead of a
