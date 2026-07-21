@@ -938,6 +938,8 @@ async function openFulldr(ts){
   document.getElementById('fd_confirm').value = '';
   document.getElementById('fd_pw').value = '';
   document.getElementById('fd_skiprescue').checked = false;
+  document.getElementById('fd_cancelbtn').textContent = 'Cancel';
+  document.getElementById('fd_applybtn').disabled = false;
   document.getElementById('fulldrmodal').classList.remove('hidden');
   try{
     const p = await api(`/tenants/${_fdCtx.tenantId}/fulldr/preflight`,
@@ -980,6 +982,8 @@ async function fulldrApply(){
       + `${Math.round((s.duration_ms||0)/1000)}s. Rescue dump: ${esc(s.rescue||'-')}. `
       + `<b>Now restart the Authentik server and worker containers.</b> Full report in Restore history.`;
     toast('Full-DR restore applied - restart Authentik now.');
+    document.getElementById('fd_applybtn').classList.add('hidden');
+    document.getElementById('fd_cancelbtn').textContent = 'Close';
     loadRestoreHistory(c.tenantId);
   }catch(e){
     st.innerHTML = `<span class="st-failed">Full-DR restore failed: ${esc(e.message)}</span> `
