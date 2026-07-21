@@ -65,6 +65,11 @@ def run_identity_backup(tenant_id: int, job_id: int | None = None) -> dict:
             db.commit()
             log.info("identity backup ok tenant=%s ts=%s calls=%s dur=%sms",
                      t.slug, manifest["timestamp"], calls, dur)
+            try:                     # Overview card: identity drift is now 0
+                from app.core import livestate
+                livestate.note_identity_backup(t.id, manifest["timestamp"])
+            except Exception:
+                log.warning("note_identity_backup failed tenant=%s", t.slug)
             from app.core.alerts import alert_identity_backup_completed
             alert_identity_backup_completed(t.name, manifest["timestamp"],
                                             manifest["counts"], drift)

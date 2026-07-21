@@ -91,6 +91,8 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
         key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, key).decode()
         slug, provider, base_url = t.slug, t.provider, t.base_url
+        identity_on = bool(t.identity_enabled)
+        prev_identity = (st.summary or {}).get("identity") if st is not None else None
 
     snaps = storage.list_snapshots(slug)
     latest = snaps[-1] if snaps else None
@@ -103,6 +105,8 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
             summary = {"source": "snapshot", "latest_snapshot": latest,
                        "counts": m.get("counts") or {}, "categories": {},
                        "drift": {"added": 0, "removed": 0, "changed": 0}}
+            summary["identity"] = _identity_section(
+                slug, provider, base_url, creds, key, identity_on, prev_identity, force)
             _store(tenant_id, now, summary)
             return summary
 
@@ -123,10 +127,78 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
             "added": sum(len(x["added"]) for x in d.values()),
             "removed": sum(len(x["removed"]) for x in d.values()),
             "changed": sum(len(x["changed"]) for x in d.values())}
+    summary["identity"] = _identity_section(
+        slug, provider, base_url, creds, key, identity_on, prev_identity, force)
     _store(tenant_id, datetime.now(timezone.utc), summary)
     log.info("live-state poll tenant=%s source=%s drift=%s", slug,
              summary["source"], summary.get("drift"))
     return summary
+
+
+def _identity_section(slug: str, provider: str, base_url: str, creds: str,
+                      key: bytes, identity_on: bool, prev: dict | None,
+                      force: bool) -> dict | None:
+    """Users & Access drift vs the latest Users & Access snapshot. Identity is
+    the rate-limited API surface (Okta rate limits, Auth0 export caps), so this
+    refreshes on the SLOWER users-cache cadence (`state_users_cache_minutes`,
+    default 60), never the 15-minute config sweep. Shortcuts, in order: feature
+    off/unlicensed -> None (card hidden); recent Users & Access backup -> drift
+    is 0 by definition, no provider hit; cached section still fresh -> reuse it.
+    On a live-fetch failure the previous section is kept rather than erased."""
+    from app.core import storage
+    from app.core import license as lic
+    if not identity_on or not lic.has_feature("identity"):
+        return None
+    now = datetime.now(timezone.utc)
+    snaps = storage.list_identity_snapshots(slug)
+    latest = snaps[-1] if snaps else None
+    if latest is None:
+        return {"latest_snapshot": None, "source": "none", "drift": None,
+                "checked_at": now.isoformat()}
+    ttl_s = _users_cache_ttl_s()
+    dt = _snap_dt(latest)
+    if not force and dt is not None and (now - dt).total_seconds() < ttl_s:
+        return {"latest_snapshot": latest, "source": "snapshot",
+                "checked_at": now.isoformat(),
+                "drift": {"added": 0, "removed": 0, "changed": 0}}
+    if not force and prev and prev.get("checked_at"):
+        try:
+            age = (now - datetime.fromisoformat(prev["checked_at"])).total_seconds()
+            if age < ttl_s:
+                return prev
+        except (ValueError, TypeError):
+            pass
+    try:
+        from app.core.identity import diff_identities
+        from app.providers import get_adapter
+        live = get_adapter(provider, base_url, creds).export_identities()
+        base = storage.read_identities(slug, latest, key)
+        d = diff_identities(base, live) or {}
+        return {"latest_snapshot": latest, "source": "live",
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "drift": {"added": sum(len(x.get("added") or []) for x in d.values()),
+                          "removed": sum(len(x.get("removed") or []) for x in d.values()),
+                          "changed": sum(len(x.get("changed") or []) for x in d.values())}}
+    except Exception:
+        log.warning("identity live-state check failed tenant=%s", slug, exc_info=True)
+        return prev
+
+
+def note_identity_backup(tenant_id: int, ts: str) -> None:
+    """A Users & Access backup just captured live identity state, so identity
+    drift is zero by definition. Patch the cached section immediately - the
+    Overview card reflects the backup without waiting for the next sweep."""
+    from app.models.db import SessionLocal, TenantState
+    with SessionLocal() as db:
+        st = db.get(TenantState, tenant_id)
+        if st is None or not st.summary:
+            return  # no cached summary yet; the next sweep builds one
+        s = dict(st.summary)
+        s["identity"] = {"latest_snapshot": ts, "source": "snapshot",
+                         "checked_at": datetime.now(timezone.utc).isoformat(),
+                         "drift": {"added": 0, "removed": 0, "changed": 0}}
+        st.summary = s
+        db.commit()
 
 
 def note_backup(tenant_id: int, manifest: dict) -> None:
@@ -136,6 +208,11 @@ def note_backup(tenant_id: int, manifest: dict) -> None:
     summary = {"source": "snapshot", "latest_snapshot": manifest.get("timestamp"),
                "counts": manifest.get("counts") or {}, "categories": {},
                "drift": {"added": 0, "removed": 0, "changed": 0}}
+    from app.models.db import SessionLocal, TenantState
+    with SessionLocal() as db:      # carry the identity section over unchanged
+        st = db.get(TenantState, tenant_id)
+        if st is not None and st.summary and st.summary.get("identity"):
+            summary["identity"] = st.summary["identity"]
     _store(tenant_id, datetime.now(timezone.utc), summary)
 
 

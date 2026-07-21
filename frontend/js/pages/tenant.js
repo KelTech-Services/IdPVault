@@ -51,12 +51,22 @@ function renderTenantOverviewView(t, state, dash){
   const checked = ok && state.checked_at ? new Date(state.checked_at) : null;
   const ago = checked ? Math.max(0, Math.round((Date.now() - checked.getTime()) / 60000)) : null;
   const agoTxt = ago == null ? '' : (ago === 0 ? 'just now' : ago + 'm ago');
+  const idSec = ok ? state.identity : null;
+  const idDrift = idSec && idSec.drift ? (idSec.drift.added + idSec.drift.removed + idSec.drift.changed) : null;
+  const idChecked = idSec && idSec.checked_at ? new Date(idSec.checked_at) : null;
+  const idAgo = idChecked ? Math.max(0, Math.round((Date.now() - idChecked.getTime()) / 60000)) : null;
+  const idAgoTxt = idAgo == null ? '' : (idAgo === 0 ? 'just now' : idAgo + 'm ago');
+  const idSub = !idSec ? '' : (idSec.latest_snapshot == null
+    ? 'run a Users &amp; Access backup first'
+    : 'vs latest Users &amp; Access backup · checked ' + idAgoTxt);
   cards.innerHTML = `
     <div class="stat"><span class="sl">Backup health</span><span class="sv" style="color:${inactive ? 'var(--red)' : issues.length ? 'var(--amber)' : 'var(--green)'}">${inactive ? 'Paused' : issues.length ? 'Attention' : 'Excellent'}</span><span class="ss">${issues.length ? esc(issues.join(' · ')) : 'scheduled and running clean'}</span></div>
     <div class="stat"><span class="sl">Schedule</span><span class="sv">${esc(cronLabel(t.schedule_cron))}</span><span class="ss">keep ${t.retention_keep} snapshots</span></div>
     <div class="stat"><span class="sl">Last backup</span><span class="sv">${lastRun ? fmtSnapDay(lastRun.ts) : 'never'}</span><span class="ss">${lastRun && lastRun.status !== 'ok' ? '<span class="st-failed">' + esc(lastRun.status) + '</span>' : lastRun ? 'completed ok' : 'run one to get protected'}</span></div>
-    <div class="stat last" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/changes'" title="Open the Changes page - investigate what changed vs the latest backup"><span class="sl">Unbacked changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
-    ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup config now</button></span>` : ''}`;
+    <div class="stat${idSec ? '' : ' last'}" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/changes'" title="Open the Changes page - investigate what changed vs the latest backup"><span class="sl">Unbacked config changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${drift ? 'var(--amber)' : 'inherit'}">${drift == null ? '-' : drift}</span><span class="ss">${checked ? 'vs latest backup · checked ' + agoTxt : 'awaiting first live check'}</span></div>
+    ${idSec ? `<div class="stat last" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/identity'" title="Open the Users &amp; Access page - users, memberships, and assignments changed since the latest Users &amp; Access backup"><span class="sl">Unbacked Users &amp; Access changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${idDrift ? 'var(--amber)' : 'inherit'}">${idDrift == null ? '-' : idDrift}</span><span class="ss">${idSub}</span></div>` : ''}
+    ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup config now</button></span>` : ''}
+    ${idDrift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="identityBackupNowOv(${t.id}, this)">Backup Users &amp; Access now</button></span>` : ''}`;
   body.innerHTML = inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '';
 }
 async function overviewRefresh(){
@@ -242,6 +252,26 @@ async function backupNow(id, btn){
   } catch(e){ toast('Backup failed: '+e.message, true); }
   btn.disabled = false; btn.textContent = 'Backup config now';
 }
+async function identityBackupNowOv(id, btn){
+  /* Overview-card variant of identityBackupNow: no _idCtx / U&A page elements. */
+  btn.disabled = true; btn.textContent = 'Queued…';
+  try {
+    const q = await api(`/tenants/${id}/identity/backup`, {method:'POST'});
+    const j = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status !== 'running') return;
+      const pct = jobPct(jj);
+      btn.textContent = 'Backing up…' + (pct != null ? ' ' + pct + '%' : '');
+    });
+    const res = j.result || {};
+    if(res.skipped === 'license') throw new Error('requires a paid license');
+    toast(`Users & Access backup done - ${res.api_calls} API calls in ${Math.round((res.duration_ms||0)/1000)}s.`);
+    const bt = _tenants.find(x => x.id === id);
+    if(bt && currentTenantId === id && location.hash.endsWith('/overview')) renderTenantOverview(bt);
+  } catch(e){
+    toast('Users & Access backup failed: '+e.message, true);
+    btn.disabled = false; btn.textContent = 'Backup Users & Access now';
+  }
+}
 async function deleteFromForm(){
   const t = _tenants.find(x=>x.id===editingId); if(!t) return;
   if(!confirm(`Delete tenant "${t.name}"? Snapshots on disk are kept.`)) return;
@@ -259,7 +289,7 @@ async function deleteFromForm(){
 /* ---------- restore history (item f: viewer over the RestoreRun audit trail) ---------- */
 const RH_MODE = {dry_run: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">config preview</span>',
                  apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">config restore</span>',
-                 identity_apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">U&amp;A restore</span>'};
+                 identity_apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">Users &amp; Access restore</span>'};
 function rhSummary(r){
   const s = r.summary || {};
   if(r.mode === 'identity_apply'){

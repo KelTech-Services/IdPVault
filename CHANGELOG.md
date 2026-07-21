@@ -16,6 +16,13 @@ All notable changes to IdPVault are documented here. Format loosely follows
   restore apply (off by default).
 - Restore applies now re-verify your password (the same protection as
   deleting backups); wrong attempts are audit-logged.
+- Unbacked Users & Access changes: tenants with Users & Access backup enabled
+  get a second card on the tenant Overview counting users, memberships, and
+  assignments changed since the latest Users & Access snapshot, with a
+  Backup Users & Access now button when something is pending. The check runs
+  on the Live State users cache cadence (default 60 minutes) to respect
+  provider rate limits, and skips the provider entirely right after a
+  Users & Access backup.
 ### Changed
 - Alert subscriptions are now per channel AND grouped: for email and for the
   webhook separately, pick Config Backups (changes, failures, overdue
@@ -23,6 +30,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   optional "Successful backups too" (no-change success alerts, off by
   default, follows whichever backup types are checked). Existing installs
   keep their current behavior until the new settings are saved.
+- Restore history is now per page: the Backups page shows config restores and
+  previews only, and the Users & Access page has its own Restore history with
+  Users & Access restores only.
+- Renamed for clarity: the Overview and dashboard drift cards are now
+  "Unbacked config changes", and the restore-history badge spells out
+  "Users & Access restore".
 ### Fixed
 - The overdue-backup watchdog alert had no Settings checkbox, so saving alert
   settings silently unsubscribed it. It is now part of the Config Backups
