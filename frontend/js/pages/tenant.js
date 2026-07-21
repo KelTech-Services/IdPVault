@@ -1382,6 +1382,11 @@ async function overviewRefreshUsers(){
     await api(`/tenants/${_ex.tenantId}/live/users/refresh`, {method:'POST'});
     if(_ex.cat === 'users') await exLoadObjects();
     else await exLoadCats();
+    const t = _tenants.find(x => x.id === _ex.tenantId);   // the refresh also updated the U&A drift card
+    if(t && currentTenantId === t.id && location.hash.endsWith('/overview')){
+      const state = await api(`/tenants/${t.id}/state/summary`).catch(() => null);
+      if(state){ window._ovState = state; renderTenantOverviewView(t, state, await api('/dashboard/summary').catch(() => null)); }
+    }
   }catch(e){ toast(e.message, true); }
   btn.disabled = false; btn.innerHTML = old;
 }

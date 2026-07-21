@@ -39,6 +39,8 @@ async def lifespan(app: FastAPI):
     bootstrap_admin()
     from app.core.jobs import recover_stale
     recover_stale()   # jobs orphaned by a previous process must not show as running
+    from app.core.scheduler import reconcile_snapshot_rows
+    reconcile_snapshot_rows()   # drop DB rows for snapshots no longer on disk
     scheduler.start()
     load_tenant_jobs()
     yield

@@ -289,8 +289,14 @@ def live_users(tenant_id: int, request: Request, q: str | None = None,
 
 @router.post("/tenants/{tenant_id}/live/users/refresh")
 def live_users_refresh(tenant_id: int, request: Request) -> dict:
-    """Manual 'Refresh Users from provider' (debounced server-side)."""
+    """Manual 'Refresh Users from provider' (debounced server-side). Also
+    recomputes the Unbacked Users & Access changes card from the fresh data."""
+    from app.core import livestate
     live, _snap, _latest = _users_pair(tenant_id, request, force=True)
+    try:
+        livestate.refresh_identity_section(tenant_id)
+    except Exception:
+        pass   # card refresh is best-effort; the directory refresh succeeded
     return {"ok": True, "count": len(live.get("users", []))}
 
 

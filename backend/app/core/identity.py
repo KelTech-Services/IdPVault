@@ -61,7 +61,12 @@ def run_identity_backup(tenant_id: int, job_id: int | None = None) -> dict:
                                     counts=manifest["counts"], size=manifest["size_encrypted"],
                                     api_calls=calls, duration_ms=dur, status="ok"))
             if t.identity_retention_keep:
-                storage.prune_identities(t.slug, t.identity_retention_keep)
+                pruned = storage.prune_identities(t.slug, t.identity_retention_keep)
+                if pruned:   # keep DB rows in step with disk (the UI lists rows)
+                    db.query(IdentitySnapshot).filter(
+                        IdentitySnapshot.tenant_id == t.id,
+                        IdentitySnapshot.ts.in_(pruned),
+                        IdentitySnapshot.status == "ok").delete()
             db.commit()
             log.info("identity backup ok tenant=%s ts=%s calls=%s dur=%sms",
                      t.slug, manifest["timestamp"], calls, dur)

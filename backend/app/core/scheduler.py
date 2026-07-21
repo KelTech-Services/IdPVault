@@ -42,6 +42,31 @@ def cron_trigger(expr: str) -> CronTrigger:
     return CronTrigger.from_crontab(expr, timezone=org_timezone())
 
 
+def reconcile_snapshot_rows() -> None:
+    """Boot reconcile: drop Snapshot / IdentitySnapshot DB rows whose files are
+    no longer on disk. Deletes and prunes were disk-only before v1.2.9, so
+    long-lived installs carry orphaned rows that inflate the dashboard storage
+    stat and list unrestorable Users & Access snapshots. Failed identity rows
+    are kept - they never had files and are wanted history."""
+    from app.models.db import IdentitySnapshot, SessionLocal, Snapshot, Tenant
+    removed = 0
+    with SessionLocal() as db:
+        for t in db.query(Tenant).all():
+            disk = set(storage.list_snapshots(t.slug))
+            for r in db.query(Snapshot).filter(Snapshot.tenant_id == t.id).all():
+                if r.ts not in disk:
+                    db.delete(r); removed += 1
+            idisk = set(storage.list_identity_snapshots(t.slug))
+            for r in db.query(IdentitySnapshot).filter(
+                    IdentitySnapshot.tenant_id == t.id,
+                    IdentitySnapshot.status == "ok").all():
+                if r.ts not in idisk:
+                    db.delete(r); removed += 1
+        db.commit()
+    if removed:
+        log.info("reconciled %s orphaned snapshot row(s) against disk", removed)
+
+
 def load_tenant_jobs() -> None:
     """(Re-)register cron backup jobs for all tenants with a schedule set.
     Safe to call again after settings changes (replace_existing)."""
@@ -131,7 +156,10 @@ def run_backup(tenant_id: int, trigger: str = "scheduled", job_id: int | None = 
                              trigger=trigger,
                              duration_ms=int((time.monotonic() - started) * 1000)))
             if t.retention_keep:
-                storage.prune(t.slug, t.retention_keep)
+                pruned = storage.prune(t.slug, t.retention_keep)
+                if pruned:   # keep DB rows in step with disk
+                    db.query(Snapshot).filter(Snapshot.tenant_id == t.id,
+                                              Snapshot.ts.in_(pruned)).delete()
             db.commit()
             log.info("backup done tenant=%s ts=%s drift=%s", t.slug, manifest["timestamp"], bool(drift))
             try:

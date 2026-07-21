@@ -184,6 +184,47 @@ def _identity_section(slug: str, provider: str, base_url: str, creds: str,
         return prev
 
 
+def refresh_identity_section(tenant_id: int) -> dict | None:
+    """Recompute the Users & Access drift section from the warm live-identity
+    cache (call right after get_live_identity) and patch it into tenant_state,
+    so a manual Refresh Users also updates the Overview card at no extra API
+    cost. Returns the new section, or None when there is nothing to compute."""
+    from app.core import crypto, storage
+    from app.core.identity import diff_identities
+    from app.models.db import SessionLocal, Tenant, TenantState
+    live = live_identity_cached(tenant_id)
+    if live is None:
+        return None
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None or not t.identity_enabled:
+            return None
+        key = crypto.unwrap_data_key(t.wrapped_data_key)
+        slug = t.slug
+    snaps = storage.list_identity_snapshots(slug)
+    if not snaps:
+        return None
+    try:
+        base = storage.read_identities(slug, snaps[-1], key)
+        d = diff_identities(base, live) or {}
+    except Exception:
+        log.warning("identity section refresh failed tenant=%s", slug, exc_info=True)
+        return None
+    section = {"latest_snapshot": snaps[-1], "source": "live",
+               "checked_at": datetime.now(timezone.utc).isoformat(),
+               "drift": {"added": sum(len(x.get("added") or []) for x in d.values()),
+                         "removed": sum(len(x.get("removed") or []) for x in d.values()),
+                         "changed": sum(len(x.get("changed") or []) for x in d.values())}}
+    with SessionLocal() as db:
+        st = db.get(TenantState, tenant_id)
+        if st is not None and st.summary:
+            s = dict(st.summary)
+            s["identity"] = section
+            st.summary = s
+            db.commit()
+    return section
+
+
 def note_identity_backup(tenant_id: int, ts: str) -> None:
     """A Users & Access backup just captured live identity state, so identity
     drift is zero by definition. Patch the cached section immediately - the

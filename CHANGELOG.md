@@ -34,9 +34,17 @@ All notable changes to IdPVault are documented here. Format loosely follows
   previews only, and the Users & Access page has its own Restore history with
   Users & Access restores only.
 - Renamed for clarity: the Overview and dashboard drift cards are now
-  "Unbacked config changes", and the restore-history badge spells out
+  "Unbacked config changes", the "Changes per backup" chart is now "Changes
+  per Config backup", and the restore-history badge spells out
   "Users & Access restore".
+- Refresh Users from provider now also refreshes the Unbacked Users & Access
+  changes card, at no extra API cost.
 ### Fixed
+- Deleting or pruning config snapshots removed the files but left their
+  database rows, inflating the dashboard storage stat; pruned Users & Access
+  snapshots likewise stayed listed even though they were no longer
+  restorable. Delete and retention pruning now clean up the rows, and a boot
+  reconcile removes rows orphaned by earlier versions.
 - The overdue-backup watchdog alert had no Settings checkbox, so saving alert
   settings silently unsubscribed it. It is now part of the Config Backups
   group and re-enables on the next settings save.

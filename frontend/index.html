@@ -114,7 +114,7 @@
 <main id="view-t-overview" class="hidden">
   <section class="statusbar" id="t_overview_cards"></section>
   <section class="chartgrid hidden" id="t_chartrow">
-    <div class="card"><div class="lbl2">Changes per backup <span class="tipi" title="Objects added, removed, and changed in each backup compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_t_changes"></div></div>
+    <div class="card"><div class="lbl2">Changes per Config backup <span class="tipi" title="Objects added, removed, and changed in each config backup compared with the backup before it">ⓘ</span><span class="spacer"></span><span class="leg"><i class="legsw" style="background:var(--green)"></i>added <i class="legsw" style="background:var(--red)"></i>removed <i class="legsw" style="background:var(--amber)"></i>changed</span></div><div class="chart" id="ch_t_changes"></div></div>
     <div class="card"><div class="lbl2">Objects over time <span class="tipi" title="Total configuration objects captured in each backup - a sudden drop can mean something was deleted">ⓘ</span></div><div class="chart" id="ch_t_objects"></div></div>
     <div class="card"><div class="lbl2">Backup size <span class="tipi" title="Total size of each backup in MB (encrypted snapshot plus the Full-DR database dump when enabled)">ⓘ</span></div><div class="chart" id="ch_t_size"></div></div>
   </section>
@@ -123,7 +123,7 @@
       <input id="lv_search" placeholder="search everything…" style="width:230px" oninput="clearTimeout(window._lvs); window._lvs=setTimeout(liveSearch, 350)">
       <button id="t_ov_trends" onclick="ovToggleCharts()" title="Trend charts: changes per backup, object counts, backup size">Show Trends <span class="tipi">ⓘ</span></button>
       <button id="t_ov_refresh" onclick="overviewRefresh()" title="Query the provider now and compare current configuration against the latest backup">Refresh Config from provider <span class="tipi">ⓘ</span></button>
-      <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider <span class="tipi">ⓘ</span></button></h2>
+      <button id="t_ov_refreshu" class="hidden" onclick="overviewRefreshUsers()" title="Query the provider's user directory now and compare it against the latest Users &amp; Access backup. Also refreshes the Unbacked Users &amp; Access changes card. Large user lists can take a while - user APIs are fetched carefully to respect provider rate limits.">Refresh Users from provider <span class="tipi">ⓘ</span></button></h2>
     <div class="mdlayout">
       <div class="mdrail" id="ex_cats"><div class="empty">Loading…</div></div>
       <div class="mdpane">

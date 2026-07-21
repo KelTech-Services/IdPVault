@@ -142,6 +142,10 @@ def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn, request: Request) -
         doomed = [ts for ts in body.timestamps if ts in existing]
         for ts in doomed:
             storage.delete_snapshot(slug, ts)
+        if doomed:   # keep the DB rows in step with disk (storage stats read them)
+            from app.models.db import Snapshot
+            db.query(Snapshot).filter(Snapshot.tenant_id == tenant_id,
+                                      Snapshot.ts.in_(doomed)).delete()
         db.add(AuditLog(action="tenant.snapshots_delete",
                         detail={"slug": slug, "count": len(doomed),
                                 "timestamps": doomed[:20]}))
