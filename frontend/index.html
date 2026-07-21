@@ -81,28 +81,48 @@
     <h2>Tenants <span class="spacer"></span><button id="addtenantbtn" class="primary adminonly" onclick="toggleAdd()">+ Add tenant</button></h2>
     <div id="fleet_formhost">
     <div id="addform" class="hidden">
-      <p id="formtitle" class="muted" style="margin-bottom:10px;font-size:.8rem"></p>
-      <div class="formgrid">
-        <div><label>Provider</label><select id="f_provider" onchange="onProviderChange()"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
-        <div><label>Name</label><input id="f_name" placeholder="Acme Authentik"></div>
-        <div><label>Slug</label><input id="f_slug" placeholder="acme-authentik"></div>
-        <div><label>Base URL</label><input id="f_url" placeholder="https://auth.acme.com"></div>
-        <div id="fd_org" class="hidden"><label>Client org (MSP)</label><select id="f_org"></select></div>
-        <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
-        <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
-        <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
-        <div><label>Backup schedule</label><div id="sched_fs"></div></div>
-        <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
-        <div id="fd_dburl" style="grid-column:span 2"><label>Full-DR Postgres URL (optional - self-hosted Authentik only) <span class="tipi" title="Full-DR stores a complete database dump with every config snapshot. Dumps can be large even for small instances (the database includes Authentik's event logs) - keep your retention count in mind, since each retained snapshot keeps its dump.">ⓘ</span></label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
-        <div id="fd_dbevents"><label>Full-DR event and session data <span class="tipi" title="Applies to the Full-DR dump only. Excluded skips the rows of ephemeral and history tables (login sessions, background task logs, event history), which shrinks dumps dramatically. The tables stay in the dump so restores boot clean - users sign in again after a full-DR restore, and historical events are not included.">ⓘ</span></label><select id="f_dbevents"><option value="false">Included (complete database)</option><option value="true">Excluded (much smaller dumps)</option></select></div>
-        <div id="fd_ident"><label>Users &amp; Access backup <span class="tipi" title="Backs up users, group memberships, and app assignments">ⓘ</span></label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select><div id="f_ident_note" class="hidden" style="font-size:12px;opacity:.7;margin-top:4px">Requires a Business or MSP license (Administration &gt; License)</div></div>
-        <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
-        <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
+      <p id="formtitle" class="muted" style="margin-bottom:4px;font-size:.8rem"></p>
+      <div class="setsec">
+        <div><div class="sst">Connection</div><div class="ssd">Which IdP this tenant is, where it lives, and how IdPVault authenticates to it. Credentials are encrypted at rest and never shown again after saving.</div></div>
+        <div class="formgrid">
+          <div><label>Provider</label><select id="f_provider" onchange="onProviderChange()"><option value="authentik">Authentik</option><option value="okta">Okta</option><option value="auth0">Auth0</option></select></div>
+          <div><label>Name</label><input id="f_name" placeholder="Acme Authentik"></div>
+          <div><label>Slug</label><input id="f_slug" placeholder="acme-authentik"></div>
+          <div><label>Base URL</label><input id="f_url" placeholder="https://auth.acme.com"></div>
+          <div id="fd_org" class="hidden"><label>Client org (MSP)</label><select id="f_org"></select></div>
+          <div id="fd_token"><label>API token</label><input id="f_token" type="password" placeholder="paste token - encrypted at rest"></div>
+          <div id="fd_clientid" class="hidden"><label>Client ID</label><input id="f_clientid" placeholder="Auth0 M2M application Client ID"></div>
+          <div id="fd_clientsecret" class="hidden"><label>Client Secret</label><input id="f_clientsecret" type="password" placeholder="Auth0 M2M application Client Secret"></div>
+        </div>
       </div>
-      <p class="muted" style="font-size:.76rem;margin:2px 0 10px">Schedules run in the org timezone (Administration &gt; System settings). Backups queue and run one at a time - same-tenant runs never overlap.</p>
-      <button class="primary" onclick="saveTenant()">Save tenant</button>
-      <button onclick="cancelTenantForm()">Cancel</button>
-      <button id="f_delete" class="hidden" onclick="deleteFromForm()">Delete tenant</button>
+      <div class="setsec">
+        <div><div class="sst">Config backup</div><div class="ssd">Automatic configuration snapshots - the backbone of drift detection and restore. Schedules run in the org timezone (Administration &gt; System settings); backups queue and run one at a time, and same-tenant runs never overlap.</div></div>
+        <div class="formgrid">
+          <div><label>Backup schedule</label><div id="sched_fs"></div></div>
+          <div><label>Retention (snapshots to keep)</label><input id="f_keep" type="number" value="30"></div>
+        </div>
+      </div>
+      <div class="setsec" id="sec_dr">
+        <div><div class="sst">Full-DR</div><div class="ssd">Optional, self-hosted Authentik only: store a complete encrypted database dump alongside every config snapshot for full disaster recovery. Dumps can be large - each retained snapshot keeps its dump.</div></div>
+        <div class="formgrid">
+          <div style="grid-column:span 2"><label>Full-DR Postgres URL <span class="tipi" title="Full-DR stores a complete database dump with every config snapshot. Dumps can be large even for small instances (the database includes Authentik's event logs) - keep your retention count in mind, since each retained snapshot keeps its dump.">ⓘ</span></label><input id="f_dburl" type="password" placeholder="postgresql://user:pass@host:5432/authentik - leave blank to skip"></div>
+          <div id="fd_dbevents"><label>Event and session data <span class="tipi" title="Applies to the Full-DR dump only. Excluded skips the rows of ephemeral and history tables (login sessions, background task logs, event history), which shrinks dumps dramatically. The tables stay in the dump so restores boot clean - users sign in again after a full-DR restore, and historical events are not included.">ⓘ</span></label><select id="f_dbevents"><option value="false">Included (complete database)</option><option value="true">Excluded (much smaller dumps)</option></select></div>
+        </div>
+      </div>
+      <div class="setsec" id="sec_ua">
+        <div><div class="sst">Users &amp; Access</div><div class="ssd">Backs up users, group memberships, and app assignments on its own schedule, with drift detection and restore. Requires a Business or MSP license.</div></div>
+        <div class="formgrid">
+          <div id="fd_ident"><label>Users &amp; Access backup <span class="tipi" title="Backs up users, group memberships, and app assignments">ⓘ</span></label><select id="f_ident"><option value="false">Disabled</option><option value="true">Enabled</option></select><div id="f_ident_note" class="hidden" style="font-size:12px;opacity:.7;margin-top:4px">Requires a Business or MSP license (Administration &gt; License)</div></div>
+          <div id="fd_identcron"><label>Users &amp; Access schedule</label><div id="sched_fi"></div></div>
+          <div id="fd_identkeep"><label>Users &amp; Access retention (keep)</label><input id="f_identkeep" type="number" value="14"></div>
+        </div>
+      </div>
+      <div class="setfoot">
+        <button class="primary" onclick="saveTenant()">Save tenant</button>
+        <button onclick="cancelTenantForm()">Cancel</button>
+        <span class="spacer"></span>
+        <button id="f_delete" class="hidden" onclick="deleteFromForm()">Delete tenant</button>
+      </div>
     </div>
     </div>
     <table>
@@ -414,58 +434,86 @@
 </main>
 <main id="view-settings" class="hidden">
   <section class="panel">
-    <h2>Core - security &amp; operations</h2>
-    <div class="formgrid">
-      <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
-      <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
-      <div><label>Org timezone (schedules run in this timezone)</label><select id="s_tz"></select></div>
-      <div><label>Default retention (snapshots)</label><input id="s_defkeep" type="number" placeholder="30"></div>
-      <div><label>Default backup schedule</label><div id="sched_sd"></div></div>
-      <div><label>Default Users &amp; Access schedule</label><div id="sched_si"></div></div>
-      <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
-      <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
-      <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
-      <div><label>Require a justification to apply a restore <span class="tipi" title="When on, every restore apply (config and Users &amp; Access) must include a justification - recorded in restore history and included in the Restores alert.">ⓘ</span></label><select id="s_reqnote"><option value="false">Off</option><option value="true">Required</option></select></div>
-      <div><label>Live view refresh interval (minutes, 0 = off) <span class="tipi" title="How often each tenant's live config is compared against its latest backup. Powers the Unbacked config changes card on the tenant Overview.">ⓘ</span></label><input id="s_statemin" type="number" placeholder="15"></div>
-      <div><label>Live State users cache (minutes) <span class="tipi" title="How long the live user directory stays cached before opening Users fetches fresh data from the provider. Refresh Users from provider always bypasses this cache. Also sets how often the Unbacked Users & Access changes card on the tenant Overview refreshes. Minimum 5.">ⓘ</span></label><input id="s_userscache" type="number" placeholder="60"></div>
-      <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
-      <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+    <h2>General</h2>
+    <div class="setsec">
+      <div><div class="sst">Backup defaults</div><div class="ssd">Applied to new tenants - each tenant can override its own schedule and retention. Schedules run in the org timezone. Backups queue and run one at a time; same-tenant runs never overlap.</div></div>
+      <div class="formgrid">
+        <div><label>Default backup schedule</label><div id="sched_sd"></div></div>
+        <div><label>Default Users &amp; Access schedule</label><div id="sched_si"></div></div>
+        <div><label>Default retention (snapshots)</label><input id="s_defkeep" type="number" placeholder="30"></div>
+        <div><label>Org timezone</label><select id="s_tz"></select></div>
+      </div>
     </div>
-    <p class="muted" style="font-size:.78rem;margin:-2px 0 16px">Set Public URL to your real address (behind a reverse proxy). Only enable Enforce host after confirming the URL works - otherwise you can lock yourself out. Backups queue and run one at a time - same-tenant runs never overlap.</p>
-    <button class="primary" onclick="saveSettings()">Save settings</button>
+    <div class="setsec">
+      <div><div class="sst">Live State</div><div class="ssd">How often IdPVault compares live provider state against the latest backups - powers the Unbacked changes cards and the Live State panel on each tenant's Overview.</div></div>
+      <div class="formgrid">
+        <div><label>Live view refresh interval (minutes, 0 = off) <span class="tipi" title="How often each tenant's live config is compared against its latest backup. Powers the Unbacked config changes card on the tenant Overview.">ⓘ</span></label><input id="s_statemin" type="number" placeholder="15"></div>
+        <div><label>Live State users cache (minutes) <span class="tipi" title="How long the live user directory stays cached before opening Users fetches fresh data from the provider. Refresh Users from provider always bypasses this cache. Also sets how often the Unbacked Users & Access changes card on the tenant Overview refreshes. Minimum 5.">ⓘ</span></label><input id="s_userscache" type="number" placeholder="60"></div>
+        <div><label>Okta rate-limit reserve % (headroom)</label><input id="s_reserve" type="number" placeholder="20"></div>
+      </div>
+    </div>
+    <div class="setsec">
+      <div><div class="sst">Security &amp; login</div><div class="ssd">Sign-in protection for IdPVault app users, and extra gates on destructive actions.</div></div>
+      <div class="formgrid">
+        <div><label>MFA trusted-device lifetime (days, 0 = always prompt)</label><input id="s_mfadays" type="number" placeholder="0"></div>
+        <div><label>Require a justification to apply a restore <span class="tipi" title="When on, every restore apply (config and Users &amp; Access) must include a justification - recorded in restore history and included in the Restores alert.">ⓘ</span></label><select id="s_reqnote"><option value="false">Off</option><option value="true">Required</option></select></div>
+        <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
+        <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
+      </div>
+    </div>
+    <div class="setsec">
+      <div><div class="sst">Public URL &amp; host</div><div class="ssd">Set Public URL to your real address (behind a reverse proxy) - it is used for email links and HTTPS checks. Only enable Enforce host after confirming the URL works, otherwise you can lock yourself out.</div></div>
+      <div class="formgrid">
+        <div style="grid-column:span 2"><label>Public URL (canonical)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>
+        <div><label>Enforce host (reject other Host headers)</label><select id="s_enforce"><option value="false">Disabled</option><option value="true">Enabled</option></select></div>
+      </div>
+    </div>
+    <div class="setfoot"><button class="primary" onclick="saveSettings()">Save settings</button></div>
   </section>
   <section class="panel">
-    <h2>SMTP - optional · invites &amp; email alerts</h2>
-    <div class="formgrid">
-      <div><label>Host</label><input id="s_host" placeholder="smtp.example.com"></div>
-      <div><label>Port</label><input id="s_port" type="number" value="587"></div>
-      <div><label>Encryption</label><select id="s_tls"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">None</option></select></div>
-      <div><label>Username</label><input id="s_user"></div>
-      <div><label>Password</label><input id="s_pass" type="password" placeholder="leave blank to keep current"></div>
-      <div><label>From address</label><input id="s_from" placeholder="idpvault@example.com"></div>
+    <h2>Email</h2>
+    <div class="setsec">
+      <div><div class="sst">SMTP server</div><div class="ssd">Optional - needed for app-user invites and email alerts. The password is encrypted at rest; leave the host blank to keep email off.</div></div>
+      <div class="formgrid">
+        <div><label>Host</label><input id="s_host" placeholder="smtp.example.com"></div>
+        <div><label>Port</label><input id="s_port" type="number" value="587"></div>
+        <div><label>Encryption</label><select id="s_tls"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">None</option></select></div>
+        <div><label>Username</label><input id="s_user"></div>
+        <div><label>Password</label><input id="s_pass" type="password" placeholder="leave blank to keep current"></div>
+        <div><label>From address</label><input id="s_from" placeholder="idpvault@example.com"></div>
+      </div>
     </div>
-    <button class="primary" onclick="saveSettings()">Save settings</button>
-    <span style="display:inline-flex;gap:8px;margin-left:16px;align-items:center">
+    <div class="setfoot">
+      <button class="primary" onclick="saveSettings()">Save settings</button>
+      <span class="spacer"></span>
       <input id="s_testto" placeholder="you@example.com" style="width:220px">
       <button onclick="testEmail()">Send test email</button>
-    </span>
+    </div>
   </section>
   <section class="panel">
-    <h2>Alerts - optional</h2>
-    <p class="muted" style="font-size:.82rem;margin:-6px 0 14px">Alerts fire automatically on <b>configuration drift</b>, <b>Users &amp; Access changes</b>, and <b>backup failures</b>. They post to this webhook (Slack, Mattermost, Discord, or ntfy) and, if SMTP is configured, also email all admins.</p>
-    <div class="formgrid">
-      <div style="grid-column:span 2"><label>Alert webhook URL</label><input id="s_webhook" placeholder="https://mattermost.example.com/hooks/… or https://ntfy.example.com/idpvault"></div>
-      <div><label>Webhook format</label><select id="s_webhookfmt"><option value="auto">Auto-detect</option><option value="slack">Slack / Mattermost / Discord</option><option value="ntfy">ntfy</option></select></div>
+    <h2>Alerts</h2>
+    <div class="setsec">
+      <div><div class="sst">Delivery</div><div class="ssd">Alerts fire automatically on configuration drift, Users &amp; Access changes, backup failures, and restores. They post to a webhook (Slack, Mattermost, Discord, or ntfy) and, when SMTP is configured, also email all admins. The overdue watchdog alerts when a scheduled backup has not completed within the window below.</div></div>
+      <div class="formgrid">
+        <div style="grid-column:span 2"><label>Alert webhook URL</label><input id="s_webhook" placeholder="https://mattermost.example.com/hooks/… or https://ntfy.example.com/idpvault"></div>
+        <div><label>Webhook format</label><select id="s_webhookfmt"><option value="auto">Auto-detect</option><option value="slack">Slack / Mattermost / Discord</option><option value="ntfy">ntfy</option></select></div>
+        <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
+      </div>
     </div>
-    <label class="lbl">Email these events <span class="tipi" title="Sent to every active admin with an email address, when SMTP is configured. Email and webhook subscriptions are independent - check a category in both to get it in both places.">ⓘ</span></label>
-    <div class="chk" id="s_events_email"></div>
-    <label class="lbl">Send these events to the webhook <span class="tipi" title="Posted to the webhook URL above. Email and webhook subscriptions are independent - check a category in both to get it in both places.">ⓘ</span></label>
-    <div class="chk" id="s_events_webhook"></div>
-    <button class="primary" onclick="saveSettings()">Save settings</button>
-    <span style="display:inline-flex;gap:8px;margin-left:16px;align-items:center">
+    <div class="setsec">
+      <div><div class="sst">Subscriptions</div><div class="ssd">Choose which events go to email and which go to the webhook - the two are independent. Check a category in both to get it in both places.</div></div>
+      <div>
+        <label class="lbl">Email these events <span class="tipi" title="Sent to every active admin with an email address, when SMTP is configured. Email and webhook subscriptions are independent - check a category in both to get it in both places.">ⓘ</span></label>
+        <div class="chk" id="s_events_email"></div>
+        <label class="lbl" style="margin-top:14px">Send these events to the webhook <span class="tipi" title="Posted to the webhook URL above. Email and webhook subscriptions are independent - check a category in both to get it in both places.">ⓘ</span></label>
+        <div class="chk" id="s_events_webhook"></div>
+      </div>
+    </div>
+    <div class="setfoot">
+      <button class="primary" onclick="saveSettings()">Save settings</button>
       <button onclick="testAlert(this)">Send test alert</button>
       <span class="muted" style="font-size:.78rem">save first, then test</span>
-    </span>
+    </div>
   </section>
 </main>
 </div>

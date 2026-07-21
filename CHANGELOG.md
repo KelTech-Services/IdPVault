@@ -49,6 +49,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   backups: config snapshots, Full-DR database dumps, and Users & Access
   snapshots (previously config snapshots only). The backups-per-day chart
   now includes Users & Access runs.
+- Settings redesign: Tenant Settings and System settings are reorganized into
+  labeled sections (Connection, Config backup, Full-DR, Users & Access;
+  Backup defaults, Live State, Security & login, Public URL & host, Email,
+  Alerts) with a title and plain-language description beside each group
+  instead of one wall of fields. The overdue-watchdog window setting moved
+  into the Alerts panel where it belongs. No settings changed meaning.
 ### Fixed
 - Deleting or pruning config snapshots removed the files but left their
   database rows, inflating the dashboard storage stat; pruned Users & Access

@@ -155,7 +155,7 @@ function onProviderChange(){
   const show = (id,on)=>document.getElementById(id).classList.toggle('hidden', !on);
   const isAuth0 = p==='auth0', hasIdentity = true;  // all providers support Users & Access now
   show('fd_token', !isAuth0); show('fd_clientid', isAuth0); show('fd_clientsecret', isAuth0);
-  show('fd_dburl', p==='authentik'); show('fd_dbevents', p==='authentik');
+  show('sec_dr', p==='authentik');   // whole Full-DR section is Authentik-only
   show('fd_ident', hasIdentity); 
   // License gate: Community has no 'identity' feature - lock the control instead
   // of letting the save fail with a 402.
