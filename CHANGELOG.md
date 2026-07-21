@@ -14,6 +14,8 @@ All notable changes to IdPVault are documented here. Format loosely follows
   recorded in restore history, shown in the report, and included in the
   Restores alert. A new System setting can REQUIRE a justification on every
   restore apply (off by default).
+- Restore applies now re-verify your password (the same protection as
+  deleting backups); wrong attempts are audit-logged.
 ### Changed
 - Alert subscriptions are now per channel AND grouped: for email and for the
   webhook separately, pick Config Backups (changes, failures, overdue

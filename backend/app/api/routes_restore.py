@@ -35,7 +35,8 @@ class RestoreIn(BaseModel):
     snapshot_ts: str
     selection: RestoreSelection | None = None
     target_tenant_id: int | None = None  # set = clone/promote into another tenant
-    note: str | None = None  # admin's reason - recorded in restore history + alert
+    note: str | None = None  # justification - recorded in restore history + alert
+    password: str | None = None  # re-auth: applying a restore requires the caller's password
 
 
 def _require_note_if_configured(note: str | None) -> None:
@@ -69,6 +70,12 @@ def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
     _require_access(request, tenant_id, body.target_tenant_id)
     _require_entitled(tenant_id, body.target_tenant_id)
     _require_note_if_configured(body.note)
+    from app.api.routes_backups import _require_reauth
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        _require_reauth(db, request, body.password or "", t.slug, "restore.apply")
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,

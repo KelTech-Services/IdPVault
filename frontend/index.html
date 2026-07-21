@@ -291,7 +291,9 @@
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Confirm restore</h2>
     <p id="jm_msg" style="font-size:.88rem;margin-bottom:12px"></p>
     <label class="lbl">Justification <span class="tipi" title="Recorded permanently in restore history, shown in the report, and included in the Restores alert so other admins know why this was done.">ⓘ</span></label>
-    <input id="jm_note" placeholder="Enter the justification for this restore" style="width:100%" onkeydown="if(event.key==='Enter')jmConfirm()">
+    <input id="jm_note" placeholder="Enter the justification for this restore" style="width:100%" onkeydown="if(event.key==='Enter')document.getElementById('jm_pass').focus()">
+    <label class="lbl" style="margin-top:12px">Your password <span class="tipi" title="Restores write to the live tenant, so applying one re-verifies your identity - the same protection as deleting backups. Wrong attempts are audit-logged.">ⓘ</span></label>
+    <input id="jm_pass" type="password" autocomplete="current-password" placeholder="confirm your password" style="width:100%" onkeydown="if(event.key==='Enter')jmConfirm()">
     <div style="margin-top:16px;text-align:right">
       <button onclick="jmCancel()">Cancel</button>
       <button class="danger" onclick="jmConfirm()">Apply restore</button>

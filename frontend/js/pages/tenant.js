@@ -570,20 +570,25 @@ function askJustify(msg){
     _jmResolve = res;
     document.getElementById('jm_msg').textContent = msg;
     document.getElementById('jm_note').value = '';
+    document.getElementById('jm_pass').value = '';
     document.getElementById('justifymodal').classList.remove('hidden');
     setTimeout(() => document.getElementById('jm_note').focus(), 50);
   });
 }
 function jmCancel(){
   document.getElementById('justifymodal').classList.add('hidden');
+  document.getElementById('jm_pass').value = '';
   const r = _jmResolve; _jmResolve = null;
   if(r) r(null);
 }
 function jmConfirm(){
   const note = document.getElementById('jm_note').value.trim();
+  const password = document.getElementById('jm_pass').value;
+  if(!password){ toast('Enter your password - applying a restore requires it', true); document.getElementById('jm_pass').focus(); return; }
   document.getElementById('justifymodal').classList.add('hidden');
+  document.getElementById('jm_pass').value = '';
   const r = _jmResolve; _jmResolve = null;
-  if(r) r({note});
+  if(r) r({note, password});
 }
 async function openRestore(ts){
   _restoreCtx = { tenantId: snapTenantId, snap: ts };
@@ -666,7 +671,7 @@ async function restoreApply(){
   document.getElementById('r_summary').textContent = 'Applying…';
   document.getElementById('r_applybtn').disabled = true;
   try {
-    const payload = {snapshot_ts:_restoreCtx.snap};
+    const payload = {snapshot_ts:_restoreCtx.snap, password: j.password};
     if(j.note) payload.note = j.note;
     if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     if(partial){
@@ -970,7 +975,7 @@ async function identityApply(){
   document.getElementById('ir_summary').textContent = 'Restore queued…';
   document.getElementById('ir_applybtn').disabled = true;
   try{
-    const payload = {snapshot_ts:_irCtx.ts, confirm:true};
+    const payload = {snapshot_ts:_irCtx.ts, confirm:true, password: j.password};
     if(j.note) payload.note = j.note;
     if(selection) payload.selection = selection;
     if(revertSel) payload.revert_selection = revertSel;

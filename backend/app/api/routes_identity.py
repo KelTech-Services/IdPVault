@@ -148,7 +148,8 @@ class IdApplyIn(BaseModel):
     confirm: bool = False  # must be true — guards against accidental writes
     selection: list[str] | None = None  # user natural keys to recreate; None = all missing
     revert_selection: list[str] | None = None  # existing users whose profile reverts (opt-in only)
-    note: str | None = None  # admin's reason - recorded in restore history + alert
+    note: str | None = None  # justification - recorded in restore history + alert
+    password: str | None = None  # re-auth: applying a restore requires the caller's password
 
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
@@ -163,6 +164,8 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
+        from app.api.routes_backups import _require_reauth
+        _require_reauth(db, request, body.password or "", t.slug, "identity.restore.apply")
         from app.core import storage
         if body.snapshot_ts not in storage.list_identity_snapshots(t.slug):
             raise HTTPException(404, "identity snapshot not found")

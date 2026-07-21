@@ -120,7 +120,7 @@ def _require_reauth(db, request: Request, password: str, slug: str, action: str)
         db.add(AuditLog(action=action + "_denied",
                         detail={"slug": slug, "reason": "password re-auth failed"}))
         db.commit()
-        raise HTTPException(403, "password incorrect - deletion requires your password")
+        raise HTTPException(403, "password incorrect - this action requires your password")
 
 
 @router.post("/tenants/{tenant_id}/snapshots/delete", dependencies=[Depends(require_admin)])
