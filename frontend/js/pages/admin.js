@@ -252,6 +252,7 @@ const DOC_TOPICS = [
   {key:'explorer',        title:'Live State'},
   {key:'drift-events',    title:'Drift & events'},
   {key:'restore',         title:'Config restore'},
+  {key:'clone',           title:'Clone & promote'},
   {key:'identity',        title:'Users & Access backup'},
   {key:'alerts',          title:'Alerts & notifications'},
   {key:'users-security',  title:'Users & security'},

@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.19] - 2026-07-21
+### Added
+- Dedicated "Clone & promote" documentation page (in-app Docs and wiki):
+  what Clone does, cross-instance name-based matching, the safety rails,
+  how to read the report (license-gated objects, cascade failures, orphaned
+  bindings, name conflicts), convergence on re-runs, and clone alerts. The
+  Config restore doc's clone section now points to it, and its smart-matching
+  bullet explains that clones match by natural key only.
+
 ## [1.2.18] - 2026-07-21
 ### Fixed
 - Clones now match snapshot objects to live target objects by natural key

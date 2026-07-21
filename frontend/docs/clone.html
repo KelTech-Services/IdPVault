@@ -1,0 +1,22 @@
+<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Clone-and-Promote". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
+<h3>What Clone does</h3>
+<p>Clone applies a snapshot from one tenant into a <b>different tenant of the same provider</b>: promote staging to production, seed a standby instance, spin up a matching environment, or rebuild after a disaster. The <b>Clone</b> page appears in the sidebar as soon as two active tenants share a provider (admins and org admins with write access). Cross-provider cloning is not possible - an Okta snapshot cannot be applied to an Authentik tenant.</p>
+<ul>
+<li><b>Config, Users &amp; Access, or both</b> - in one pass. Config applies first, so groups and apps exist before Users &amp; Access attaches memberships and assignments to them.</li>
+<li><b>Additive by design</b> - cloning creates and updates objects in the target; it never deletes anything.</li>
+<li><b>Matched by name, never by id</b> - internal ids from two different instances never correspond, so a clone pairs objects strictly by natural key (name or slug). References are rewired automatically: a cloned application points at the target's copy of its provider, not at a meaningless id from the source.</li>
+</ul>
+<h3>Safety rails</h3>
+<p>You always get a read-only <b>dry-run preview</b> first. The apply requires a justification and your password, and the confirmation spells out the write direction ("the TARGET being written to is ...") - double-check it. Applies run as background jobs with real 0-100% progress; large clones survive closing the dialog or the browser. When it finishes, the completion line shows <i>N applied, N failed, N ignored</i> per part, and the full per-object report lands in the <b>target</b> tenant's restore history.</p>
+<p><b>Secrets are never cloned.</b> Identity providers do not export secret material, so recreated apps and providers come back with NEW client secrets and signing keys (the report flags exactly which), and cloned users arrive without passwords or MFA - they reset on first login. Integrations pointed at the target need their credentials re-entered.</p>
+<h3>Reading the report</h3>
+<p>A clone into a real instance rarely applies 100% of objects, and the report tells you exactly why for each one:</p>
+<ul>
+<li><b>License-gated objects</b> - some object types require an edition the target does not have (for example, Authentik google_workspace providers require Enterprise). These fail with the provider's own error and will succeed only when the target is licensed for them.</li>
+<li><b>Cascade failures</b> - if an object fails to create, everything that references it fails honestly: "references provider X which failed to be created earlier in this run". Fix the root failure and re-run; nothing was written for the dependents.</li>
+<li><b>Orphaned bindings</b> - Authentik keeps policy bindings whose target object was deleted, so snapshots can carry them. They cannot be recreated ("binding target does not exist in the live tenant"). Clean them up in the source if you want them gone from future reports.</li>
+<li><b>Name conflicts</b> - if the target already has an object with the same name but a different type, the clone refuses to touch it and tells you to delete it in the target and re-run.</li>
+</ul>
+<p>Re-running a clone is always safe: it converges, reporting already-matching objects as identical and only writing what differs.</p>
+<h3>Clone alerts</h3>
+<p>Clones have their own alert category (Administration &gt; System settings &gt; Alerts &gt; <b>Clones</b>, per channel). One summary alert per clone part: source and target, snapshot, the applied/failed/ignored result, the application list by name, compact per-type counts, the justification, and a link to the target's restore history (clickable when the Public URL setting is set). Like all new alert categories, existing installs need the checkbox ticked once.</p>

@@ -4,7 +4,7 @@
 <ul>
 <li><b>Pick and choose</b> - every actionable row has a checkbox; restore all changes or just the ones you select.</li>
 <li><b>Additive by design</b> - restore creates and updates objects; it never deletes anything from the live tenant.</li>
-<li><b>Smart matching</b> - objects are matched by internal id first (so renames are updates), then by natural key (slug/name/label), so an object that was deleted and recreated is recognized instead of duplicated. References follow: a restored policy binding points at the recreated app's new id automatically.</li>
+<li><b>Smart matching</b> - same-tenant restores match objects by internal id first (so renames are updates), then by natural key (slug/name/label), so an object that was deleted and recreated is recognized instead of duplicated. Clones match by natural key only, since ids from a different instance never correspond. References follow either way: a restored policy binding points at the recreated app's new id automatically.</li>
 <li><b>Converges</b> - run the same restore twice and the second pass reports "identical, nothing to do".</li>
 </ul>
 <h3>Per-provider coverage</h3>
@@ -16,6 +16,6 @@
 <h3>Credentials on recreated apps</h3>
 <p>IdPs never export secret material, so a recreated app comes back with a <b>new</b> client secret / signing certificate. The report marks these <code>created_new_credentials</code>: update the integration on the far end.</p>
 <h3>Clone / promote</h3>
-<p>Cloning has its own page: <b>Clone</b> appears in the sidebar as soon as two tenants share a provider. Pick a source tenant, a same-provider target tenant, and what to clone - <b>Config</b>, <b>Users &amp; Access</b>, or both in one pass (config applies first, so groups and apps exist before Users &amp; Access attaches to them). Each part uses a snapshot you choose from the source, gets a read-only dry-run preview, and the apply requires a justification plus your password, with the confirmation spelling out the write direction. Cloning never deletes anything from the target, and cross-provider cloning is not possible (an Okta snapshot cannot be applied to an Authentik tenant). Typical uses: promote staging to production, seed a standby instance, or full disaster recovery into a fresh instance. Users cloned via the API arrive without credentials - they need a password reset and MFA re-enrollment, exactly like a Users &amp; Access restore.</p>
+<p>Cloning into a <b>different</b> tenant of the same provider has its own page and its own doc: see <a href="#" onclick="openDoc('clone');return false">Clone &amp; promote</a> for how matching works across instances, the safety rails, how to read the report, and clone alerts.</p>
 <h3>Applies run in the background</h3>
 <p>Applying a restore or clone runs as a background job: large applies can take minutes, and the job survives even if you close the dialog or the browser. Progress (live API call count) shows in the dialog and in the Activity area, and the full report lands in the target tenant's restore history when it completes.</p>
