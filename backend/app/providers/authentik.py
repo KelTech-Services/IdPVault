@@ -15,6 +15,7 @@ RESOURCES = {
     "policy_bindings": "/api/v3/policies/bindings/",
     "flow_stage_bindings": "/api/v3/flows/bindings/",
     "property_mappings": "/api/v3/propertymappings/all/",
+    "sources": "/api/v3/sources/all/",
     "groups": "/api/v3/core/groups/",
     "brands": "/api/v3/core/brands/",
     "outposts": "/api/v3/outposts/instances/",
@@ -26,19 +27,22 @@ RESOURCES = {
 class AuthentikAdapter(ProviderAdapter):
     name = "authentik"
     supports_identity = True
-    restore_order = ["certificates", "property_mappings", "flows", "stages", "policies",
-                     "groups", "providers", "applications", "flow_stage_bindings",
-                     "policy_bindings", "outposts", "brands"]
+    restore_order = ["certificates", "property_mappings", "flows", "sources", "stages",
+                     "policies", "groups", "providers", "applications",
+                     "flow_stage_bindings", "policy_bindings", "outposts", "brands"]
     never_restore = {"blueprints", "user_schemas"}
     # Natural keys used to remap stale snapshot pks -> current live pks (an object
     # deleted + recreated gets a new pk; anything referencing the old pk must follow).
     _NK = {"applications": "slug", "flows": "slug", "groups": "name",
            "policies": "name", "stages": "name", "providers": "name",
-           "property_mappings": "name", "certificates": "name", "brands": "domain"}
+           "property_mappings": "name", "certificates": "name", "brands": "domain",
+           "sources": "slug"}
     # Reference fields that may carry pks of other objects (bindings, app->provider).
     _REF_FIELDS = ("target", "policy", "stage", "flow", "provider", "providers",
                    "group", "user", "authorization_flow", "authentication_flow",
-                   "invalidation_flow")
+                   "invalidation_flow", "enrollment_flow", "sources", "source",
+                   "user_property_mappings", "group_property_mappings",
+                   "property_mappings", "property_mappings_group", "certificate")
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
@@ -149,9 +153,31 @@ class AuthentikAdapter(ProviderAdapter):
                 return out
             page += 1
 
+    # The polymorphic "/all/" list endpoints return the BASE serializer only -
+    # no subtype fields (a scope mapping's scope_name, an OAuth2 provider's
+    # client settings, a user-write stage's creation mode, a source's
+    # connection settings). Snapshots must carry the FULL object or restores,
+    # clones, and field-level drift detection are blind to those fields, so
+    # these types are re-fetched per object from their typed endpoint.
+    # Verified against authentik 2026.5: /stages/all/, /policies/all/,
+    # /providers/all/, /propertymappings/all/, /sources/all/ are all shallow.
+    _HYDRATE = ("providers", "stages", "policies", "property_mappings", "sources")
+
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
-            return {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+            out = {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+            for rtype in self._HYDRATE:
+                hydrated = []
+                for o in out.get(rtype, []):
+                    full = None
+                    wp = self._write_path(o)
+                    if wp and o.get("pk") is not None:
+                        r = c.get(f"/api/v3/{wp}{o['pk']}/")
+                        if r.status_code == 200:
+                            full = r.json()
+                    hydrated.append(full or o)   # unknown subtype: keep the base object
+                out[rtype] = hydrated
+            return out
 
     CHANGE_ACTIONS = {"model_created", "model_updated", "model_deleted"}
 
@@ -183,7 +209,8 @@ class AuthentikAdapter(ProviderAdapter):
     READONLY_FIELDS = {"pk", "component", "verbose_name", "verbose_name_plural",
                        "meta_model_name", "managed", "object_uid", "assigned_application_slug",
                        "assigned_application_name", "assigned_backchannel_application_slug",
-                       "assigned_backchannel_application_name", "outpost_set", "url_download_metadata"}
+                       "assigned_backchannel_application_name", "outpost_set", "url_download_metadata",
+                       "flow_set", "bound_to", "icon_url", "icon_themed_urls", "promoted"}
 
     # Fallback write paths by RESOURCE TYPE — the non-polymorphic endpoints
     # (core/applications, policies/bindings, …) don't include meta_model_name
@@ -216,16 +243,27 @@ class AuthentikAdapter(ProviderAdapter):
         if model in self._EXACT_PATHS:
             return self._EXACT_PATHS[model]
         app, _, cls = model.partition(".")
-        if cls.endswith("propertymapping") or cls.endswith("scopemapping"):
-            if app.startswith("authentik_providers_"):
+        if cls.endswith("mapping"):   # every *mapping class is a property mapping
+            if app.startswith("authentik_providers_"):   # (scimmapping, scopemapping,
                 return f"propertymappings/provider/{app.removeprefix('authentik_providers_')}/"
-            if app.startswith("authentik_sources_"):
+            if app.startswith("authentik_sources_"):     # googleworkspaceprovidermapping, ...)
                 return f"propertymappings/source/{app.removeprefix('authentik_sources_')}/"
             return None
-        for prefix, seg in (("authentik_policies_", "policies/"), ("authentik_stages_", "stages/"),
-                            ("authentik_providers_", "providers/"), ("authentik_sources_", "sources/")):
+        if app.startswith("authentik_stages_"):
+            seg = app.removeprefix("authentik_stages_")
+            if seg.startswith("authenticator_"):   # only the authenticator apps nest
+                seg = "authenticator/" + seg.removeprefix("authenticator_")
+            if seg in ("prompt", "invitation"):    # these apps have sibling collections
+                return f"stages/{seg}/stages/"     # (prompt/prompts, invitation/invitations)
+            return f"stages/{seg}/"
+        # App labels keep their underscores in API paths (policies/event_matcher,
+        # stages/user_write, providers/google_workspace) - never slash them.
+        # Verified against authentik 2026.5.
+        for prefix, seg in (("authentik_policies_", "policies/"),
+                            ("authentik_providers_", "providers/"),
+                            ("authentik_sources_", "sources/")):
             if app.startswith(prefix):
-                return seg + app.removeprefix(prefix).replace("_", "/") + "/"
+                return seg + app.removeprefix(prefix) + "/"
         return None
 
     # Reference fields carry MEANING - dropping them to appease a 400 would

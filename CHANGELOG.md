@@ -3,6 +3,29 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.11] - 2026-07-21
+### Fixed
+- Authentik backups now capture the FULL object for providers, stages,
+  policies, property mappings, and sources. Authentik's polymorphic "/all/"
+  list endpoints only return base fields (no scope_name on scope mappings,
+  no client settings on OAuth2 providers, no creation mode on user-write
+  stages), so snapshots were missing subtype detail - restores and clones
+  could not recreate those objects and field-level drift in those fields
+  was invisible. Every object is now re-fetched from its typed endpoint at
+  backup time. Expect one larger-than-usual changes wave on the first
+  backup after upgrading (the newly captured fields), then normal.
+- Authentik sources (OAuth, LDAP, SAML, ...) are now backed up and
+  restorable as their own resource type, and stage references to sources
+  (e.g. the identification stage) remap correctly across restores and
+  clones.
+- Authentik restore write paths were wrong for several object types:
+  stages named with underscores (user_write, user_login, user_logout,
+  user_delete), prompt and invitation stages (nested endpoints), policies
+  like event_matcher, providers like google_workspace, and SCIM /
+  Google Workspace / Microsoft Entra property mappings - updates and
+  creates of those objects failed with 404/405. All paths verified against
+  a live authentik 2026.5 API, including idempotent write round-trips.
+
 ## [1.2.10] - 2026-07-21
 ### Added
 - Clone page: a dedicated sidebar page for cloning one tenant into another

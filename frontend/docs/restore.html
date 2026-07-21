@@ -9,7 +9,7 @@
 </ul>
 <h3>Per-provider coverage</h3>
 <table><tr><th>Provider</th><th>Restorable</th><th>Not auto-restored (visible in plan)</th></tr>
-<tr><td>Authentik</td><td>Applications, providers, flows, stages, policies, bindings, groups, mappings, certificates, brands</td><td>Blueprints, managed objects (Authentik-owned)</td></tr>
+<tr><td>Authentik</td><td>Applications, providers, flows, sources, stages, policies, bindings, groups, mappings, certificates, brands</td><td>Blueprints, managed objects (Authentik-owned)</td></tr>
 <tr><td>Okta</td><td><b>Apps</b>, groups, network zones, all policy types, identity providers, event/inline hooks</td><td>Authorization servers, schemas (user/app), profile mappings (auto-regenerated with the app)</td></tr>
 <tr><td>Auth0</td><td>Clients, connections, resource servers, roles, rules</td><td>Tenant settings, branding, custom domains, actions</td></tr></table>
 <p>Objects that can't be auto-restored still show in the plan when they differ, marked <i>unsupported</i>, so a deletion is never invisible.</p>
