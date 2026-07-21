@@ -39,10 +39,11 @@ class AuthentikAdapter(ProviderAdapter):
            "sources": "slug"}
     # Reference fields that may carry pks of other objects (bindings, app->provider).
     _REF_FIELDS = ("target", "policy", "stage", "flow", "provider", "providers",
-                   "group", "user", "authorization_flow", "authentication_flow",
-                   "invalidation_flow", "enrollment_flow", "sources", "source",
-                   "user_property_mappings", "group_property_mappings",
-                   "property_mappings", "property_mappings_group", "certificate")
+                   "backchannel_providers", "group", "user", "authorization_flow",
+                   "authentication_flow", "invalidation_flow", "enrollment_flow",
+                   "sources", "source", "user_property_mappings",
+                   "group_property_mappings", "property_mappings",
+                   "property_mappings_group", "certificate")
 
     def __init__(self, base_url: str, credentials: str):
         super().__init__(base_url, credentials)
@@ -270,8 +271,11 @@ class AuthentikAdapter(ProviderAdapter):
 
     # Reference fields carry MEANING - dropping them to appease a 400 would
     # change what the object connects, and it hides the real error ("target
-    # does not exist" became "target is required" once popped). Never pop.
-    _NEVER_POP = {"target", "policy", "group", "user", "stage", "flow", "provider"}
+    # does not exist" became "target is required" once popped). Identity fields
+    # too: popping "name" once turned a clear "provider with this name already
+    # exists" into a baffling "name: This field is required" on the retry.
+    _NEVER_POP = {"target", "policy", "group", "user", "stage", "flow", "provider",
+                  "providers", "backchannel_providers", "name", "slug", "domain"}
 
     def _send(self, c, method: str, path: str, payload: dict):
         """Write with self-heal: on 400, drop the exact fields Authentik's error
@@ -357,6 +361,22 @@ class AuthentikAdapter(ProviderAdapter):
                     if r.status_code >= 400:
                         raise RuntimeError(f"PATCH {path}{ident}/ -> {r.status_code}: {r.text[:280]}")
                     return ("updated", str(ident))
+                if live is not None and not lookup_field and resource_type != "brands":
+                    # A live object with this name exists (the plan matched it)
+                    # but the snapshot type's endpoint does not know its pk: it
+                    # is a DIFFERENT kind (e.g. a saml provider where the
+                    # snapshot has a proxy provider). POSTing would just hit
+                    # the name-uniqueness conflict - fail honestly instead.
+                    if old_pk is not None:   # dependents must cascade honestly too
+                        self._failed_pks[str(old_pk)] = \
+                            f"{resource_type[:-1] if resource_type.endswith('s') else resource_type} " \
+                            f"\"{obj.get('name') or obj.get('slug') or old_pk}\""
+                    raise RuntimeError(
+                        f"a {resource_type[:-1] if resource_type.endswith('s') else resource_type} "
+                        f"named \"{obj.get('name') or obj.get('slug') or ident}\" already exists in "
+                        f"the target but is a different type than the snapshot's ({path} does not "
+                        f"recognize it). Delete it in the target and re-run to recreate it from "
+                        f"the snapshot.")
             r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
                 if old_pk is not None:   # downstream refs must not use the stale pk

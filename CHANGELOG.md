@@ -3,6 +3,25 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.14] - 2026-07-21
+### Fixed
+- Authentik: backchannel_providers on applications is now remapped like every
+  other reference field. Previously the source's provider pks passed through
+  verbatim, so in a clone an app's backchannel provider could silently point
+  at an unrelated provider in the target; the cascade guard now also covers
+  it, so a reference to a provider that failed to create fails honestly.
+- Authentik: name, slug, and domain can no longer be dropped by the write
+  self-heal. Popping "name" on a 400 turned a clear "provider with this name
+  already exists" into a baffling "name: This field is required" retry error.
+  The list reference fields (providers, backchannel_providers) are protected
+  the same way.
+- Authentik: when the target already has an object with the snapshot's name
+  but a DIFFERENT type (for example a saml provider where the snapshot has a
+  proxy provider - wreckage a pre-1.2.13 clone could leave behind), the write
+  now fails with a clear "already exists but is a different type - delete it
+  in the target and re-run" message instead of a confusing name-validation
+  error, and dependents cascade honestly.
+
 ## [1.2.13] - 2026-07-21
 ### Fixed
 - Authentik clone/restore no longer silently overwrites unrelated objects in
