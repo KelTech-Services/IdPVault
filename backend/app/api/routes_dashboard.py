@@ -103,24 +103,90 @@ def trends(request: Request, days: int = 14) -> dict:
 
 @router.get("/tenants/{tenant_id}/events")
 def tenant_events(tenant_id: int, request: Request, limit: int = 100, offset: int = 0,
-                  resource_type: str | None = None, event_type: str | None = None) -> dict:
+                  resource_type: str | None = None, event_type: str | None = None,
+                  q: str | None = None) -> dict:
     from app.core.security import require_tenant_read
     with SessionLocal() as db:
         require_tenant_read(request, db, tenant_id)
         if db.get(Tenant, tenant_id) is None:
             raise HTTPException(404, "tenant not found")
-        q = db.query(Event).filter(Event.tenant_id == tenant_id)
+        qy = db.query(Event).filter(Event.tenant_id == tenant_id)
         if resource_type:
-            q = q.filter(Event.resource_type == resource_type)
+            qy = qy.filter(Event.resource_type == resource_type)
         if event_type:
-            q = q.filter(Event.event_type == event_type)
-        total = q.count()
-        rows = q.order_by(Event.id.desc()).offset(offset).limit(min(limit, 500)).all()
+            qy = qy.filter(Event.event_type == event_type)
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            qy = qy.filter((Event.object_name.ilike(like)) | (Event.object_id.ilike(like)))
+        total = qy.count()
+        rows = qy.order_by(Event.id.desc()).offset(offset).limit(min(limit, 500)).all()
         return {"total": total, "events": [
             {"id": e.id, "snapshot_ts": e.snapshot_ts, "event_type": e.event_type,
              "resource_type": e.resource_type, "object_id": e.object_id,
              "object_name": e.object_name, "detail": e.detail, "at": e.at.isoformat()}
             for e in rows]}
+
+
+_IDENTITY_TYPES = {"users", "group_memberships", "app_group_assignments",
+                   "app_user_assignments_direct"}
+
+
+@router.get("/tenants/{tenant_id}/objects/search")
+def object_search(tenant_id: int, q: str, request: Request, kind: str | None = None) -> dict:
+    """Object timeline search over the events lane: for each object matching q,
+    its change history plus - if its latest event is a delete - the snapshot to
+    restore it from (the one just before the deletion was detected). Objects
+    that never changed while IdPVault was watching have no events and so do
+    not appear (that is documented in the UI)."""
+    from app.core.security import require_tenant_read
+    if len(q.strip()) < 2:
+        return {"objects": [], "truncated": False}
+    with SessionLocal() as db:
+        require_tenant_read(request, db, tenant_id)
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        like = f"%{q.strip()}%"
+        ev_q = db.query(Event).filter(Event.tenant_id == tenant_id).filter(
+            (Event.object_name.ilike(like)) | (Event.object_id.ilike(like)))
+        if kind == "identity":
+            ev_q = ev_q.filter(Event.resource_type.in_(_IDENTITY_TYPES))
+        elif kind == "config":
+            ev_q = ev_q.filter(~Event.resource_type.in_(_IDENTITY_TYPES))
+        rows = ev_q.order_by(Event.id.desc()).limit(400).all()
+        slug = t.slug
+    from app.core import storage
+    cfg_snaps = storage.list_snapshots(slug)
+    id_snaps = storage.list_identity_snapshots(slug)
+    groups: dict = {}
+    for e in rows:  # newest-first, so events[0] per group is the latest
+        key = (e.resource_type, e.object_id or e.object_name)
+        g = groups.setdefault(key, {
+            "resource_type": e.resource_type, "object_id": e.object_id,
+            "object_name": e.object_name,
+            "kind": "identity" if e.resource_type in _IDENTITY_TYPES else "config",
+            "events": []})
+        if len(g["events"]) < 20:
+            g["events"].append({"at": e.at.isoformat(), "event_type": e.event_type,
+                                "snapshot_ts": e.snapshot_ts,
+                                "fields": (e.detail or {}).get("fields", [])})
+        if not g["object_name"] and e.object_name:
+            g["object_name"] = e.object_name
+    out = []
+    for g in list(groups.values())[:20]:
+        latest = g["events"][0]
+        g["deleted"] = latest["event_type"] == "delete"
+        g["restore_from"] = None
+        if g["deleted"]:
+            snaps = id_snaps if g["kind"] == "identity" else cfg_snaps
+            if latest["snapshot_ts"] in snaps:
+                i = snaps.index(latest["snapshot_ts"])
+                g["restore_from"] = snaps[i - 1] if i > 0 else None
+            else:  # detecting snapshot pruned - newest retained snapshot older than it
+                older = [s for s in snaps if s < latest["snapshot_ts"]]
+                g["restore_from"] = older[-1] if older else None
+        out.append(g)
+    return {"objects": out, "truncated": len(groups) > 20}
 
 
 @router.get("/runs")

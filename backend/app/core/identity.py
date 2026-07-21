@@ -286,7 +286,8 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
 def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                            only_keys: list | None = None,
                            job_id: int | None = None,
-                           revert_keys: list | None = None) -> dict:
+                           revert_keys: list | None = None,
+                           note: str | None = None) -> dict:
     """Write path: recreate missing users + re-add missing edges. Additive,
     idempotent, per-object reporting. Persists a RestoreRun report.
     revert_keys: explicitly selected existing users whose profile fields are
@@ -326,7 +327,8 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
             manual.append(f"{created} recreated user(s) must RE-ENROLL MFA.")
 
         run = RestoreRun(tenant_id=t.id, snapshot_ts=snapshot_ts, mode="identity_apply",
-                         actor=actor, summary=summary,
+                         actor=actor, note=(note or "").strip()[:500] or None,
+                         summary=summary,
                          results={"report": report, "manual_steps": manual})
         db.add(run)
         db.add(AuditLog(actor=actor, action="identity.restore.apply",
@@ -334,7 +336,7 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                                 "users_created": created}))
         db.commit()
         from app.core.alerts import alert_restore
-        alert_restore(t.name, "identity", summary)
+        alert_restore(t.name, "identity", summary, note=run.note)
         return {"restore_run_id": run.id, "summary": summary, "manual_steps": manual}
 
 

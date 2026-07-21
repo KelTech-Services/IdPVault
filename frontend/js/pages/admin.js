@@ -307,6 +307,7 @@ async function loadSettings(){
     document.getElementById('s_userscache').value = (s.state_users_cache_minutes!=null? s.state_users_cache_minutes : '');
     document.getElementById('s_pub').value = s.public_url || '';
     document.getElementById('s_enforce').value = s.enforce_host ? 'true' : 'false';
+    document.getElementById('s_reqnote').value = s.require_restore_note ? 'true' : 'false';
   } catch(e){ toast(e.message, true); }
 }
 async function saveSettings(){
@@ -317,6 +318,7 @@ async function saveSettings(){
     alert_webhook_format: v('s_webhookfmt'),
     alert_events_email: _alertCatsFromGroups(_alertGroupChecks('s_events_email')),
     alert_events_webhook: _alertCatsFromGroups(_alertGroupChecks('s_events_webhook')),
+    require_restore_note: v('s_reqnote') === 'true',
     default_schedule_cron: schedGet('sd') || '',
     default_identity_schedule_cron: schedGet('si') || '',
     org_timezone: v('s_tz') || 'UTC',
@@ -357,8 +359,9 @@ async function loadEvents(){
   if(!tid){ tb.innerHTML=emptyRow(5, EI.activity, 'No tenant selected.'); return; }
   tb.innerHTML=skelRows(5);
   try {
-    const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}`);
-    if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, 'No change events yet - these appear from the second backup onward.'); return; }
+    const evq = (document.getElementById('ev_q')?.value || '').trim();
+    const d = await api(`/tenants/${tid}/events?limit=200${type?'&event_type='+type:''}${evq?'&q='+encodeURIComponent(evq):''}`);
+    if(!d.events.length){ tb.innerHTML=emptyRow(5, EI.activity, evq ? `No change events matching "${esc(evq)}".` : 'No change events yet - these appear from the second backup onward.'); return; }
     tb.innerHTML = d.events.map(e=>`<tr>
       <td class="muted">${fmtLocal(e.at)}</td>
       <td><span class="evtype ev-${e.event_type}">${e.event_type}</span></td>

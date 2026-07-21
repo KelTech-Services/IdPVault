@@ -283,6 +283,7 @@ class RestoreRun(Base):
     snapshot_ts: Mapped[str] = mapped_column(String(20))
     mode: Mapped[str] = mapped_column(String(20))  # dry_run | apply | identity_apply
     actor: Mapped[str] = mapped_column(String(120), default="system")
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # admin's reason (applies)
     summary: Mapped[dict] = mapped_column(JSON, default=dict)   # counts per action/status
     results: Mapped[dict] = mapped_column(JSON, default=dict)   # {"items": [...]} per-object detail
     at: Mapped[datetime] = mapped_column(

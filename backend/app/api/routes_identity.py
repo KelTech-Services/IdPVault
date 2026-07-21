@@ -148,6 +148,7 @@ class IdApplyIn(BaseModel):
     confirm: bool = False  # must be true — guards against accidental writes
     selection: list[str] | None = None  # user natural keys to recreate; None = all missing
     revert_selection: list[str] | None = None  # existing users whose profile reverts (opt-in only)
+    note: str | None = None  # admin's reason - recorded in restore history + alert
 
 
 @router.post("/tenants/{tenant_id}/identity/restore/apply")
@@ -156,6 +157,8 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
     _require_identity_license(tenant_id)
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")
+    from app.api.routes_restore import _require_note_if_configured
+    _require_note_if_configured(body.note)
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)
         if t is None:
@@ -168,7 +171,8 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
                   params={"snapshot_ts": body.snapshot_ts,
                           "actor": request.state.user["username"],
                           "selection": body.selection,
-                          "revert_selection": body.revert_selection})
+                          "revert_selection": body.revert_selection,
+                          "note": body.note})
     return {"job_id": jid, "status": "queued"}
 
 

@@ -167,6 +167,11 @@
     <table><thead><tr><th>When</th><th>Type</th><th>Actor</th><th>From snapshot</th><th>Summary</th><th style="width:70px"></th></tr></thead>
     <tbody id="rh_body"></tbody></table>
   </section>
+  <section class="panel hidden" id="ospanel_cfg">
+    <h2>Find in backups <span class="tipi" title="Search the change history for a config object by name. Shows when it changed or was deleted and which snapshot to restore it from. Objects that never changed while IdPVault was watching do not appear here - use Browse on a snapshot for those.">ⓘ</span>
+      <span class="spacer"></span><input id="os_q_cfg" placeholder="app, group, policy name…" style="width:260px" oninput="clearTimeout(window._osc); window._osc=setTimeout(()=>objectSearch('config'), 350)"></h2>
+    <div id="os_res_cfg"></div>
+  </section>
   <section class="panel hidden" id="browsepanel">
     <h2>Browse - <span id="b_label"></span><span class="spacer"></span>
       <input id="b_search" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._bs); window._bs=setTimeout(browseObjects, 300)">
@@ -215,10 +220,16 @@
     <table><thead><tr><th style="width:30px"><input type="checkbox" id="idsnapall" onchange="selAllIdSnaps(this.checked)"></th><th>Timestamp</th><th>Users</th><th>Memberships</th><th id="id_asg_th">Assignments</th><th>Changes vs previous</th><th>Duration</th><th>API calls</th><th></th></tr></thead>
     <tbody id="id_snaps"></tbody></table>
   </section>
+  <section class="panel hidden" id="ospanel_id">
+    <h2>Find in backups <span class="tipi" title="Search the change history for a user, membership, or assignment by name. Shows when it changed or was deleted and which snapshot to restore it from. Objects that never changed while IdPVault was watching do not appear here.">ⓘ</span>
+      <span class="spacer"></span><input id="os_q_id" placeholder="user or group name…" style="width:260px" oninput="clearTimeout(window._osi); window._osi=setTimeout(()=>objectSearch('identity'), 350)"></h2>
+    <div id="os_res_id"></div>
+  </section>
 </main>
 <main id="view-t-activity" class="hidden">
   <section class="panel">
     <h2>Activity <span class="spacer"></span>
+      <input id="ev_q" placeholder="search objects…" style="width:220px" oninput="clearTimeout(window._evq); window._evq=setTimeout(loadEvents, 300)">
       <select id="ev_type" onchange="loadEvents()" style="width:auto"><option value="">All changes</option><option value="add">Added</option><option value="update">Updated</option><option value="delete">Deleted</option></select>
     </h2>
     <table>
@@ -257,6 +268,7 @@
     <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
       <select id="r_target" style="width:auto;margin-left:8px"></select>
       <span class="muted" style="font-size:.76rem">- default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
+    <div style="margin:6px 0"><input id="r_note" placeholder="note - why this restore? (recorded in restore history and the alert)" style="width:100%"></div>
     <div style="margin:10px 0"><button class="primary" onclick="restorePreview()">Run preview (dry-run)</button>
       <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
       <button onclick="closeRestore()">Close</button></div>
@@ -268,6 +280,7 @@
   <div class="box wide">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access restore - <span id="ir_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is additive: it recreates missing users, re-adds memberships/assignments, and changes existing users only when you explicitly select them for a profile revert. It never deletes anything.</p>
+    <div style="margin:6px 0"><input id="ir_note" placeholder="note - why this restore? (recorded in restore history and the alert)" style="width:100%"></div>
     <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
       <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
       <button onclick="closeIdentityRestore()">Close</button></div>
@@ -384,6 +397,7 @@
       <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
+      <div><label>Require a note to apply a restore <span class="tipi" title="When on, every restore apply (config and Users &amp; Access) must include a note explaining why - recorded in restore history and included in the Restores alert.">ⓘ</span></label><select id="s_reqnote"><option value="false">Off</option><option value="true">Required</option></select></div>
       <div><label>Live view refresh interval (minutes, 0 = off)</label><input id="s_statemin" type="number" placeholder="15"></div>
       <div><label>Live State users cache (minutes) <span class="tipi" title="How long the live user directory stays cached before opening Users fetches fresh data from the provider. Refresh Users from provider always bypasses this cache. Minimum 5.">ⓘ</span></label><input id="s_userscache" type="number" placeholder="60"></div>
       <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>

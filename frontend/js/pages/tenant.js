@@ -293,7 +293,7 @@ async function loadRestoreHistory(id){
     if(!runs.length){ tb.innerHTML = emptyRow(6, EI.db, 'No restores yet - every restore is recorded here when it runs.'); return; }
     tb.innerHTML = runs.map(r =>
       `<tr><td>${fmtLocal(r.at)}</td><td>${RH_MODE[r.mode] || esc(r.mode)}</td><td>${esc(r.actor)}</td>`
-      + `<td>${fmtSnap(r.snapshot_ts)}</td><td class="muted" style="font-size:.78rem">${esc(rhSummary(r))}</td>`
+      + `<td>${fmtSnap(r.snapshot_ts)}</td><td class="muted" style="font-size:.78rem">${esc(rhSummary(r))}${r.note?`<div style="font-style:italic;margin-top:2px">"${esc(r.note)}"</div>`:''}</td>`
       + `<td style="text-align:right"><button class="ghost" onclick="viewRestoreRun(${r.id})">View</button></td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
 }
@@ -327,9 +327,10 @@ async function viewRestoreRun(runId){
     const r = await api(`/tenants/${snapTenantId}/restore/runs/${runId}`);
     document.getElementById('rh_title').textContent =
       `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
+    const notice = r.note ? `<p class="muted" style="font-size:.82rem;font-style:italic;margin-bottom:8px">Note from ${esc(r.actor)}: "${esc(r.note)}"</p>` : '';
     const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
     if(r.mode === 'identity_apply'){
-      box.innerHTML = renderIdentityReportHTML(r.results || {});
+      box.innerHTML = notice + renderIdentityReportHTML(r.results || {});
       return;
     }
     // audit view: only what was actually touched - identical/skipped rows are
@@ -337,7 +338,7 @@ async function viewRestoreRun(runId){
     const all = (r.results || {}).items || [];
     const items = all.filter(it => it.action !== 'identical' && it.status !== 'skipped');
     const hidden = all.length - items.length;
-    box.innerHTML = (items.length ? H + items.map(it => {
+    box.innerHTML = notice + (items.length ? H + items.map(it => {
       const fc = it.field_changes || [];
       const chg = fc.length
         ? `<div style="font-size:.78rem;margin-top:3px">` + fc.slice(0,6).map(ch=>
@@ -353,10 +354,42 @@ async function viewRestoreRun(runId){
   }catch(e){ box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
 }
 
+/* ---------- object timeline search (Find in backups) ---------- */
+async function objectSearch(kind){
+  const isId = kind === 'identity';
+  const inp = document.getElementById(isId ? 'os_q_id' : 'os_q_cfg');
+  const box = document.getElementById(isId ? 'os_res_id' : 'os_res_cfg');
+  const q = inp.value.trim();
+  if(q.length < 2){ box.innerHTML = ''; return; }
+  box.innerHTML = '<span class="muted">Searching change history…</span>';
+  try{
+    const tid = isId ? _idCtx.tenantId : snapTenantId;
+    const d = await api(`/tenants/${tid}/objects/search?q=${encodeURIComponent(q)}&kind=${kind}`);
+    if(!d.objects.length){
+      box.innerHTML = `<span class="muted">No objects matching "${esc(q)}" in the change history. Objects that never changed while IdPVault was watching don't appear here${isId?'':' - use Browse on a snapshot for those'}.</span>`;
+      return;
+    }
+    box.innerHTML = d.objects.map(o=>{
+      const tl = o.events.slice(0,8).map(ev=>
+        `<div style="margin-top:2px"><span class="evtype ev-${ev.event_type}">${ev.event_type}</span> <span class="muted">${fmtSnap(ev.snapshot_ts)}</span>${ev.fields&&ev.fields.length?` <span class="muted">(${ev.fields.slice(0,5).join(', ')})</span>`:''}</div>`).join('')
+        + (o.events.length>8?`<div class="muted" style="margin-top:2px">+${o.events.length-8} older event(s)</div>`:'');
+      const canW = me.role === 'admin' || me.role === 'org_admin';
+      const act = o.deleted && o.restore_from && canW
+        ? `<button class="ghost" onclick="${isId?`openIdentityRestore('${esc(o.restore_from)}')`:`openRestore('${esc(o.restore_from)}')`}" title="Open the restore dialog on the last snapshot where this object was present (dry-run preview first)">Restore… ${TIPI}</button>`
+        : '';
+      return `<div class="restore-item" style="align-items:start"><div></div>
+        <div class="${o.deleted?'ev-delete':'act-update'}">${o.deleted?'deleted':'changed'}</div>
+        <div><b>${esc(o.resource_type)} / ${esc(o.object_name||o.object_id)}</b>${o.deleted&&o.restore_from?` <span class="muted">- last present in the ${fmtSnap(o.restore_from)} snapshot</span>`:''}<div style="font-size:.78rem;margin-top:3px">${tl}</div></div>
+        <div style="text-align:right">${act}</div></div>`;
+    }).join('') + (d.truncated?'<p class="muted" style="font-size:.78rem;margin-top:8px">More matches not shown - narrow the search.</p>':'');
+  }catch(e){ box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
+}
+
 /* ---------- snapshots & diff ---------- */
 async function showSnaps(id, slug){
   snapTenantId = id; selectedSnaps = [];
   document.getElementById('snappanel').classList.remove('hidden');
+  document.getElementById('ospanel_cfg').classList.remove('hidden');
   window._snapSlug = slug;
   updateSnapButtons();
   loadRestoreHistory(id);
@@ -535,6 +568,7 @@ async function openRestore(ts){
   document.getElementById('r_snap').textContent = fmtSnap(ts);
   document.getElementById('r_summary').textContent = '';
   document.getElementById('r_items').innerHTML = '';
+  document.getElementById('r_note').value = '';
   document.getElementById('r_applybtn').classList.add('hidden');
   const src = _tenants.find(x=>x.id===snapTenantId);
   const sameprov = _tenants.filter(x=>!src || x.provider===src.provider);
@@ -610,6 +644,7 @@ async function restoreApply(){
   document.getElementById('r_applybtn').disabled = true;
   try {
     const payload = {snapshot_ts:_restoreCtx.snap};
+    if(v('r_note').trim()) payload.note = v('r_note').trim();
     if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     if(partial){
       payload.selection = {objects: checked.map(b=>{const it=_restoreItems[+b.dataset.i]; return {resource_type:it.resource_type, object_id:it.object_id};})};
@@ -689,6 +724,7 @@ async function loadIdentityEstimate(){
 let selectedIdSnaps = [];
 async function loadIdentitySnaps(){
   const tb = document.getElementById('id_snaps');
+  document.getElementById('ospanel_id').classList.remove('hidden');
   selectedIdSnaps = []; updateIdSnapButtons();
   tb.innerHTML = skelRows(9);
   try{
@@ -808,6 +844,7 @@ function openIdentityRestore(ts){
   document.getElementById('ir_snap').textContent = fmtSnap(ts);
   document.getElementById('ir_summary').textContent = '';
   document.getElementById('ir_items').innerHTML = '';
+  document.getElementById('ir_note').value = '';
   document.getElementById('ir_applybtn').classList.add('hidden');
   document.getElementById('idrestoremodal').classList.remove('hidden');
 }
@@ -911,6 +948,7 @@ async function identityApply(){
   document.getElementById('ir_applybtn').disabled = true;
   try{
     const payload = {snapshot_ts:_irCtx.ts, confirm:true};
+    if(v('ir_note').trim()) payload.note = v('ir_note').trim();
     if(selection) payload.selection = selection;
     if(revertSel) payload.revert_selection = revertSel;
     const q = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});

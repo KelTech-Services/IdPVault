@@ -35,6 +35,18 @@ class RestoreIn(BaseModel):
     snapshot_ts: str
     selection: RestoreSelection | None = None
     target_tenant_id: int | None = None  # set = clone/promote into another tenant
+    note: str | None = None  # admin's reason - recorded in restore history + alert
+
+
+def _require_note_if_configured(note: str | None) -> None:
+    """Settings can require a documented reason on every restore apply."""
+    from app.models.db import Setting
+    with SessionLocal() as db:
+        row = db.get(Setting, "general")
+        required = bool((dict(row.value) if row else {}).get("require_restore_note"))
+    if required and not (note or "").strip():
+        raise HTTPException(422, "a note explaining this restore is required by your "
+                                 "organization's settings")
 
 
 @router.post("/tenants/{tenant_id}/restore/preview")
@@ -56,11 +68,12 @@ def preview(tenant_id: int, body: RestoreIn, request: Request) -> dict:
 def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
     _require_access(request, tenant_id, body.target_tenant_id)
     _require_entitled(tenant_id, body.target_tenant_id)
+    _require_note_if_configured(body.note)
     try:
         return run_restore(tenant_id, body.snapshot_ts,
                            body.selection.model_dump() if body.selection else None,
                            "apply", request.state.user["username"],
-                           body.target_tenant_id)
+                           body.target_tenant_id, note=body.note)
     except FileNotFoundError:
         raise HTTPException(404, "snapshot not found")
     except ValueError as e:
@@ -77,7 +90,8 @@ def runs(tenant_id: int, request: Request) -> list[dict]:
         rows = db.query(RestoreRun).filter(RestoreRun.tenant_id == tenant_id)\
             .order_by(RestoreRun.id.desc()).limit(50).all()
         return [{"id": r.id, "snapshot_ts": r.snapshot_ts, "mode": r.mode,
-                 "actor": r.actor, "summary": r.summary, "at": r.at.isoformat()}
+                 "actor": r.actor, "note": r.note, "summary": r.summary,
+                 "at": r.at.isoformat()}
                 for r in rows]
 
 
@@ -90,5 +104,5 @@ def run_detail(tenant_id: int, run_id: int, request: Request) -> dict:
         if r is None or r.tenant_id != tenant_id:
             raise HTTPException(404, "restore run not found")
         return {"id": r.id, "snapshot_ts": r.snapshot_ts, "mode": r.mode,
-                "actor": r.actor, "summary": r.summary, "results": r.results,
-                "at": r.at.isoformat()}
+                "actor": r.actor, "note": r.note, "summary": r.summary,
+                "results": r.results, "at": r.at.isoformat()}

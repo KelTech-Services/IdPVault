@@ -82,7 +82,8 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
 
 
 def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
-                mode: str, actor: str, target_tenant_id: int | None = None) -> dict:
+                mode: str, actor: str, target_tenant_id: int | None = None,
+                note: str | None = None) -> dict:
     """Same-tenant restore, or clone/promote when target_tenant_id points at a
     different tenant of the SAME provider: source snapshot -> target tenant."""
     assert mode in ("dry_run", "apply")
@@ -144,6 +145,7 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                 summary[plural][it[key]] = summary[plural].get(it[key], 0) + 1
 
         run = RestoreRun(tenant_id=t.id, snapshot_ts=snapshot_ts, mode=mode, actor=actor,
+                         note=(note or "").strip()[:500] or None,
                          summary=summary, results={"items": plan})
         db.add(run)
         db.add(AuditLog(actor=actor, action=f"restore.{mode}",
@@ -152,5 +154,5 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         db.commit()
         if mode == "apply":
             from app.core.alerts import alert_restore
-            alert_restore(t.name, "config", summary)
+            alert_restore(t.name, "config", summary, note=run.note)
         return {"restore_run_id": run.id, "summary": summary, "items": plan}

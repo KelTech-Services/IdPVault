@@ -25,6 +25,7 @@ class SettingsIn(BaseModel):
     alert_events: list | None = None  # legacy pre-split list (kept for back-compat)
     alert_events_email: list | None = None    # categories emailed to admins
     alert_events_webhook: list | None = None  # categories posted to the webhook
+    require_restore_note: bool | None = None  # require a documented reason on restore applies
     default_schedule_cron: str | None = None
     default_identity_schedule_cron: str | None = None
     default_retention_keep: int | None = None
@@ -83,7 +84,7 @@ def put_settings(body: SettingsIn, request: Request) -> dict:
                 new["password_enc"] = cur["password_enc"]
             _put(db, "smtp", new)
         general = _get(db, "general")
-        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "alert_events_email", "alert_events_webhook", "default_schedule_cron", "default_identity_schedule_cron", "default_retention_keep", "org_timezone", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "state_poll_minutes", "state_users_cache_minutes", "stale_backup_hours", "public_url", "enforce_host"):
+        for k in ("alert_webhook_url", "alert_webhook_format", "alert_events", "alert_events_email", "alert_events_webhook", "require_restore_note", "default_schedule_cron", "default_identity_schedule_cron", "default_retention_keep", "org_timezone", "okta_rate_reserve_pct", "mfa_trust_days", "login_max_attempts", "login_lockout_minutes", "state_poll_minutes", "state_users_cache_minutes", "stale_backup_hours", "public_url", "enforce_host"):
             v = getattr(body, k)
             if v is not None:
                 if k == "org_timezone" and v != general.get("org_timezone", "UTC"):

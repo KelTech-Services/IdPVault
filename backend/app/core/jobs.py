@@ -154,7 +154,8 @@ def execute(job_id: int) -> None:
             result = apply_identity_restore(tid, params["snapshot_ts"],
                                             params.get("actor", "api"),
                                             params.get("selection"), job_id=job_id,
-                                            revert_keys=params.get("revert_selection"))
+                                            revert_keys=params.get("revert_selection"),
+                                            note=params.get("note"))
         else:
             raise ValueError(f"unknown job kind {kind}")
         _finish(job_id, "ok", result=_trim(kind, result))
