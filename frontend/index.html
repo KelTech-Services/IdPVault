@@ -555,6 +555,21 @@
     <div style="margin-top:16px;text-align:right"><button onclick="closeConfirmDel()">Cancel</button> <button class="del" onclick="confirmDelGo()">Delete permanently</button></div>
   </div>
 </div>
+<div id="fulldrmodal" class="modal hidden">
+  <div class="box" style="width:560px">
+    <h2 style="color:var(--red);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Full-DR restore - replace the database</h2>
+    <div id="fd_preflight" class="muted" style="font-size:.85rem;margin-bottom:12px">Checking the target database…</div>
+    <div id="fd_form" class="hidden">
+      <p class="muted" style="font-size:.85rem;margin-bottom:10px">This REPLACES everything in the target database with this snapshot's dump. Changes made since the snapshot are lost, every session is invalidated, and Authentik must be restarted afterward. The apply is atomic: if anything fails, it rolls back and nothing changes. A rescue dump of the current database is saved first.</p>
+      <div><span class="lbl">Why are you doing this? (recorded in restore history)</span><input id="fd_note" type="text" maxlength="500" placeholder="justification"></div>
+      <div style="margin-top:10px"><span class="lbl">Type the tenant slug to confirm: <code id="fd_slug" style="user-select:all"></code></span><input id="fd_confirm" type="text" autocomplete="off" spellcheck="false" placeholder="tenant slug"></div>
+      <div style="margin-top:10px"><span class="lbl">Enter your password to confirm</span><input id="fd_pw" type="password" autocomplete="current-password"></div>
+      <label class="muted" style="display:block;font-size:.8rem;margin-top:10px"><input type="checkbox" id="fd_skiprescue"> Skip the rescue dump - ONLY if the current database is broken and cannot be dumped. Its contents will be unrecoverable.</label>
+    </div>
+    <div id="fd_status" class="muted" style="font-size:.85rem;margin-top:10px"></div>
+    <div style="margin-top:16px;text-align:right"><button onclick="closeFulldr()">Cancel</button> <button id="fd_applybtn" class="del hidden" onclick="fulldrApply()">Replace database</button></div>
+  </div>
+</div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
 <script src="/js/core.js?v=build"></script>

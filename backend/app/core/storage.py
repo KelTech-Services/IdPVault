@@ -138,6 +138,27 @@ def dbdump_size(tenant_slug: str, ts: str) -> int:
         return 0
 
 
+def read_dbdump(tenant_slug: str, ts: str, data_key: bytes) -> bytes:
+    """Decrypt a snapshot's Full-DR dump back to plain SQL."""
+    from app.core import crypto
+    with open(os.path.join(snapshot_dir(tenant_slug, ts), "pgdump.sql.enc"), "rb") as f:
+        return crypto.decrypt(f.read(), data_key)
+
+
+def write_rescue_dump(tenant_slug: str, data_key: bytes, dump: bytes) -> str:
+    """Encrypted pre-restore rescue dump of the CURRENT database, taken right
+    before a Full-DR restore replaces it. Lives under <slug>/rescue/ (its own
+    dir, so snapshot listing/pruning never touch it). Returns the file path."""
+    from app.core import crypto
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    base = _contained(os.path.join(get_settings().data_dir, _safe_slug(tenant_slug), "rescue"))
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, f"{ts}.sql.enc")
+    with open(path, "wb") as f:
+        f.write(crypto.encrypt(dump, data_key))
+    return path
+
+
 def identity_dir(tenant_slug: str, ts: str) -> str:
     return _contained(os.path.join(get_settings().data_dir, _safe_slug(tenant_slug),
                                    "identities", _safe_ts(ts)))

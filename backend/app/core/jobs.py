@@ -136,6 +136,10 @@ def _trim(kind, result):
     if kind == "config_restore":
         return {"restore_run_id": result.get("restore_run_id"),
                 "summary": result.get("summary")}
+    if kind == "fulldr_restore":
+        return {"restore_run_id": result.get("restore_run_id"),
+                "summary": result.get("summary"),
+                "manual_steps": result.get("manual_steps")}
     return {}
 
 
@@ -176,6 +180,13 @@ def execute(job_id: int) -> None:
                                  params.get("actor", "api"),
                                  params.get("target_tenant_id"),
                                  note=params.get("note"), job_id=job_id)
+        elif kind == "fulldr_restore":
+            from app.core.fulldr import run_fulldr_restore
+            result = run_fulldr_restore(tid, params["snapshot_ts"],
+                                        params.get("actor", "api"),
+                                        note=params.get("note"),
+                                        skip_rescue=bool(params.get("skip_rescue")),
+                                        job_id=job_id)
         else:
             raise ValueError(f"unknown job kind {kind}")
         _finish(job_id, "ok", result=_trim(kind, result))

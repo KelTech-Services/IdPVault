@@ -289,9 +289,14 @@ async function deleteFromForm(){
 /* ---------- restore history (item f: viewer over the RestoreRun audit trail) ---------- */
 const RH_MODE = {dry_run: '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">config preview</span>',
                  apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">config restore</span>',
-                 identity_apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">Users &amp; Access restore</span>'};
+                 identity_apply: '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">Users &amp; Access restore</span>',
+                 fulldr_apply: '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)">Full-DR restore</span>'};
 function rhSummary(r){
   const s = r.summary || {};
+  if(r.mode === 'fulldr_apply'){
+    return `database replaced at ${s.target || '?'} - ${fmtBytes(s.bytes || 0)} in `
+      + `${Math.round((s.duration_ms || 0) / 1000)}s, rescue dump: ${s.rescue || '?'}`;
+  }
   if(r.mode === 'identity_apply'){
     const bits = [];
     const u = s.users || {};
@@ -359,11 +364,22 @@ async function viewRestoreRun(tid, runId){
   try{
     const r = await api(`/tenants/${tid}/restore/runs/${runId}`);
     document.getElementById('rh_title').textContent =
-      `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
+      `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'fulldr_apply' ? 'Full-DR' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
     const notice = r.note ? `<p class="muted" style="font-size:.82rem;font-style:italic;margin-bottom:8px">Justification from ${esc(r.actor)}: "${esc(r.note)}"</p>` : '';
     const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
     if(r.mode === 'identity_apply'){
       box.innerHTML = notice + renderIdentityReportHTML(r.results || {});
+      return;
+    }
+    if(r.mode === 'fulldr_apply'){
+      const s = r.summary || {};
+      const ms = (r.results || {}).manual_steps || [];
+      box.innerHTML = notice
+        + `<div class="restore-item"><div></div><div>Target</div><div>${esc(s.target||'-')}</div><div><span class="st-created">replaced</span></div></div>`
+        + `<div class="restore-item"><div></div><div>Applied</div><div>${fmtBytes(s.bytes||0)} of SQL in ${Math.round((s.duration_ms||0)/1000)}s (atomic - all or nothing)</div><div></div></div>`
+        + `<div class="restore-item"><div></div><div>Rescue dump</div><div>${esc(s.rescue||'-')}${s.rescue_file?` <span class="muted">(${esc(s.rescue_file)})</span>`:''}</div><div></div></div>`
+        + `<div class="restore-item"><div></div><div>Target before</div><div>${esc(s.target_kind_before||'-')} database</div><div></div></div>`
+        + (ms.length?`<div style="margin-top:10px"><b>Do these now:</b><ul style="margin:6px 0 0 18px">${ms.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`:'');
       return;
     }
     // audit view: only what was actually touched - identical/skipped rows are
@@ -449,7 +465,7 @@ async function showSnaps(id, slug){
       <td><span class="tag ok">ok</span></td>
       <td>${s.objects || 0}</td>
       <td class="muted">${fmtBytes(s.size || 0)}</td>
-      <td class="muted">${s.db_dump_status === 'failed' ? '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)" title="Full-DR is configured but the database dump FAILED for this snapshot - this snapshot has no dump. Check the Full-DR Postgres URL in the tenant settings.">dump failed</span>' : s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
+      <td class="muted">${s.db_dump_status === 'failed' ? '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)" title="Full-DR is configured but the database dump FAILED for this snapshot - this snapshot has no dump. Check the Full-DR Postgres URL in the tenant settings.">dump failed</span>' : s.db_dump_size != null ? `${fmtBytes(s.db_dump_size)}${me.role==='admin' ? ` <button class="ghost" style="color:var(--red)" onclick="openFulldr('${s.ts}')" title="Replace the Full-DR database with this snapshot's dump - full credential recovery for self-hosted Authentik. Atomic: any failure rolls back and changes nothing.">Restore DB… ${TIPI}</button>` : ''}` : '-'}</td>
       <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
       <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
     fillSnapChanges(id);
@@ -909,6 +925,68 @@ async function cloneApply(){
   }
 }
 
+
+/* ---------- Full-DR restore (replace the database from a snapshot's dump) ---------- */
+let _fdCtx = null;
+async function openFulldr(ts){
+  _fdCtx = {tenantId: snapTenantId, ts};
+  document.getElementById('fd_preflight').textContent = 'Checking the target database…';
+  document.getElementById('fd_form').classList.add('hidden');
+  document.getElementById('fd_applybtn').classList.add('hidden');
+  document.getElementById('fd_status').textContent = '';
+  document.getElementById('fd_note').value = '';
+  document.getElementById('fd_confirm').value = '';
+  document.getElementById('fd_pw').value = '';
+  document.getElementById('fd_skiprescue').checked = false;
+  document.getElementById('fulldrmodal').classList.remove('hidden');
+  try{
+    const p = await api(`/tenants/${_fdCtx.tenantId}/fulldr/preflight`,
+                        {method:'POST', body: JSON.stringify({snapshot_ts: ts})});
+    _fdCtx.slug = p.slug;
+    document.getElementById('fd_slug').textContent = p.slug;
+    document.getElementById('fd_preflight').innerHTML =
+      `<b>Snapshot:</b> ${fmtSnap(ts)} · dump ${fmtBytes(p.dump_size||0)}`
+      + (p.dump_excluded_ephemeral ? ' <span class="muted">(sessions/events excluded at capture)</span>' : '') + '<br>'
+      + `<b>Target:</b> ${esc(p.target)} · Postgres ${esc(p.server_version)} · currently `
+      + (p.target_kind === 'empty'
+         ? '<span class="add">an EMPTY database (fresh instance)</span>'
+         : `an Authentik database with ${p.target_tables} tables - its contents will be REPLACED`);
+    document.getElementById('fd_form').classList.remove('hidden');
+    document.getElementById('fd_applybtn').classList.remove('hidden');
+  }catch(e){
+    document.getElementById('fd_preflight').innerHTML =
+      `<span class="st-failed">${esc(e.message)}</span>`;
+  }
+}
+function closeFulldr(){ document.getElementById('fulldrmodal').classList.add('hidden'); _fdCtx = null; }
+async function fulldrApply(){
+  const c = _fdCtx; if(!c) return;
+  if(v('fd_confirm').trim() !== c.slug) return toast('Type the tenant slug exactly as shown to confirm', true);
+  if(!v('fd_pw')) return toast('Enter your password to confirm', true);
+  const st = document.getElementById('fd_status');
+  document.getElementById('fd_applybtn').disabled = true;
+  try{
+    const q = await api(`/tenants/${c.tenantId}/fulldr/apply`, {method:'POST',
+      body: JSON.stringify({snapshot_ts: c.ts, note: v('fd_note') || undefined,
+                            password: v('fd_pw'), confirm_slug: v('fd_confirm').trim(),
+                            skip_rescue: document.getElementById('fd_skiprescue').checked})});
+    const jr = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status!=='running') return;
+      const pct = jobPct(jj);
+      st.textContent = 'Replacing database… ' + (pct != null ? pct + '%' : '');
+    });
+    const s = ((jr||{}).result||{}).summary || {};
+    st.innerHTML = `<span class="act-create">Database replaced.</span> ${fmtBytes(s.bytes||0)} applied in `
+      + `${Math.round((s.duration_ms||0)/1000)}s. Rescue dump: ${esc(s.rescue||'-')}. `
+      + `<b>Now restart the Authentik server and worker containers.</b> Full report in Restore history.`;
+    toast('Full-DR restore applied - restart Authentik now.');
+    loadRestoreHistory(c.tenantId);
+  }catch(e){
+    st.innerHTML = `<span class="st-failed">Full-DR restore failed: ${esc(e.message)}</span> `
+      + 'The apply is atomic - the database was NOT changed.';
+    document.getElementById('fd_applybtn').disabled = false;
+  }
+}
 
 /* ---------- snapshot browser ---------- */
 let _browse = null;

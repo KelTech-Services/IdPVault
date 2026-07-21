@@ -3,6 +3,30 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.20] - 2026-07-21
+### Added
+- Full-DR restore: snapshots that carry an encrypted pg_dump now have a
+  "Restore DB..." action (global admins only) that applies the dump back onto
+  the tenant's configured Full-DR database - full credential recovery for
+  self-hosted Authentik, including password hashes and MFA devices. Built
+  guardrails-first:
+  - preflight probes the target and REFUSES anything that is not an Authentik
+    database or empty, so a mistyped URL cannot destroy another application's
+    data; the target is always the tenant's own Full-DR URL (no free-text
+    database targets at restore time)
+  - a rescue dump of the current database is saved (encrypted) before
+    anything is written; skippable only via an explicit acknowledgment for
+    the current-database-is-broken disaster case
+  - the apply requires a justification, password re-auth, and typing the
+    tenant slug (displayed in the dialog)
+  - the restore runs in a single transaction with stop-on-error: ANY failure
+    rolls back and leaves the database exactly as it was
+  - runs as a background job with real percent progress, is recorded in
+    restore history with a full report (red Full-DR tag), and fires a
+    Restores alert listing the post-restore manual steps (restart Authentik,
+    sessions reset, re-check the IdPVault API token)
+  - docs + wiki updated (Backups page, Full-DR restore section)
+
 ## [1.2.19] - 2026-07-21
 ### Added
 - Dedicated "Clone & promote" documentation page (in-app Docs and wiki):

@@ -95,6 +95,58 @@ def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
     return {"job_id": jid, "status": "queued"}
 
 
+class FullDrIn(BaseModel):
+    snapshot_ts: str
+    note: str | None = None
+    password: str | None = None
+    confirm_slug: str | None = None   # must equal the tenant's slug, typed by hand
+    skip_rescue: bool = False         # explicit acknowledgment for a broken current DB
+
+
+@router.post("/tenants/{tenant_id}/fulldr/preflight")
+def fulldr_preflight(tenant_id: int, body: FullDrIn, request: Request) -> dict:
+    """Read-only target probe for the Full-DR restore modal. Global admin only -
+    this feature replaces a whole database."""
+    from app.core.security import require_admin
+    require_admin(request)
+    from app.core.fulldr import preflight
+    try:
+        return preflight(tenant_id, body.snapshot_ts)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(404, str(e))
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))   # unreachable / wrong database
+
+
+@router.post("/tenants/{tenant_id}/fulldr/apply")
+def fulldr_apply(tenant_id: int, body: FullDrIn, request: Request) -> dict:
+    """Queue the Full-DR restore. Admin + password reauth + typed tenant slug."""
+    from app.core.security import require_admin
+    require_admin(request)
+    _require_entitled(tenant_id)
+    _require_note_if_configured(body.note)
+    from app.api.routes_backups import _require_reauth
+    with SessionLocal() as db:
+        t = db.get(Tenant, tenant_id)
+        if t is None:
+            raise HTTPException(404, "tenant not found")
+        _require_reauth(db, request, body.password or "", t.slug, "restore.fulldr_apply")
+        slug = t.slug
+    if (body.confirm_slug or "").strip() != slug:
+        raise HTTPException(422, f"type the tenant slug exactly ({slug}) to confirm "
+                                 "this Full-DR restore")
+    from app.core import storage
+    if not storage.has_dbdump(slug, body.snapshot_ts):
+        raise HTTPException(404, "this snapshot has no Full-DR dump")
+    from app.core.jobs import enqueue
+    jid = enqueue("fulldr_restore", tenant_id, request.state.user["username"],
+                  params={"snapshot_ts": body.snapshot_ts,
+                          "actor": request.state.user["username"],
+                          "note": body.note,
+                          "skip_rescue": bool(body.skip_rescue)})
+    return {"job_id": jid, "status": "queued"}
+
+
 @router.get("/tenants/{tenant_id}/restore/runs")
 def runs(tenant_id: int, request: Request) -> list[dict]:
     from app.core.security import require_tenant_read
