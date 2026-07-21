@@ -268,7 +268,6 @@
     <div style="margin:6px 0"><span class="lbl" style="display:inline">Restore into</span>
       <select id="r_target" style="width:auto;margin-left:8px"></select>
       <span class="muted" style="font-size:.76rem">- default is the same tenant; pick another same-provider tenant to clone/promote</span></div>
-    <div style="margin:6px 0"><input id="r_note" placeholder="note - why this restore? (recorded in restore history and the alert)" style="width:100%"></div>
     <div style="margin:10px 0"><button class="primary" onclick="restorePreview()">Run preview (dry-run)</button>
       <button id="r_applybtn" class="danger hidden" onclick="restoreApply()">Apply restore</button>
       <button onclick="closeRestore()">Close</button></div>
@@ -280,12 +279,23 @@
   <div class="box wide">
     <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Users &amp; Access restore - <span id="ir_tenant"></span></h2>
     <p class="muted" style="font-size:.82rem;margin-bottom:12px">Snapshot <span id="ir_snap"></span>. Preview is read-only. Apply is additive: it recreates missing users, re-adds memberships/assignments, and changes existing users only when you explicitly select them for a profile revert. It never deletes anything.</p>
-    <div style="margin:6px 0"><input id="ir_note" placeholder="note - why this restore? (recorded in restore history and the alert)" style="width:100%"></div>
     <div style="margin:10px 0"><button class="primary" onclick="identityPreview()">Run preview (dry-run)</button>
       <button id="ir_applybtn" class="danger hidden" onclick="identityApply()">Apply restore</button>
       <button onclick="closeIdentityRestore()">Close</button></div>
     <div id="ir_summary" class="muted" style="font-size:.85rem;margin:8px 0"></div>
     <div id="ir_items" style="max-height:62vh;overflow:auto"></div>
+  </div>
+</div>
+<div id="justifymodal" class="modal hidden" style="z-index:90">
+  <div class="box" style="width:600px">
+    <h2 style="color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-size:.95rem;margin-bottom:8px">Confirm restore</h2>
+    <p id="jm_msg" style="font-size:.88rem;margin-bottom:12px"></p>
+    <label class="lbl">Justification <span class="tipi" title="Recorded permanently in restore history, shown in the report, and included in the Restores alert so other admins know why this was done.">ⓘ</span></label>
+    <input id="jm_note" placeholder="Enter the justification for this restore" style="width:100%" onkeydown="if(event.key==='Enter')jmConfirm()">
+    <div style="margin-top:16px;text-align:right">
+      <button onclick="jmCancel()">Cancel</button>
+      <button class="danger" onclick="jmConfirm()">Apply restore</button>
+    </div>
   </div>
 </div>
 <div id="rhmodal" class="modal hidden">
@@ -397,7 +407,7 @@
       <div><label>Login: max failed attempts before lockout</label><input id="s_maxatt" type="number" placeholder="5"></div>
       <div><label>Login: lockout duration (minutes)</label><input id="s_lockmin" type="number" placeholder="15"></div>
       <div><label>Alert if backup older than (hours)</label><input id="s_stale" type="number" placeholder="26"></div>
-      <div><label>Require a note to apply a restore <span class="tipi" title="When on, every restore apply (config and Users &amp; Access) must include a note explaining why - recorded in restore history and included in the Restores alert.">ⓘ</span></label><select id="s_reqnote"><option value="false">Off</option><option value="true">Required</option></select></div>
+      <div><label>Require a justification to apply a restore <span class="tipi" title="When on, every restore apply (config and Users &amp; Access) must include a justification - recorded in restore history and included in the Restores alert.">ⓘ</span></label><select id="s_reqnote"><option value="false">Off</option><option value="true">Required</option></select></div>
       <div><label>Live view refresh interval (minutes, 0 = off)</label><input id="s_statemin" type="number" placeholder="15"></div>
       <div><label>Live State users cache (minutes) <span class="tipi" title="How long the live user directory stays cached before opening Users fetches fresh data from the provider. Refresh Users from provider always bypasses this cache. Minimum 5.">ⓘ</span></label><input id="s_userscache" type="number" placeholder="60"></div>
       <div style="grid-column:span 2"><label>Public URL (canonical - used for email links, HTTPS &amp; host checks)</label><input id="s_pub" placeholder="https://idpvault.example.com"></div>

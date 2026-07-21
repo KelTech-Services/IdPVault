@@ -45,7 +45,7 @@ def _require_note_if_configured(note: str | None) -> None:
         row = db.get(Setting, "general")
         required = bool((dict(row.value) if row else {}).get("require_restore_note"))
     if required and not (note or "").strip():
-        raise HTTPException(422, "a note explaining this restore is required by your "
+        raise HTTPException(422, "a justification for this restore is required by your "
                                  "organization's settings")
 
 

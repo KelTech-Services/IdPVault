@@ -9,10 +9,11 @@ All notable changes to IdPVault are documented here. Format loosely follows
   Backups and Users & Access pages. Results show the object's change timeline
   and, for deleted objects, the last snapshot it was present in with a
   Restore shortcut. The Activity page also gained an object search box.
-- Restore notes: every restore apply (config and Users & Access) can carry a
-  note explaining why. The note is recorded in restore history, shown in the
-  report, and included in the Restores alert as the reason. A new System
-  setting can REQUIRE a note on every restore apply (off by default).
+- Restore justifications: applying a restore (config and Users & Access) now
+  opens a confirm dialog with a justification field. The justification is
+  recorded in restore history, shown in the report, and included in the
+  Restores alert. A new System setting can REQUIRE a justification on every
+  restore apply (off by default).
 ### Changed
 - Alert subscriptions are now per channel AND grouped: for email and for the
   webhook separately, pick Config Backups (changes, failures, overdue

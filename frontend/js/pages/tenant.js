@@ -327,7 +327,7 @@ async function viewRestoreRun(runId){
     const r = await api(`/tenants/${snapTenantId}/restore/runs/${runId}`);
     document.getElementById('rh_title').textContent =
       `${r.mode === 'identity_apply' ? 'Users & Access' : r.mode === 'dry_run' ? 'config preview' : 'config'} · ${fmtSnap(r.snapshot_ts)} · ${r.actor} · ${fmtLocal(r.at)}`;
-    const notice = r.note ? `<p class="muted" style="font-size:.82rem;font-style:italic;margin-bottom:8px">Note from ${esc(r.actor)}: "${esc(r.note)}"</p>` : '';
+    const notice = r.note ? `<p class="muted" style="font-size:.82rem;font-style:italic;margin-bottom:8px">Justification from ${esc(r.actor)}: "${esc(r.note)}"</p>` : '';
     const H = `<div class="restore-item" style="font-weight:600;border-bottom:1px solid var(--border)"><div></div><div>ACTION</div><div>OBJECT</div><div>STATUS</div></div>`;
     if(r.mode === 'identity_apply'){
       box.innerHTML = notice + renderIdentityReportHTML(r.results || {});
@@ -562,13 +562,35 @@ async function fillTenantOrg(val){
 /* ---------- restore ---------- */
 let _restoreCtx = null;
 let _restoreItems = [];
+let _jmResolve = null;
+function askJustify(msg){
+  // Replaces the native confirm on restore applies: one dialog carrying the
+  // warning text plus the justification field. Resolves {note} or null (cancel).
+  return new Promise(res => {
+    _jmResolve = res;
+    document.getElementById('jm_msg').textContent = msg;
+    document.getElementById('jm_note').value = '';
+    document.getElementById('justifymodal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('jm_note').focus(), 50);
+  });
+}
+function jmCancel(){
+  document.getElementById('justifymodal').classList.add('hidden');
+  const r = _jmResolve; _jmResolve = null;
+  if(r) r(null);
+}
+function jmConfirm(){
+  const note = document.getElementById('jm_note').value.trim();
+  document.getElementById('justifymodal').classList.add('hidden');
+  const r = _jmResolve; _jmResolve = null;
+  if(r) r({note});
+}
 async function openRestore(ts){
   _restoreCtx = { tenantId: snapTenantId, snap: ts };
   document.getElementById('r_tenant').textContent = window._snapSlug || '';
   document.getElementById('r_snap').textContent = fmtSnap(ts);
   document.getElementById('r_summary').textContent = '';
   document.getElementById('r_items').innerHTML = '';
-  document.getElementById('r_note').value = '';
   document.getElementById('r_applybtn').classList.add('hidden');
   const src = _tenants.find(x=>x.id===snapTenantId);
   const sameprov = _tenants.filter(x=>!src || x.provider===src.provider);
@@ -639,12 +661,13 @@ async function restoreApply(){
   const checked=boxes.filter(b=>b.checked);
   if(boxes.length && checked.length===0){ toast('Select at least one item to restore', true); return; }
   const partial = boxes.length && checked.length<boxes.length;
-  if(!confirm(promoting ? 'PROMOTE: apply this snapshot into a DIFFERENT tenant? This writes objects into that target tenant.' : `Apply this restore? It writes the ${partial?checked.length+' selected':'changed'} object(s) back into the live tenant. This cannot be auto-undone.`)) return;
+  const j = await askJustify(promoting ? 'PROMOTE: apply this snapshot into a DIFFERENT tenant? This writes objects into that target tenant.' : `Apply this restore? It writes the ${partial?checked.length+' selected':'changed'} object(s) back into the live tenant. This cannot be auto-undone.`);
+  if(!j) return;
   document.getElementById('r_summary').textContent = 'Applying…';
   document.getElementById('r_applybtn').disabled = true;
   try {
     const payload = {snapshot_ts:_restoreCtx.snap};
-    if(v('r_note').trim()) payload.note = v('r_note').trim();
+    if(j.note) payload.note = j.note;
     if(tgt!==_restoreCtx.tenantId) payload.target_tenant_id = tgt;
     if(partial){
       payload.selection = {objects: checked.map(b=>{const it=_restoreItems[+b.dataset.i]; return {resource_type:it.resource_type, object_id:it.object_id};})};
@@ -844,7 +867,6 @@ function openIdentityRestore(ts){
   document.getElementById('ir_snap').textContent = fmtSnap(ts);
   document.getElementById('ir_summary').textContent = '';
   document.getElementById('ir_items').innerHTML = '';
-  document.getElementById('ir_note').value = '';
   document.getElementById('ir_applybtn').classList.add('hidden');
   document.getElementById('idrestoremodal').classList.remove('hidden');
 }
@@ -943,21 +965,22 @@ async function identityApply(){
   }
   const n = selection ? selection.length : (p.summary.users.recreate||0);
   const revTxt = revertSel ? ` OVERWRITES profile fields on ${revertSel.length} existing user(s) with snapshot values,` : '';
-  if(!confirm(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s),${revTxt} and re-adds missing memberships/assignments. Recreated users will need password + MFA reset. Continue?`)) return;
+  const j = await askJustify(`APPLY Users & Access restore? This WRITES to the live tenant: recreates ${n} user(s),${revTxt} and re-adds missing memberships/assignments. Recreated users will need password + MFA reset.`);
+  if(!j) return;
   document.getElementById('ir_summary').textContent = 'Restore queued…';
   document.getElementById('ir_applybtn').disabled = true;
   try{
     const payload = {snapshot_ts:_irCtx.ts, confirm:true};
-    if(v('ir_note').trim()) payload.note = v('ir_note').trim();
+    if(j.note) payload.note = j.note;
     if(selection) payload.selection = selection;
     if(revertSel) payload.revert_selection = revertSel;
     const q = await api(`/tenants/${_idCtx.tenantId}/identity/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
-    const j = await waitForJob(q.job_id, (jj)=>{
+    const jr = await waitForJob(q.job_id, (jj)=>{
       if(jj.status === 'running')
         document.getElementById('ir_summary').textContent = 'Applying… '
           + (jj.progress_done ? jj.progress_done + ' API calls' : '') + ' (throttled; may take a while)';
     });
-    const r = j.result || {};
+    const r = jr.result || {};
     r.manual_steps = r.manual_steps || [];
     document.getElementById('ir_summary').innerHTML = `<b>Applied:</b> snapshot ${fmtSnap(_irCtx.ts)}`;
     let html = null;

@@ -188,10 +188,10 @@ def alert_failure(tenant_name: str, error: str) -> None:
 def alert_restore(tenant_name: str, kind: str, summary: dict, note: str | None = None) -> None:
     fields = {"Tenant": tenant_name, "Type": kind, "Summary": str(summary)[:400]}
     if note:
-        fields["Reason"] = note[:400]
+        fields["Justification"] = note[:400]
     send_alert("restore_applied", f"Restore applied - {tenant_name}",
                f"A {kind} restore was applied to the live tenant."
-               + (f"\n\nReason given: {note[:400]}" if note else ""),
+               + (f"\n\nJustification: {note[:400]}" if note else ""),
                fields)
 
 
