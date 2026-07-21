@@ -48,6 +48,7 @@ def reconcile_snapshot_rows() -> None:
     long-lived installs carry orphaned rows that inflate the dashboard storage
     stat and list unrestorable Users & Access snapshots. Failed identity rows
     are kept - they never had files and are wanted history."""
+    from app.core import storage
     from app.models.db import IdentitySnapshot, SessionLocal, Snapshot, Tenant
     removed = 0
     with SessionLocal() as db:
