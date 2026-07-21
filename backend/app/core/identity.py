@@ -192,22 +192,32 @@ def diff_identities(old: dict, new: dict) -> dict | None:
     return out or None
 
 
-def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
-    """Dry-run: what a restore WOULD do. Read-only."""
+def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
+                          target_tenant_id: int | None = None) -> dict:
+    """Dry-run: what a restore WOULD do. Read-only. target_tenant_id set =
+    clone: the SOURCE tenant's snapshot compared against the TARGET tenant's
+    live directory (same provider only)."""
     import json
     from app.core import crypto, storage
     from app.models.db import AuditLog, SessionLocal, Tenant
     from app.providers import get_adapter
 
     with SessionLocal() as db:
-        t = db.get(Tenant, tenant_id)
-        if t is None:
+        src = db.get(Tenant, tenant_id)
+        if src is None:
             raise ValueError("tenant not found")
+        t = db.get(Tenant, target_tenant_id) if target_tenant_id else src
+        if t is None:
+            raise ValueError("target tenant not found")
+        if t.provider != src.provider:
+            raise ValueError(f"provider mismatch: {src.provider} snapshot cannot be "
+                             f"applied to a {t.provider} tenant")
+        src_key = crypto.unwrap_data_key(src.wrapped_data_key)
         data_key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
 
-        snap = storage.read_identities(t.slug, snapshot_ts, data_key)
+        snap = storage.read_identities(src.slug, snapshot_ts, src_key)
         live = adapter.export_identities()
 
         live_by_key = {_ukey(u): u for u in live.get("users", [])}
@@ -281,7 +291,8 @@ def plan_identity_restore(tenant_id: int, snapshot_ts: str, actor: str) -> dict:
                                     "URL) on this tenant (Edit).")
 
         db.add(AuditLog(actor=actor, action="identity.restore.preview",
-                        detail={"tenant": t.slug, "snapshot": snapshot_ts}))
+                        detail={"tenant": t.slug, "source": src.slug,
+                                "snapshot": snapshot_ts}))
         db.commit()
         return {"summary": summary, "manual_steps": manual_steps,
                 "recreate_users": recreate_users,
@@ -297,23 +308,34 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                            only_keys: list | None = None,
                            job_id: int | None = None,
                            revert_keys: list | None = None,
-                           note: str | None = None) -> dict:
+                           note: str | None = None,
+                           target_tenant_id: int | None = None) -> dict:
     """Write path: recreate missing users + re-add missing edges. Additive,
     idempotent, per-object reporting. Persists a RestoreRun report.
     revert_keys: explicitly selected existing users whose profile fields are
-    reverted to the snapshot values (opt-in per user, never default)."""
+    reverted to the snapshot values (opt-in per user, never default).
+    target_tenant_id set = clone: the SOURCE tenant's snapshot is applied
+    into the TARGET tenant (same provider only); the run is recorded on the
+    target's restore history."""
     from app.core import crypto, storage
     from app.models.db import AuditLog, RestoreRun, SessionLocal, Tenant
     from app.providers import get_adapter
 
     with SessionLocal() as db:
-        t = db.get(Tenant, tenant_id)
-        if t is None:
+        src = db.get(Tenant, tenant_id)
+        if src is None:
             raise ValueError("tenant not found")
+        t = db.get(Tenant, target_tenant_id) if target_tenant_id else src
+        if t is None:
+            raise ValueError("target tenant not found")
+        if t.provider != src.provider:
+            raise ValueError(f"provider mismatch: {src.provider} snapshot cannot be "
+                             f"applied to a {t.provider} tenant")
+        src_key = crypto.unwrap_data_key(src.wrapped_data_key)
         data_key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
-        snap = storage.read_identities(t.slug, snapshot_ts, data_key)
+        snap = storage.read_identities(src.slug, snapshot_ts, src_key)
         stop_progress = None
         if job_id is not None:
             from app.core.jobs import sampler
@@ -342,7 +364,8 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                          results={"report": report, "manual_steps": manual})
         db.add(run)
         db.add(AuditLog(actor=actor, action="identity.restore.apply",
-                        detail={"tenant": t.slug, "snapshot": snapshot_ts,
+                        detail={"tenant": t.slug, "source": src.slug,
+                                "snapshot": snapshot_ts,
                                 "users_created": created}))
         db.commit()
         from app.core.alerts import alert_restore

@@ -5,13 +5,20 @@ All notable changes to IdPVault are documented here. Format loosely follows
 
 ## [1.2.10] - 2026-07-21
 ### Added
-- Clone page: a dedicated sidebar page for applying a snapshot from one
-  tenant into another tenant of the same provider (promote staging to prod,
-  seed a standby, spin up a matching environment). Appears automatically
-  once two tenants share a provider; pick source tenant, snapshot, and
-  target, then the usual dry-run preview and selective apply. The restore
-  dialog's "Restore into" selector is now locked to the current tenant -
-  cloning lives on its own page.
+- Clone page: a dedicated sidebar page for cloning one tenant into another
+  tenant of the same provider (promote staging to prod, seed a standby, or
+  full disaster recovery into a fresh instance). Appears automatically once
+  two tenants share a provider. Clone Config, Users & Access, or both in
+  one pass - config applies first so groups and apps exist before
+  Users & Access attaches to them. Each part previews read-only first; the
+  apply spells out the write direction and requires a justification plus
+  your password. Works for Authentik, Okta, and Auth0. The restore dialog's
+  "Restore into" selector is now locked to the current tenant - cloning
+  lives on its own page.
+- Users & Access restores gained clone support under the hood: the restore
+  plan and apply can target another same-provider tenant (server-enforced
+  provider match, license and write-access checks on BOTH tenants, run
+  recorded in the target's restore history).
 ### Fixed
 - Applying a config restore or clone now runs as a background job. Large
   applies (a full clone can be hundreds of API writes) used to run inside

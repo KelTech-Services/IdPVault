@@ -159,11 +159,16 @@ def execute(job_id: int) -> None:
             result = run_identity_backup(tid, job_id=job_id)
         elif kind == "identity_restore":
             from app.core.identity import apply_identity_restore
-            result = apply_identity_restore(tid, params["snapshot_ts"],
+            # job.tenant_id is the tenant being WRITTEN (target for clones);
+            # the snapshot is read from source_tenant_id (same as tid when
+            # this is a plain same-tenant restore)
+            result = apply_identity_restore(params.get("source_tenant_id", tid),
+                                            params["snapshot_ts"],
                                             params.get("actor", "api"),
                                             params.get("selection"), job_id=job_id,
                                             revert_keys=params.get("revert_selection"),
-                                            note=params.get("note"))
+                                            note=params.get("note"),
+                                            target_tenant_id=params.get("target_tenant_id"))
         elif kind == "config_restore":
             from app.core.restore import run_restore
             result = run_restore(params["source_tenant_id"], params["snapshot_ts"],

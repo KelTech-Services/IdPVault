@@ -734,7 +734,10 @@ async function restoreApply(){
   document.getElementById('r_applybtn').disabled = false;
 }
 
-/* ---------- Clone page (v1.2.10): snapshot from one tenant -> another same-provider tenant ---------- */
+/* ---------- Clone page (v1.2.10): snapshot(s) from one tenant -> another same-provider tenant.
+   Config, Users & Access, or both in one pass (config first, so groups/apps
+   exist before Users & Access attaches to them). ---------- */
+let _cloneCtx = null;
 function _cloneProviders(){
   const counts = {};
   _tenants.forEach(t => { if(t.active !== false) counts[t.provider] = (counts[t.provider]||0)+1; });
@@ -745,13 +748,18 @@ async function openClonePage(){
   const srcSel = document.getElementById('cl_source');
   const eligible = _tenants.filter(t => t.active !== false && provs.includes(t.provider));
   srcSel.innerHTML = eligible.map(t => `<option value="${t.id}">${esc(t.name)} (${t.provider})</option>`).join('');
+  const uaAllowed = ((me && me.features) || []).includes('identity');
+  document.getElementById('cl_ua_wrap').classList.toggle('hidden', !uaAllowed);
+  if(!uaAllowed) document.getElementById('cl_do_ua').checked = false;
   await cloneSourceChanged();
 }
 async function cloneSourceChanged(){
+  _cloneCtx = null; document.getElementById('cl_result').classList.add('hidden');
   const sid = parseInt(document.getElementById('cl_source').value);
   const src = _tenants.find(x => x.id === sid);
-  const tgtSel = document.getElementById('cl_target'), snapSel = document.getElementById('cl_snap');
-  if(!src){ tgtSel.innerHTML = ''; snapSel.innerHTML = ''; return; }
+  const tgtSel = document.getElementById('cl_target'), snapSel = document.getElementById('cl_snap'),
+        idSel = document.getElementById('cl_idsnap');
+  if(!src){ tgtSel.innerHTML = ''; snapSel.innerHTML = ''; idSel.innerHTML = ''; return; }
   tgtSel.innerHTML = _tenants.filter(t => t.id !== sid && t.provider === src.provider && t.active !== false)
     .map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
   snapSel.innerHTML = '<option>loading…</option>';
@@ -761,15 +769,106 @@ async function cloneSourceChanged(){
       `<option value="${s.ts}"${i===0?' selected':''}>${fmtSnap(s.ts)} (${s.objects} objects)${i===0?' - latest':''}</option>`).join('')
       || '<option value="">no snapshots - back this tenant up first</option>';
   }catch(e){ snapSel.innerHTML = '<option value="">failed to load snapshots</option>'; }
+  const uaBox = document.getElementById('cl_do_ua');
+  if(!document.getElementById('cl_ua_wrap').classList.contains('hidden')){
+    idSel.innerHTML = '<option>loading…</option>';
+    try{
+      const isnaps = (await api(`/tenants/${sid}/identity/snapshots`)).filter(r => r.status === 'ok');
+      idSel.innerHTML = isnaps.map((s, i) =>
+        `<option value="${s.ts}"${i===0?' selected':''}>${fmtSnap(s.ts)} (${(s.counts||{}).users||0} users)${i===0?' - latest':''}</option>`).join('')
+        || '<option value="">no Users & Access snapshots on the source</option>';
+      uaBox.disabled = !isnaps.length;
+      if(!isnaps.length) uaBox.checked = false;
+    }catch(e){ idSel.innerHTML = '<option value="">no Users & Access snapshots on the source</option>'; uaBox.disabled = true; uaBox.checked = false; }
+  }
+  cloneTypeChanged();
 }
-function cloneStart(){
+function cloneTypeChanged(){
+  _cloneCtx = null; document.getElementById('cl_result').classList.add('hidden');
+  document.getElementById('cl_snap_wrap').classList.toggle('hidden', !document.getElementById('cl_do_cfg').checked);
+  document.getElementById('cl_idsnap_wrap').classList.toggle('hidden', !document.getElementById('cl_do_ua').checked);
+}
+async function clonePreview(){
   const sid = parseInt(document.getElementById('cl_source').value);
   const tgt = parseInt(document.getElementById('cl_target').value);
+  const doCfg = document.getElementById('cl_do_cfg').checked;
+  const doUa = document.getElementById('cl_do_ua').checked;
   const ts = document.getElementById('cl_snap').value;
-  const src = _tenants.find(x => x.id === sid);
-  if(!src || !tgt || !ts){ toast('Pick a source tenant, a snapshot, and a target tenant.', true); return; }
-  snapTenantId = sid; window._snapSlug = src.slug;
-  openRestore(ts, tgt);
+  const idts = document.getElementById('cl_idsnap').value;
+  if(!sid || !tgt){ toast('Pick a source and a target tenant.', true); return; }
+  if(!doCfg && !doUa){ toast('Pick what to clone: Config, Users & Access, or both.', true); return; }
+  if(doCfg && !ts){ toast('Pick a config snapshot.', true); return; }
+  if(doUa && !idts){ toast('Pick a Users & Access snapshot.', true); return; }
+  _cloneCtx = {sid, tgt, doCfg, doUa, ts, idts};
+  const box = document.getElementById('cl_result');
+  const cs = document.getElementById('cl_cfg_sum'), us = document.getElementById('cl_ua_sum');
+  box.classList.remove('hidden');
+  document.getElementById('cl_applybtn').disabled = true;
+  document.getElementById('cl_status').textContent = '';
+  cs.innerHTML = doCfg ? 'Running config preview…' : '';
+  us.innerHTML = doUa ? 'Running Users & Access preview…' : '';
+  try{
+    if(doCfg){
+      const res = await api(`/tenants/${sid}/restore/preview`, {method:'POST',
+        body: JSON.stringify({snapshot_ts: ts, target_tenant_id: tgt})});
+      const a = res.summary.actions || {};
+      cs.innerHTML = `<b>Config:</b> ${res.summary.total} objects - `
+        + Object.entries(a).map(([k,v])=>`<span class="act-${k}">${v} ${k}</span>`).join(' · ')
+        + ` <span class="muted">(only create/update are written; nothing is deleted)</span>`;
+    }
+    if(doUa){
+      const p = await api(`/tenants/${sid}/identity/restore/preview`, {method:'POST',
+        body: JSON.stringify({snapshot_ts: idts, target_tenant_id: tgt})});
+      const s = p.summary;
+      us.innerHTML = `<b>Users &amp; Access:</b> ${s.users.recreate} user(s) to recreate · `
+        + `${s.users.identical} identical · ${s.group_memberships_to_add} membership(s) to add · `
+        + `${s.app_group_assignments_to_add + s.app_user_assignments_direct_to_add} assignment(s) to add`
+        + ((p.manual_steps||[]).length ? '<div class="muted" style="margin-top:4px;font-size:.78rem">'
+          + p.manual_steps.map(esc).join('<br>') + '</div>' : '');
+    }
+    document.getElementById('cl_applybtn').disabled = false;
+  }catch(e){
+    (doCfg && cs.innerHTML.includes('Running') ? cs : us).innerHTML =
+      `<span class="st-failed">Preview failed: ${esc(e.message)}</span>`;
+    _cloneCtx = null;
+  }
+}
+async function cloneApply(){
+  const c = _cloneCtx;
+  if(!c) return;
+  const srcName = (_tenants.find(x=>x.id===c.sid)||{}).name || c.sid;
+  const tgtName = (_tenants.find(x=>x.id===c.tgt)||{}).name || c.tgt;
+  const what = c.doCfg && c.doUa ? 'CONFIG + USERS & ACCESS' : c.doCfg ? 'CONFIG' : 'USERS & ACCESS';
+  const j = await askJustify(`CLONE ${what}: this WRITES from "${srcName}" INTO "${tgtName}". `
+    + `Double-check the direction - the TARGET being written to is "${tgtName}". This cannot be auto-undone.`);
+  if(!j) return;
+  const st = document.getElementById('cl_status');
+  document.getElementById('cl_applybtn').disabled = true;
+  try{
+    if(c.doCfg){
+      st.textContent = 'Applying config…';
+      const q = await api(`/tenants/${c.sid}/restore/apply`, {method:'POST',
+        body: JSON.stringify({snapshot_ts: c.ts, target_tenant_id: c.tgt,
+                              password: j.password, note: j.note || undefined})});
+      await waitForJob(q.job_id, (jj)=>{
+        if(jj.status==='running') st.textContent = 'Applying config… ' + (jj.progress_done ? jj.progress_done + ' API calls' : '');
+      });
+    }
+    if(c.doUa){
+      st.textContent = 'Applying Users & Access…';
+      const q = await api(`/tenants/${c.sid}/identity/restore/apply`, {method:'POST',
+        body: JSON.stringify({snapshot_ts: c.idts, confirm: true, target_tenant_id: c.tgt,
+                              password: j.password, note: j.note || undefined})});
+      await waitForJob(q.job_id, (jj)=>{
+        if(jj.status==='running') st.textContent = 'Applying Users & Access… ' + (jj.progress_done ? jj.progress_done + ' API calls' : '');
+      });
+    }
+    st.innerHTML = `<span class="act-create">Clone complete.</span> Full per-object reports are in "${esc(tgtName)}"'s restore history.`;
+    toast("Clone complete - reports recorded in the target tenant's restore history.");
+  }catch(e){
+    st.innerHTML = `<span class="st-failed">Clone failed: ${esc(e.message)}</span> Anything already applied is recorded in "${esc(tgtName)}"'s restore history.`;
+    document.getElementById('cl_applybtn').disabled = false;
+  }
 }
 
 

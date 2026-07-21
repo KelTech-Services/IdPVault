@@ -143,14 +143,20 @@ def identity_diff(tenant_id: int, old: str, new: str, request: Request) -> dict:
 
 class IdRestoreIn(BaseModel):
     snapshot_ts: str
+    target_tenant_id: int | None = None  # set = clone into another same-provider tenant
 
 
 @router.post("/tenants/{tenant_id}/identity/restore/preview")
 def restore_preview(tenant_id: int, body: IdRestoreIn, request: Request) -> dict:
     _write(request, tenant_id)
     _require_identity_license(tenant_id)
+    if body.target_tenant_id:
+        _write(request, body.target_tenant_id)
+        _require_identity_license(body.target_tenant_id)
     try:
-        return plan_identity_restore(tenant_id, body.snapshot_ts, request.state.user["username"])
+        return plan_identity_restore(tenant_id, body.snapshot_ts,
+                                     request.state.user["username"],
+                                     body.target_tenant_id)
     except FileNotFoundError:
         raise HTTPException(404, "identity snapshot not found")
     except ValueError as e:
@@ -162,6 +168,7 @@ class IdApplyIn(BaseModel):
     confirm: bool = False  # must be true — guards against accidental writes
     selection: list[str] | None = None  # user natural keys to recreate; None = all missing
     revert_selection: list[str] | None = None  # existing users whose profile reverts (opt-in only)
+    target_tenant_id: int | None = None  # set = clone into another same-provider tenant
     note: str | None = None  # justification - recorded in restore history + alert
     password: str | None = None  # re-auth: applying a restore requires the caller's password
 
@@ -170,6 +177,9 @@ class IdApplyIn(BaseModel):
 def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
     _write(request, tenant_id)
     _require_identity_license(tenant_id)
+    if body.target_tenant_id:
+        _write(request, body.target_tenant_id)
+        _require_identity_license(body.target_tenant_id)
     if not body.confirm:
         raise HTTPException(422, "confirm must be true to apply an identity restore")
     from app.api.routes_restore import _require_note_if_configured
@@ -184,11 +194,14 @@ def restore_apply(tenant_id: int, body: IdApplyIn, request: Request) -> dict:
         if body.snapshot_ts not in storage.list_identity_snapshots(t.slug):
             raise HTTPException(404, "identity snapshot not found")
     from app.core.jobs import enqueue
-    jid = enqueue("identity_restore", tenant_id, request.state.user["username"],
+    jid = enqueue("identity_restore", body.target_tenant_id or tenant_id,
+                  request.state.user["username"],
                   params={"snapshot_ts": body.snapshot_ts,
+                          "source_tenant_id": tenant_id,
                           "actor": request.state.user["username"],
                           "selection": body.selection,
                           "revert_selection": body.revert_selection,
+                          "target_tenant_id": body.target_tenant_id,
                           "note": body.note})
     return {"job_id": jid, "status": "queued"}
 

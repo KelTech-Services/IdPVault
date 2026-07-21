@@ -137,11 +137,26 @@
     <p class="muted" style="font-size:.84rem;margin-bottom:16px">Apply a snapshot from one tenant into another tenant of the <b>same provider</b>: promote staging to production, seed a standby instance, or spin up a matching environment. You always get a read-only preview first and pick exactly which objects to write - cloning never deletes anything from the target. Cross-provider cloning is not possible (an Okta snapshot cannot be applied to an Authentik tenant).</p>
     <div class="formgrid">
       <div><label>Source tenant (read from)</label><select id="cl_source" onchange="cloneSourceChanged()"></select></div>
-      <div><label>Source snapshot</label><select id="cl_snap"></select></div>
-      <div><label>Target tenant (written to)</label><select id="cl_target"></select></div>
+      <div><label>Target tenant (WRITTEN TO)</label><select id="cl_target"></select></div>
+      <div><label>What to clone</label>
+        <div style="display:flex;gap:18px;align-items:center;padding-top:8px">
+          <label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:.84rem;color:var(--text);cursor:pointer;margin:0"><input type="checkbox" id="cl_do_cfg" checked onchange="cloneTypeChanged()"> Config</label>
+          <label id="cl_ua_wrap" style="display:inline-flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:.84rem;color:var(--text);cursor:pointer;margin:0"><input type="checkbox" id="cl_do_ua" onchange="cloneTypeChanged()"> Users &amp; Access</label>
+        </div>
+      </div>
+      <div id="cl_snap_wrap"><label>Config snapshot (from source)</label><select id="cl_snap"></select></div>
+      <div id="cl_idsnap_wrap" class="hidden"><label>Users &amp; Access snapshot (from source)</label><select id="cl_idsnap"></select></div>
     </div>
-    <button class="primary" onclick="cloneStart()">Preview clone (dry-run)</button>
-    <p class="muted" style="font-size:.78rem;margin-top:12px">The apply runs as a background job with live progress in the Activity area, requires a justification and your password, and is recorded in the target tenant's restore history.</p>
+    <button class="primary" onclick="clonePreview()">Preview clone (dry-run)</button>
+    <p class="muted" style="font-size:.78rem;margin-top:12px">Applies run as background jobs with live progress, require a justification and your password, and are recorded in the target tenant's restore history. When cloning both, config applies first so groups and apps exist before Users &amp; Access attaches to them.</p>
+    <div id="cl_result" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div id="cl_cfg_sum" style="font-size:.86rem;margin-bottom:10px"></div>
+      <div id="cl_ua_sum" style="font-size:.86rem;margin-bottom:10px"></div>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+        <button class="del" id="cl_applybtn" onclick="cloneApply()">Apply clone…</button>
+        <span id="cl_status" class="muted" style="font-size:.84rem"></span>
+      </div>
+    </div>
   </section>
 </main>
 <main id="view-t-overview" class="hidden">
