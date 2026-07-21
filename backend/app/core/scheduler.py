@@ -151,6 +151,10 @@ def run_backup(tenant_id: int, trigger: str = "scheduled", job_id: int | None = 
                                    {"Tenant": t.name, "Snapshot": manifest["timestamp"]})
                     except Exception:
                         log.warning("full-DR failure alert failed tenant=%s", t.slug)
+                # persist the outcome - the manifest file was written BEFORE the
+                # dump ran, and the UI reads the file, not this dict
+                storage.update_manifest(t.slug, manifest["timestamp"],
+                                        {"db_dump": manifest["db_dump"]})
 
             prev = storage.list_snapshots(t.slug)
             drift = None

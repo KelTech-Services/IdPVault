@@ -68,6 +68,27 @@ def write_snapshot(tenant_slug: str, data_key: bytes, export: dict) -> dict:
     return manifest
 
 
+def update_manifest(tenant_slug: str, ts: str, extra: dict) -> None:
+    """Merge keys into an existing snapshot manifest on disk. Used for facts
+    only known after the snapshot is written (e.g. the Full-DR dump outcome) -
+    without this, post-write mutations exist only in memory and the UI never
+    sees them."""
+    m = read_manifest(tenant_slug, ts)
+    if m is None:
+        return
+    m.update(extra)
+    base = os.path.realpath(get_settings().data_dir)
+    path = os.path.normpath(os.path.join(
+        base, _safe_slug(tenant_slug), _safe_ts(ts), "manifest.json"))
+    if not path.startswith(base + os.sep):
+        return
+    try:
+        with open(path, "w") as f:
+            json.dump(m, f, indent=2)
+    except OSError:
+        pass   # metadata only; the snapshot itself is intact
+
+
 def read_snapshot(tenant_slug: str, ts: str, data_key: bytes) -> dict:
     base = os.path.realpath(get_settings().data_dir)
     path = os.path.normpath(os.path.join(
