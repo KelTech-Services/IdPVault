@@ -144,14 +144,17 @@ def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn, request: Request) -
             if ts in existing:
                 storage.delete_snapshot(slug, ts)
         # DB rows go for EVERY requested timestamp, not just ones with files on
-        # disk - a FAILED backup has a row but never wrote a snapshot, and it
-        # must be deletable too (it used to be stuck in the list forever).
-        from app.models.db import Snapshot
-        rows = db.query(Snapshot).filter(Snapshot.tenant_id == tenant_id,
-                                         Snapshot.ts.in_(body.timestamps)).all()
-        row_ts = {r.ts for r in rows}
-        for r in rows:
-            db.delete(r)
+        # disk - a FAILED backup has no snapshot files, its row in the list
+        # comes from BackupRun, and it must be deletable too (it used to be
+        # stuck in the list forever).
+        from app.models.db import BackupRun, Snapshot
+        row_ts = set()
+        for model in (Snapshot, BackupRun):
+            rows = db.query(model).filter(model.tenant_id == tenant_id,
+                                          model.ts.in_(body.timestamps)).all()
+            row_ts |= {r.ts for r in rows}
+            for r in rows:
+                db.delete(r)
         doomed = sorted(set(ts for ts in body.timestamps
                             if ts in existing or ts in row_ts))
         db.add(AuditLog(action="tenant.snapshots_delete",

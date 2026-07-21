@@ -18,6 +18,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   NOTE: existing installs have explicit alert subscriptions saved, so the new
   Clones checkbox starts unchecked - tick it once per channel.
 
+### Fixed
+- Deleting a FAILED backup now actually removes it. 1.2.15 made failed rows
+  selectable and deleted their Snapshot DB rows, but failed runs are listed
+  from the BackupRun table, so they reappeared on reload. The delete endpoint
+  now removes the BackupRun rows for the requested timestamps as well.
+
 ## [1.2.15] - 2026-07-21
 ### Fixed
 - Failed config backups can now be deleted. Failed runs never write snapshot
