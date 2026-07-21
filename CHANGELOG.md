@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.17] - 2026-07-21
+### Fixed
+- Authentik: cascade failures now propagate through chains. An object blocked
+  by the cascade guard ("references X which failed to be created") is itself
+  recorded as failed, so a binding pointing at a blocked app now reports the
+  same honest cascade message instead of the misleading "binding target does
+  not exist in the live tenant (already orphaned when the snapshot was
+  taken)". One root failure now reads as one chain in the report.
+
 ## [1.2.16] - 2026-07-21
 ### Added
 - Clones now have their own alert category with a purpose-built template.

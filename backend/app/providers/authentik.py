@@ -311,15 +311,23 @@ class AuthentikAdapter(ProviderAdapter):
                                f"(model {obj.get('meta_model_name')!r})")
         payload = self._remap_refs({k: v for k, v in obj.items()
                                     if k not in self.READONLY_FIELDS})
+        old_pk = obj.get("pk") or obj.get("brand_uuid")
+        _label = (f"{resource_type[:-1] if resource_type.endswith('s') else resource_type} "
+                  f"\"{obj.get('name') or obj.get('slug') or old_pk}\"")
         # Cascade honestly: if this object references something whose create
         # FAILED earlier in this run, say so - otherwise the stale source pk
         # can accidentally collide with an unrelated object's pk in the target
         # (integer pks are sequential in every instance) and produce a
         # baffling error like "Application with this provider already exists".
+        # The blocked object is recorded as failed too, so bindings that point
+        # at IT get the same honest cascade message instead of a misleading
+        # "orphaned when the snapshot was taken".
         for f in self._REF_FIELDS:
             vals = obj.get(f)   # PRE-remap source refs: failed pks are source pks
             for v in (vals if isinstance(vals, list) else [vals]):
                 if isinstance(v, (str, int)) and str(v) in self._failed_pks:
+                    if old_pk is not None:
+                        self._failed_pks[str(old_pk)] = _label
                     raise RuntimeError(
                         f"references {self._failed_pks[str(v)]} which failed to be "
                         f"created earlier in this run - fix that failure and re-run "
@@ -336,7 +344,6 @@ class AuthentikAdapter(ProviderAdapter):
                     "(this binding was already orphaned when the snapshot was taken). "
                     "Restore or recreate the object it points at first, then re-add "
                     "the binding in Authentik.")
-        old_pk = obj.get("pk") or obj.get("brand_uuid")
         # Authentik detail routes for applications/flows are keyed by SLUG, not
         # pk - and brands carry brand_uuid instead of pk (a cross-tenant clone
         # must use the LIVE brand's uuid or the update misses and becomes a
@@ -368,9 +375,7 @@ class AuthentikAdapter(ProviderAdapter):
                     # snapshot has a proxy provider). POSTing would just hit
                     # the name-uniqueness conflict - fail honestly instead.
                     if old_pk is not None:   # dependents must cascade honestly too
-                        self._failed_pks[str(old_pk)] = \
-                            f"{resource_type[:-1] if resource_type.endswith('s') else resource_type} " \
-                            f"\"{obj.get('name') or obj.get('slug') or old_pk}\""
+                        self._failed_pks[str(old_pk)] = _label
                     raise RuntimeError(
                         f"a {resource_type[:-1] if resource_type.endswith('s') else resource_type} "
                         f"named \"{obj.get('name') or obj.get('slug') or ident}\" already exists in "
@@ -380,9 +385,7 @@ class AuthentikAdapter(ProviderAdapter):
             r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
                 if old_pk is not None:   # downstream refs must not use the stale pk
-                    self._failed_pks[str(old_pk)] = \
-                        f"{resource_type[:-1] if resource_type.endswith('s') else resource_type} " \
-                        f"\"{obj.get('name') or obj.get('slug') or old_pk}\""
+                    self._failed_pks[str(old_pk)] = _label
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
             new_pk = r.json().get("pk", "")
             if old_pk is not None and new_pk:
