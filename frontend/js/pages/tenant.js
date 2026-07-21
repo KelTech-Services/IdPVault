@@ -624,7 +624,10 @@ function jmConfirm(){
   const r = _jmResolve; _jmResolve = null;
   if(r) r({note, password});
 }
-async function openRestore(ts){
+async function openRestore(ts, cloneTargetId){
+  /* cloneTargetId set = opened from the Clone page: the target is locked to
+     that tenant. Without it, this is a plain same-tenant restore - cloning
+     has its own page, so no target dropdown to mis-click here. */
   _restoreCtx = { tenantId: snapTenantId, snap: ts };
   document.getElementById('r_tenant').textContent = window._snapSlug || '';
   document.getElementById('r_snap').textContent = fmtSnap(ts);
@@ -632,8 +635,10 @@ async function openRestore(ts){
   document.getElementById('r_items').innerHTML = '';
   document.getElementById('r_applybtn').classList.add('hidden');
   const src = _tenants.find(x=>x.id===snapTenantId);
-  const sameprov = _tenants.filter(x=>!src || x.provider===src.provider);
-  document.getElementById('r_target').innerHTML = sameprov.map(x=>`<option value="${x.id}"${x.id===snapTenantId?' selected':''}>${esc(x.name)}${x.id===snapTenantId?' (same tenant)':''}</option>`).join('');
+  const tgt = cloneTargetId ? _tenants.find(x=>x.id===cloneTargetId) : src;
+  const sel = document.getElementById('r_target');
+  sel.innerHTML = tgt ? `<option value="${tgt.id}" selected>${esc(tgt.name)}${tgt.id===snapTenantId?' (same tenant)':' (CLONE TARGET)'}</option>` : '';
+  sel.disabled = true;
   document.getElementById('restoremodal').classList.remove('hidden');
 }
 function closeRestore(){ document.getElementById('restoremodal').classList.add('hidden'); _restoreCtx=null; }
@@ -711,12 +716,60 @@ async function restoreApply(){
     if(partial){
       payload.selection = {objects: checked.map(b=>{const it=_restoreItems[+b.dataset.i]; return {resource_type:it.resource_type, object_id:it.object_id};})};
     }
-    const res = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
-    renderRestore(res);
+    const q = await api(`/tenants/${_restoreCtx.tenantId}/restore/apply`, {method:'POST', body: JSON.stringify(payload)});
+    /* Applies run as a background job - immune to proxy timeouts on big
+       restores/clones, with live progress here and in the Activity area. */
+    const jr = await waitForJob(q.job_id, (jj)=>{
+      if(jj.status !== 'running') return;
+      document.getElementById('r_summary').textContent = 'Applying… '
+        + (jj.progress_done ? jj.progress_done + ' API calls so far' : '')
+        + ' (running as a background job - safe to close this dialog)';
+    });
+    const out = jr.result || {};
+    const full = await api(`/tenants/${tgt}/restore/runs/${out.restore_run_id}`);
+    renderRestore({summary: full.summary, items: (full.results && full.results.items) || []});
     toast('Restore applied - see the report below.');
     document.getElementById('r_applybtn').classList.add('hidden');
   } catch(e){ document.getElementById('r_summary').textContent = 'Apply failed: '+e.message; }
   document.getElementById('r_applybtn').disabled = false;
+}
+
+/* ---------- Clone page (v1.2.10): snapshot from one tenant -> another same-provider tenant ---------- */
+function _cloneProviders(){
+  const counts = {};
+  _tenants.forEach(t => { if(t.active !== false) counts[t.provider] = (counts[t.provider]||0)+1; });
+  return Object.keys(counts).filter(p => counts[p] >= 2);
+}
+async function openClonePage(){
+  const provs = _cloneProviders();
+  const srcSel = document.getElementById('cl_source');
+  const eligible = _tenants.filter(t => t.active !== false && provs.includes(t.provider));
+  srcSel.innerHTML = eligible.map(t => `<option value="${t.id}">${esc(t.name)} (${t.provider})</option>`).join('');
+  await cloneSourceChanged();
+}
+async function cloneSourceChanged(){
+  const sid = parseInt(document.getElementById('cl_source').value);
+  const src = _tenants.find(x => x.id === sid);
+  const tgtSel = document.getElementById('cl_target'), snapSel = document.getElementById('cl_snap');
+  if(!src){ tgtSel.innerHTML = ''; snapSel.innerHTML = ''; return; }
+  tgtSel.innerHTML = _tenants.filter(t => t.id !== sid && t.provider === src.provider && t.active !== false)
+    .map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  snapSel.innerHTML = '<option>loading…</option>';
+  try{
+    const snaps = await api(`/tenants/${sid}/snapshots`);
+    snapSel.innerHTML = snaps.slice().reverse().map((s, i) =>
+      `<option value="${s.ts}"${i===0?' selected':''}>${fmtSnap(s.ts)} (${s.objects} objects)${i===0?' - latest':''}</option>`).join('')
+      || '<option value="">no snapshots - back this tenant up first</option>';
+  }catch(e){ snapSel.innerHTML = '<option value="">failed to load snapshots</option>'; }
+}
+function cloneStart(){
+  const sid = parseInt(document.getElementById('cl_source').value);
+  const tgt = parseInt(document.getElementById('cl_target').value);
+  const ts = document.getElementById('cl_snap').value;
+  const src = _tenants.find(x => x.id === sid);
+  if(!src || !tgt || !ts){ toast('Pick a source tenant, a snapshot, and a target tenant.', true); return; }
+  snapTenantId = sid; window._snapSlug = src.slug;
+  openRestore(ts, tgt);
 }
 
 

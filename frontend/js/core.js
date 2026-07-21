@@ -408,7 +408,8 @@ let _jobsPrev = {};   // job id -> last seen status, to detect completion transi
 window._jobDoneHooks = window._jobDoneHooks || [];
 const JOB_KIND_LABEL = {config_backup: 'Config backup',
                         identity_backup: 'Users & Access backup',
-                        identity_restore: 'Users & Access restore'};
+                        identity_restore: 'Users & Access restore',
+                        config_restore: 'Config restore'};
 
 function jobPct(j){
   return (j.progress_total && j.progress_total > 0)

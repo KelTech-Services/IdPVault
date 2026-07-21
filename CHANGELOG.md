@@ -3,6 +3,23 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.10] - 2026-07-21
+### Added
+- Clone page: a dedicated sidebar page for applying a snapshot from one
+  tenant into another tenant of the same provider (promote staging to prod,
+  seed a standby, spin up a matching environment). Appears automatically
+  once two tenants share a provider; pick source tenant, snapshot, and
+  target, then the usual dry-run preview and selective apply. The restore
+  dialog's "Restore into" selector is now locked to the current tenant -
+  cloning lives on its own page.
+### Fixed
+- Applying a config restore or clone now runs as a background job. Large
+  applies (a full clone can be hundreds of API writes) used to run inside
+  the HTTP request and die at the reverse-proxy timeout with a 504 while
+  the server kept working blind. The apply now survives any timeout, shows
+  live progress in the dialog and the Activity area, and the report loads
+  from restore history when it completes.
+
 ## [1.2.9] - 2026-07-21
 ### Added
 - Find in backups: search the change history for any object by name on the

@@ -83,7 +83,7 @@ def build_plan(snap_export: dict, live_export: dict, selection: dict | None,
 
 def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                 mode: str, actor: str, target_tenant_id: int | None = None,
-                note: str | None = None) -> dict:
+                note: str | None = None, job_id: int | None = None) -> dict:
     """Same-tenant restore, or clone/promote when target_tenant_id points at a
     different tenant of the SAME provider: source snapshot -> target tenant."""
     assert mode in ("dry_run", "apply")
@@ -101,6 +101,11 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         data_key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
+        if job_id is not None:
+            # live API-call progress for the Activity area; the sampler thread
+            # self-stops once the job leaves "running"
+            from app.core.jobs import sampler
+            sampler(adapter, job_id)
 
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()

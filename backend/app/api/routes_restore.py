@@ -76,15 +76,23 @@ def apply(tenant_id: int, body: RestoreIn, request: Request) -> dict:
         if t is None:
             raise HTTPException(404, "tenant not found")
         _require_reauth(db, request, body.password or "", t.slug, "restore.apply")
-    try:
-        return run_restore(tenant_id, body.snapshot_ts,
-                           body.selection.model_dump() if body.selection else None,
-                           "apply", request.state.user["username"],
-                           body.target_tenant_id, note=body.note)
-    except FileNotFoundError:
+        slug = t.slug
+    from app.core import storage
+    if body.snapshot_ts not in storage.list_snapshots(slug):
         raise HTTPException(404, "snapshot not found")
-    except ValueError as e:
-        raise HTTPException(404, str(e))
+    # Applies run as a background job: large restores and clones take minutes,
+    # which outlives any reverse-proxy timeout - and the Activity area shows
+    # live progress. The report is read back from restore history when done.
+    from app.core.jobs import enqueue
+    jid = enqueue("config_restore", body.target_tenant_id or tenant_id,
+                  request.state.user["username"],
+                  params={"source_tenant_id": tenant_id,
+                          "snapshot_ts": body.snapshot_ts,
+                          "selection": body.selection.model_dump() if body.selection else None,
+                          "actor": request.state.user["username"],
+                          "target_tenant_id": body.target_tenant_id,
+                          "note": body.note})
+    return {"job_id": jid, "status": "queued"}
 
 
 @router.get("/tenants/{tenant_id}/restore/runs")

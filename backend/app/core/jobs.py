@@ -74,8 +74,13 @@ def sampler(adapter, job_id, total=None):
     stop_ev = threading.Event()
 
     def _loop():
+        from app.models.db import Job, SessionLocal
         while not stop_ev.wait(_SAMPLE_SECS):
             try:
+                with SessionLocal() as db:   # self-stop when the job is done -
+                    j = db.get(Job, job_id)  # safety net if stop() is never called
+                    if j is None or j.status != "running":
+                        return
                 calls = getattr(getattr(adapter, "_rl", None), "calls", 0)
                 set_progress(job_id, calls, total)
             except Exception:
@@ -128,6 +133,9 @@ def _trim(kind, result):
         return {"restore_run_id": result.get("restore_run_id"),
                 "summary": result.get("summary"),
                 "manual_steps": result.get("manual_steps")}
+    if kind == "config_restore":
+        return {"restore_run_id": result.get("restore_run_id"),
+                "summary": result.get("summary")}
     return {}
 
 
@@ -156,6 +164,13 @@ def execute(job_id: int) -> None:
                                             params.get("selection"), job_id=job_id,
                                             revert_keys=params.get("revert_selection"),
                                             note=params.get("note"))
+        elif kind == "config_restore":
+            from app.core.restore import run_restore
+            result = run_restore(params["source_tenant_id"], params["snapshot_ts"],
+                                 params.get("selection"), "apply",
+                                 params.get("actor", "api"),
+                                 params.get("target_tenant_id"),
+                                 note=params.get("note"), job_id=job_id)
         else:
             raise ValueError(f"unknown job kind {kind}")
         _finish(job_id, "ok", result=_trim(kind, result))

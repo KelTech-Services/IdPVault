@@ -131,6 +131,19 @@
     </table>
   </section>
 </main>
+<main id="view-clone" class="hidden">
+  <section class="panel">
+    <h2>Clone a tenant's configuration <span class="tipi" title="Applies a snapshot from one tenant into ANOTHER tenant of the same provider. The target is compared object-by-object first - you get a dry-run preview and select exactly what gets written. Nothing is ever deleted from the target.">ⓘ</span></h2>
+    <p class="muted" style="font-size:.84rem;margin-bottom:16px">Apply a snapshot from one tenant into another tenant of the <b>same provider</b>: promote staging to production, seed a standby instance, or spin up a matching environment. You always get a read-only preview first and pick exactly which objects to write - cloning never deletes anything from the target. Cross-provider cloning is not possible (an Okta snapshot cannot be applied to an Authentik tenant).</p>
+    <div class="formgrid">
+      <div><label>Source tenant (read from)</label><select id="cl_source" onchange="cloneSourceChanged()"></select></div>
+      <div><label>Source snapshot</label><select id="cl_snap"></select></div>
+      <div><label>Target tenant (written to)</label><select id="cl_target"></select></div>
+    </div>
+    <button class="primary" onclick="cloneStart()">Preview clone (dry-run)</button>
+    <p class="muted" style="font-size:.78rem;margin-top:12px">The apply runs as a background job with live progress in the Activity area, requires a justification and your password, and is recorded in the target tenant's restore history.</p>
+  </section>
+</main>
 <main id="view-t-overview" class="hidden">
   <section class="statusbar" id="t_overview_cards"></section>
   <section class="chartgrid hidden" id="t_chartrow">

@@ -16,4 +16,6 @@
 <h3>Credentials on recreated apps</h3>
 <p>IdPs never export secret material, so a recreated app comes back with a <b>new</b> client secret / signing certificate. The report marks these <code>created_new_credentials</code>: update the integration on the far end.</p>
 <h3>Clone / promote</h3>
-<p>The "Restore into" selector can target a different tenant of the same provider, restoring a snapshot into another tenant to clone or promote configuration between environments.</p>
+<p>Cloning has its own page: <b>Clone</b> appears in the sidebar as soon as two tenants share a provider. Pick a source tenant, one of its snapshots, and a same-provider target tenant - then the usual dry-run preview shows exactly what would be written into the target, and you select what to apply. Cloning never deletes anything from the target, and cross-provider cloning is not possible (an Okta snapshot cannot be applied to an Authentik tenant). Typical uses: promote staging to production, seed a standby instance, or spin up a matching environment.</p>
+<h3>Applies run in the background</h3>
+<p>Applying a restore or clone runs as a background job: large applies can take minutes, and the job survives even if you close the dialog or the browser. Progress (live API call count) shows in the dialog and in the Activity area, and the full report lands in the target tenant's restore history when it completes.</p>

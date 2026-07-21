@@ -20,11 +20,12 @@ const NAV_ICONS = {
   license: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg>',
   docs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  clone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
 };
 
-const GLOBAL_VIEWS = {fleet:'view-fleet', orgs:'view-orgs', appusers:'view-users', audit:'view-audit', license:'view-license', settings:'view-settings', docs:'view-docs'};
+const GLOBAL_VIEWS = {fleet:'view-fleet', clone:'view-clone', orgs:'view-orgs', appusers:'view-users', audit:'view-audit', license:'view-license', settings:'view-settings', docs:'view-docs'};
 const TENANT_VIEWS = {overview:'view-t-overview', backups:'view-t-backups', changes:'view-t-changes', identity:'view-t-identity', activity:'view-t-activity', settings:'view-t-settings'};
-const GLOBAL_TITLES = {fleet:'Dashboard', orgs:'Client orgs', appusers:'App users', audit:'Audit log', license:'License', settings:'System settings', docs:'Docs'};
+const GLOBAL_TITLES = {fleet:'Dashboard', clone:'Clone', orgs:'Client orgs', appusers:'App users', audit:'Audit log', license:'License', settings:'System settings', docs:'Docs'};
 const TENANT_TITLES = {overview:'Overview', backups:'Backups', changes:'Changes', identity:'Users & Access', activity:'Activity', settings:'Settings'};
 const LEGACY_ROUTES = {dashboard:'fleet', users:'appusers', events:'fleet'};
 
@@ -57,6 +58,14 @@ function adminPages(){
   p.push({key:'license', label:'License'});
   p.push({key:'settings', label:'System settings'});
   return p;
+}
+function cloneEligible(){
+  // Clone applies a snapshot into ANOTHER tenant of the same provider, so it
+  // only exists once two tenants share a provider (and the user can write).
+  if(!_canWrite()) return false;
+  const counts = {};
+  visibleTenants().forEach(t => { if(t.active !== false) counts[t.provider] = (counts[t.provider]||0)+1; });
+  return Object.values(counts).some(n => n >= 2);
 }
 function defaultRoute(){
   const ts = visibleTenants();
@@ -91,6 +100,7 @@ function renderNav(){
   } else {
     html += _navBtn('#/fleet', 'Dashboard', NAV_ICONS.fleet);
   }
+  if(cloneEligible()) html += _navBtn('#/clone', 'Clone', NAV_ICONS.clone);
   const ap = adminPages();
   if(ap.length){
     html += `<div class="navgroup navgroup-admin" onclick="toggleAdminGroup()">Administration <span>${_adminOpen ? '▾' : '▸'}</span></div>`;
@@ -133,7 +143,8 @@ function route(){
   const adminOnly = ['orgs', 'appusers', 'audit', 'license', 'settings'];
   if(adminOnly.includes(page) && !adminPages().some(p => p.key === page)){ location.hash = defaultRoute(); return; }
   if(page === 'fleet' && visibleTenants().length === 1){ location.hash = defaultRoute(); return; }
-  if(page === 'fleet') currentTenantId = null;
+  if(page === 'clone' && !cloneEligible()){ location.hash = defaultRoute(); return; }
+  if(page === 'fleet' || page === 'clone') currentTenantId = null;
   _activeHash = '#/' + page;
   if(location.hash !== _activeHash){ location.hash = _activeHash; return; }
   _showView(GLOBAL_VIEWS[page], GLOBAL_TITLES[page]);
@@ -142,6 +153,7 @@ function route(){
 }
 function enterGlobalPage(page){
   if(page === 'fleet'){ loadDashboard(); loadTenants(); }
+  if(page === 'clone') openClonePage();
   if(page === 'orgs') loadOrgs();
   if(page === 'appusers') loadUsers();
   if(page === 'audit') loadAudit();
