@@ -439,7 +439,7 @@ function renderNavJobs(jobs){
   box.classList.remove('hidden');
   box.innerHTML = '<div class="njtitle" title="Backups and restores currently queued or running. Click a row to open that tenant.">Activity <span class="tipi">ⓘ</span></div>' + jobs.map(j => {
     const pct = jobPct(j);
-    const label = `${esc(j.tenant_name)} · ${JOB_KIND_LABEL[j.kind] || esc(j.kind)}`;
+    const label = `<div class="njlabel">${esc(j.tenant_name)}</div><div class="njkind">${JOB_KIND_LABEL[j.kind] || esc(j.kind)}</div>`;
     let body = '';
     if(j.status === 'running'){
       body = pct != null
@@ -452,8 +452,7 @@ function renderNavJobs(jobs){
     } else {
       body = `<div class="njmeta st-failed" title="${esc(j.error || 'unknown error')}">failed <span class="tipi">ⓘ</span></div>`;
     }
-    return `<div class="njrow" onclick="jobJump(${j.tenant_id})">`
-         + `<div class="njlabel">${label}</div>${body}</div>`;
+    return `<div class="njrow" onclick="jobJump(${j.tenant_id})">${label}${body}</div>`;
   }).join('');
 }
 

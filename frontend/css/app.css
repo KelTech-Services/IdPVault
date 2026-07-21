@@ -224,6 +224,7 @@ html:not([data-theme="light"]) .appicon.si-dk{background:var(--text)}
 #navjobs .njrow{padding:4px 0;cursor:pointer;border-radius:5px}
 #navjobs .njrow:hover{background:var(--panel3)}
 #navjobs .njlabel{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#navjobs .njkind{color:var(--dim);font-size:.72rem;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #navjobs .njbar{height:4px;border-radius:2px;background:var(--border);margin-top:4px;overflow:hidden;position:relative}
 #navjobs .njfill{height:100%;background:var(--accent);border-radius:2px;transition:width .8s ease}
 #navjobs .njind .njfill{width:30%;position:absolute;animation:njslide 1.6s linear infinite}
