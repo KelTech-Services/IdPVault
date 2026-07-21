@@ -140,6 +140,17 @@ def run_backup(tenant_id: int, trigger: str = "scheduled", job_id: int | None = 
                     manifest["db_dump"] = {"status": "failed",
                                            "error": "pg_dump failed - see server logs"}
                     log.warning("pg_dump failed tenant=%s: %s", t.slug, de)
+                    try:   # Full-DR is configured but broken - that must never be silent
+                        from app.core.alerts import send_alert
+                        send_alert("backup_failed", f"Full-DR dump FAILED - {t.name}",
+                                   "The config backup itself succeeded, but the Full-DR "
+                                   "database dump did not run. This snapshot has NO dump. "
+                                   "Check the Full-DR Postgres URL in the tenant settings - "
+                                   "if the password contains special characters they must "
+                                   "be URL-encoded (@ becomes %40).",
+                                   {"Tenant": t.name, "Snapshot": manifest["timestamp"]})
+                    except Exception:
+                        log.warning("full-DR failure alert failed tenant=%s", t.slug)
 
             prev = storage.list_snapshots(t.slug)
             drift = None

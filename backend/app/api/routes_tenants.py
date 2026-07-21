@@ -28,6 +28,30 @@ class TenantIn(BaseModel):
 
 _SLUG_RE = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
+_DB_URL_HELP = ("Full-DR URL could not be parsed. Format: "
+                "postgresql://user:password@host:5432/dbname - if the password "
+                "contains special characters (@ : / # etc.) they must be "
+                "URL-encoded, e.g. @ becomes %40.")
+
+
+def _validate_db_url(u: str) -> None:
+    """Reject Full-DR URLs libpq cannot parse, at SAVE time - a bad URL must
+    not become a silent nightly dump failure. The classic mistake is a raw
+    password with @ / : in it (pg_dump then reads the password as the port)."""
+    from urllib.parse import urlsplit
+    try:
+        s = urlsplit(u)
+        if s.scheme not in ("postgresql", "postgres") or not s.hostname:
+            raise HTTPException(422, _DB_URL_HELP)
+        _ = s.port           # raises ValueError when the port slot is not a number
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(422, _DB_URL_HELP)
+    authority = u.split("://", 1)[-1].split("/", 1)[0]
+    if authority.count("@") > 1:   # raw @ inside the password
+        raise HTTPException(422, _DB_URL_HELP)
+
 
 @router.post("/tenants", dependencies=[Depends(require_admin)])
 def create_tenant(body: TenantIn) -> dict:
@@ -39,6 +63,8 @@ def create_tenant(body: TenantIn) -> dict:
     if body.identity_enabled and not lic.has_feature("identity"):
         raise HTTPException(402, "identity backup requires a paid license - "
                                  "add one in Settings -> License")
+    if body.db_url:
+        _validate_db_url(body.db_url)
     data_key = crypto.new_data_key()
     with SessionLocal() as db:
         if not lic.can_add_tenant(db.query(Tenant).count()):
@@ -151,6 +177,8 @@ def update_tenant(tenant_id: int, body: TenantUpdate, request: Request) -> dict:
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             t.enc_credentials = crypto.encrypt(fields["api_token"].encode(), data_key)
         if "db_url" in fields:
+            if fields["db_url"]:
+                _validate_db_url(fields["db_url"])
             data_key = crypto.unwrap_data_key(t.wrapped_data_key)
             t.enc_db_url = crypto.encrypt(fields["db_url"].encode(), data_key) if fields["db_url"] else None
         if "db_dump_exclude_events" in fields:

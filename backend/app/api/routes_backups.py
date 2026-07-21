@@ -53,7 +53,8 @@ def snapshots(tenant_id: int, request: Request, runs: int = 0) -> list[dict]:
         entry = {"ts": ts,
                  "objects": sum((m.get("counts") or {}).values()),
                  "size": m.get("size_encrypted", 0),
-                 "db_dump_size": None}
+                 "db_dump_size": None,
+                 "db_dump_status": (m.get("db_dump") or {}).get("status")}
         dump = os.path.join(storage.snapshot_dir(slug, ts), "pgdump.sql.enc")
         if os.path.exists(dump):
             entry["db_dump_size"] = os.path.getsize(dump)

@@ -447,7 +447,7 @@ async function showSnaps(id, slug){
       <td><span class="tag ok">ok</span></td>
       <td>${s.objects || 0}</td>
       <td class="muted">${fmtBytes(s.size || 0)}</td>
-      <td class="muted">${s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
+      <td class="muted">${s.db_dump_status === 'failed' ? '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)" title="Full-DR is configured but the database dump FAILED for this snapshot - this snapshot has no dump. Check the Full-DR Postgres URL in the tenant settings.">dump failed</span>' : s.db_dump_size != null ? fmtBytes(s.db_dump_size) : '-'}</td>
       <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
       <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
     fillSnapChanges(id);

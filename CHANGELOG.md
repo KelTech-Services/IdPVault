@@ -22,6 +22,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   config-only chart row, and the Users & Access page gained four of its own:
   changes per backup, directory over time (users, memberships, assignments),
   backup size, and backup duration with API call counts per run.
+- Full-DR failures are never silent anymore: a failed database dump now fires
+  a "Full-DR dump FAILED" alert (Config Backups group) and the snapshot's
+  Full-DR column shows a red "dump failed" tag instead of a dash. The tenant
+  form also validates the Full-DR URL at save time with a clear message when
+  the password needs URL-encoding (a raw @ or : in the password used to
+  become a silent nightly pg_dump failure).
 - Unbacked Users & Access changes: tenants with Users & Access backup enabled
   get a second card on the tenant Overview counting users, memberships, and
   assignments changed since the latest Users & Access snapshot, with a
