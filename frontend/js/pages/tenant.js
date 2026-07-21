@@ -437,7 +437,9 @@ async function showSnaps(id, slug){
       : tg === 'scheduled' ? '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">auto</span>'
       : '<span class="muted">-</span>';
     sb.innerHTML = snaps.slice().reverse().map(s => s.status === 'failed'
-      ? `<tr><td></td><td>${fmtSnap(s.ts)}</td><td>${trigTag(s.trigger)}</td>
+      ? `<tr class="snaprow" data-ts="${s.ts}" data-failed="1">
+        <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
+        <td>${fmtSnap(s.ts)}</td><td>${trigTag(s.trigger)}</td>
         <td><span class="tag off">failed</span></td>
         <td colspan="4" class="st-failed" style="font-size:.8rem">${esc(s.error || 'backup failed - no snapshot was written')}</td><td></td></tr>`
       : `<tr class="snaprow" data-ts="${s.ts}">
@@ -467,9 +469,14 @@ async function fillSnapChanges(id){
 }
 function updateSnapButtons(){
   const n = selectedSnaps.length;
+  // failed backups have no snapshot files - they can be deleted but not compared
+  const anyFailed = selectedSnaps.some(ts => {
+    const row = document.querySelector(`#snapbody .snaprow[data-ts="${ts}"]`);
+    return row && row.dataset.failed;
+  });
   const diffBtn = document.getElementById('diffbtn');
-  if(diffBtn){ diffBtn.disabled = n !== 2;
-    diffBtn.innerHTML = (n === 2 ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
+  if(diffBtn){ diffBtn.disabled = n !== 2 || anyFailed;
+    diffBtn.innerHTML = (n === 2 && !anyFailed ? 'Compare selected' : 'Compare (select 2)') + ' ' + TIPI; }
   const del = document.getElementById('delsnapsbtn');
   if(del){ del.classList.toggle('hidden', me.role !== 'admin' || n === 0);
     del.textContent = `Delete selected (${n})`; }

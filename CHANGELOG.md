@@ -3,6 +3,15 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.15] - 2026-07-21
+### Fixed
+- Failed config backups can now be deleted. Failed runs never write snapshot
+  files, so the delete endpoint (which only removed timestamps found on disk)
+  left their rows stuck in the Snapshots list forever, and the UI did not even
+  offer a checkbox for them. Failed rows are now selectable and deletable like
+  any other; Compare stays disabled when a failed row is selected (there is
+  nothing to diff). Users & Access snapshots already behaved correctly.
+
 ## [1.2.14] - 2026-07-21
 ### Fixed
 - Authentik: backchannel_providers on applications is now remapped like every

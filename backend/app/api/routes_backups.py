@@ -140,13 +140,20 @@ def delete_snapshots(tenant_id: int, body: SnapshotDeleteIn, request: Request) -
             except ValueError:
                 raise HTTPException(422, "invalid snapshot timestamp")
         existing = set(storage.list_snapshots(slug))
-        doomed = [ts for ts in body.timestamps if ts in existing]
-        for ts in doomed:
-            storage.delete_snapshot(slug, ts)
-        if doomed:   # keep the DB rows in step with disk (storage stats read them)
-            from app.models.db import Snapshot
-            db.query(Snapshot).filter(Snapshot.tenant_id == tenant_id,
-                                      Snapshot.ts.in_(doomed)).delete()
+        for ts in body.timestamps:
+            if ts in existing:
+                storage.delete_snapshot(slug, ts)
+        # DB rows go for EVERY requested timestamp, not just ones with files on
+        # disk - a FAILED backup has a row but never wrote a snapshot, and it
+        # must be deletable too (it used to be stuck in the list forever).
+        from app.models.db import Snapshot
+        rows = db.query(Snapshot).filter(Snapshot.tenant_id == tenant_id,
+                                         Snapshot.ts.in_(body.timestamps)).all()
+        row_ts = {r.ts for r in rows}
+        for r in rows:
+            db.delete(r)
+        doomed = sorted(set(ts for ts in body.timestamps
+                            if ts in existing or ts in row_ts))
         db.add(AuditLog(action="tenant.snapshots_delete",
                         detail={"slug": slug, "count": len(doomed),
                                 "timestamps": doomed[:20]}))
