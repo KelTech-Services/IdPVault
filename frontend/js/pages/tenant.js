@@ -846,30 +846,55 @@ async function cloneApply(){
   if(!j) return;
   const st = document.getElementById('cl_status');
   document.getElementById('cl_applybtn').disabled = true;
+  // "N applied, N failed, N ignored" from a job's stored result summary.
+  const cloneCounts = (label, jr) => {
+    const s = ((jr||{}).result||{}).summary || {};
+    let ok = 0, bad = 0, ign = 0;
+    if(s.statuses){                       // config restore: flat status counts
+      const st2 = s.statuses;
+      ok  = (st2.created||0) + (st2.updated||0) + (st2.created_new_credentials||0);
+      bad = st2.failed||0;
+      ign = (st2.skipped||0) + (st2.unsupported||0) + (st2.skipped_managed||0) + (st2.skipped_system||0);
+    }else{                                // identity restore: per-category counts
+      for(const c2 of Object.values(s)){
+        if(!c2 || typeof c2 !== 'object') continue;
+        ok  += (c2.created||0) + (c2.reverted||0) + (c2.added||0);
+        bad += c2.failed||0;
+        ign += (c2.skipped||0) + (c2.existing||0);
+      }
+    }
+    return `${label}: ${ok} applied, ` +
+      (bad ? `<span class="st-failed">${bad} failed</span>` : '0 failed') +
+      `, ${ign} ignored.`;
+  };
+  const parts = [];
   try{
     if(c.doCfg){
       st.textContent = 'Applying config…';
       const q = await api(`/tenants/${c.sid}/restore/apply`, {method:'POST',
         body: JSON.stringify({snapshot_ts: c.ts, target_tenant_id: c.tgt,
                               password: j.password, note: j.note || undefined})});
-      await waitForJob(q.job_id, (jj)=>{
+      const cj = await waitForJob(q.job_id, (jj)=>{
         if(jj.status!=='running') return;
         const pct = jobPct(jj);
         st.textContent = 'Applying config… ' + (pct != null
           ? pct + '% (' + jj.progress_done + '/' + jj.progress_total + ' objects)'
           : (jj.progress_done ? jj.progress_done + ' API calls' : ''));
       });
+      parts.push(cloneCounts('Config', cj));
     }
     if(c.doUa){
       st.textContent = 'Applying Users & Access…';
       const q = await api(`/tenants/${c.sid}/identity/restore/apply`, {method:'POST',
         body: JSON.stringify({snapshot_ts: c.idts, confirm: true, target_tenant_id: c.tgt,
                               password: j.password, note: j.note || undefined})});
-      await waitForJob(q.job_id, (jj)=>{
+      const uj = await waitForJob(q.job_id, (jj)=>{
         if(jj.status==='running') st.textContent = 'Applying Users & Access… ' + (jj.progress_done ? jj.progress_done + ' API calls' : '');
       });
+      parts.push(cloneCounts('Users & Access', uj));
     }
-    st.innerHTML = `<span class="act-create">Clone complete.</span> Full per-object reports are in "${esc(tgtName)}"'s restore history.`;
+    st.innerHTML = `<span class="act-create">Clone complete.</span> ${parts.join(' ')} `
+      + `Full per-object reports are in "${esc(tgtName)}"'s restore history.`;
     toast("Clone complete - reports recorded in the target tenant's restore history.");
   }catch(e){
     st.innerHTML = `<span class="st-failed">Clone failed: ${esc(e.message)}</span> Anything already applied is recorded in "${esc(tgtName)}"'s restore history.`;

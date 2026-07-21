@@ -3,6 +3,33 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.13] - 2026-07-21
+### Fixed
+- Authentik clone/restore no longer silently overwrites unrelated objects in
+  the target. When a snapshot object had no live match, the write path probed
+  the target using the SNAPSHOT's pk before creating - Authentik provider pks
+  are small sequential integers, so in a clone that pk often belongs to a
+  completely different provider (frequently one created seconds earlier in the
+  same run), and the "update" hijacked it: renamed it, replaced its config, and
+  caused cascading "Application with this provider already exists" failures on
+  the apps whose providers were stolen. Unmatched objects now always POST a
+  fresh create; only slug-keyed types (applications, flows) still probe the
+  target, because slugs are portable natural keys. Okta and Auth0 adapters were
+  audited and never had this fallback.
+- Honest cascade errors: if an object's create fails (for example an
+  Enterprise-gated provider), every later object that references it now fails
+  with "references provider X which failed to be created earlier in this run"
+  instead of writing a payload carrying a stale source pk that could collide
+  with an unrelated target object.
+- Brand updates in a clone now key off the live brand's uuid instead of the
+  snapshot's, so they PATCH the matched brand instead of missing and falling
+  into a doomed duplicate-domain create.
+
+### Added
+- The Clone page's completion line now reports per-part counts: "Config: N
+  applied, N failed, N ignored" (and the same for Users & Access), so a partial
+  clone is visible at a glance without opening the restore report.
+
 ## [1.2.12] - 2026-07-21
 ### Added
 - Real 0-100% progress for config restore and clone applies: the plan knows

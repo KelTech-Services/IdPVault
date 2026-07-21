@@ -49,6 +49,7 @@ class AuthentikAdapter(ProviderAdapter):
         self._pk_remap: dict = {}
         self._live_pks: set = set()
         self._snap_pks: set = set()
+        self._failed_pks: dict = {}   # old pk -> name, for objects whose create failed this run
         from app.providers.base import CallCounter
         self._rl = CallCounter()   # API-call counting for progress + estimates
 
@@ -75,6 +76,7 @@ class AuthentikAdapter(ProviderAdapter):
         objects that were deleted and recreated (new pk) resolve — including
         recreations from PREVIOUS restore runs."""
         self._pk_remap = {}
+        self._failed_pks = {}
         self._live_pks = {str(o["pk"]) for objs in live_export.values()
                           for o in objs if isinstance(o, dict) and o.get("pk")}
         self._snap_pks = {str(o["pk"]) for objs in snap_export.values()
@@ -305,6 +307,19 @@ class AuthentikAdapter(ProviderAdapter):
                                f"(model {obj.get('meta_model_name')!r})")
         payload = self._remap_refs({k: v for k, v in obj.items()
                                     if k not in self.READONLY_FIELDS})
+        # Cascade honestly: if this object references something whose create
+        # FAILED earlier in this run, say so - otherwise the stale source pk
+        # can accidentally collide with an unrelated object's pk in the target
+        # (integer pks are sequential in every instance) and produce a
+        # baffling error like "Application with this provider already exists".
+        for f in self._REF_FIELDS:
+            vals = obj.get(f)   # PRE-remap source refs: failed pks are source pks
+            for v in (vals if isinstance(vals, list) else [vals]):
+                if isinstance(v, (str, int)) and str(v) in self._failed_pks:
+                    raise RuntimeError(
+                        f"references {self._failed_pks[str(v)]} which failed to be "
+                        f"created earlier in this run - fix that failure and re-run "
+                        f"(nothing was written for this object)")
         # Bindings whose target is gone from the live tenant (Authentik keeps
         # orphaned bindings when their object is deleted, so snapshots can carry
         # them) cannot be recreated via the API - fail with an honest message
@@ -318,12 +333,22 @@ class AuthentikAdapter(ProviderAdapter):
                     "Restore or recreate the object it points at first, then re-add "
                     "the binding in Authentik.")
         old_pk = obj.get("pk") or obj.get("brand_uuid")
-        # Authentik detail routes for applications/flows are keyed by SLUG, not pk.
+        # Authentik detail routes for applications/flows are keyed by SLUG, not
+        # pk - and brands carry brand_uuid instead of pk (a cross-tenant clone
+        # must use the LIVE brand's uuid or the update misses and becomes a
+        # doomed duplicate-domain create).
+        # CRITICAL: when there is NO matched live object, ident must stay None so
+        # we POST a fresh create. Falling back to the SNAPSHOT's pk would probe
+        # the target at the SOURCE's pk - provider pks are small sequential
+        # integers, so in a clone that pk usually belongs to an UNRELATED object
+        # (often one created seconds earlier in this very run) and the "update"
+        # silently overwrites it. Slugs are exempt: they are portable natural
+        # keys, so probing the target by slug is always the same object.
         lookup_field = {"applications": "slug", "flows": "slug"}.get(resource_type)
         if lookup_field:
             ident = (live or {}).get(lookup_field) or obj.get(lookup_field)
         else:
-            ident = (live or {}).get("pk") or old_pk
+            ident = (live or {}).get("pk") or (live or {}).get("brand_uuid")
         with self._client() as c:
             if ident is not None:
                 probe = c.get(f"/api/v3/{path}{ident}/")
@@ -334,6 +359,10 @@ class AuthentikAdapter(ProviderAdapter):
                     return ("updated", str(ident))
             r = self._send(c, "POST", f"/api/v3/{path}", payload)
             if r.status_code >= 400:
+                if old_pk is not None:   # downstream refs must not use the stale pk
+                    self._failed_pks[str(old_pk)] = \
+                        f"{resource_type[:-1] if resource_type.endswith('s') else resource_type} " \
+                        f"\"{obj.get('name') or obj.get('slug') or old_pk}\""
                 raise RuntimeError(f"POST {path} -> {r.status_code}: {r.text[:280]}")
             new_pk = r.json().get("pk", "")
             if old_pk is not None and new_pk:
