@@ -55,6 +55,10 @@ All notable changes to IdPVault are documented here. Format loosely follows
   Alerts) with a title and plain-language description beside each group
   instead of one wall of fields. The overdue-watchdog window setting moved
   into the Alerts panel where it belongs. No settings changed meaning.
+- Users & Access backup buttons are now gold (matching the Users & Access
+  series color in the charts) and labeled "Backup Users & Access now";
+  config backup buttons stay blue. The two backup types are now visually
+  distinct everywhere.
 ### Fixed
 - Deleting or pruning config snapshots removed the files but left their
   database rows, inflating the dashboard storage stat; pruned Users & Access

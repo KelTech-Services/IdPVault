@@ -67,6 +67,9 @@ button{background:var(--panel2);color:var(--text);border:1px solid var(--border)
 button:hover{background:var(--panel3);border-color:var(--btn-hover-border)}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
 button.primary:hover{background:var(--accent2);border-color:var(--accent2);color:var(--on-accent)}
+/* Users & Access actions are GOLD (matches the U&A series color in every chart); config actions stay blue */
+button.primary.ua{background:var(--gold);border-color:var(--gold);color:#141414}
+button.primary.ua:hover{background:#ffd42e;border-color:#ffd42e;color:#141414}
 button.ghost{background:none;border:1px solid transparent}
 button.ghost:hover{background:var(--panel2);border-color:var(--border)}
 button.danger:hover{border-color:var(--red);color:var(--red);background:var(--panel2)}
