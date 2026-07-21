@@ -721,8 +721,10 @@ async function restoreApply(){
        restores/clones, with live progress here and in the Activity area. */
     const jr = await waitForJob(q.job_id, (jj)=>{
       if(jj.status !== 'running') return;
+      const pct = jobPct(jj);
       document.getElementById('r_summary').textContent = 'Applying… '
-        + (jj.progress_done ? jj.progress_done + ' API calls so far' : '')
+        + (pct != null ? pct + '% (' + jj.progress_done + '/' + jj.progress_total + ' objects)'
+           : (jj.progress_done ? jj.progress_done + ' API calls so far' : ''))
         + ' (running as a background job - safe to close this dialog)';
     });
     const out = jr.result || {};
@@ -851,7 +853,11 @@ async function cloneApply(){
         body: JSON.stringify({snapshot_ts: c.ts, target_tenant_id: c.tgt,
                               password: j.password, note: j.note || undefined})});
       await waitForJob(q.job_id, (jj)=>{
-        if(jj.status==='running') st.textContent = 'Applying config… ' + (jj.progress_done ? jj.progress_done + ' API calls' : '');
+        if(jj.status!=='running') return;
+        const pct = jobPct(jj);
+        st.textContent = 'Applying config… ' + (pct != null
+          ? pct + '% (' + jj.progress_done + '/' + jj.progress_total + ' objects)'
+          : (jj.progress_done ? jj.progress_done + ' API calls' : ''));
       });
     }
     if(c.doUa){

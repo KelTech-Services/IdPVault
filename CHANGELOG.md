@@ -3,6 +3,17 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.12] - 2026-07-21
+### Added
+- Real 0-100% progress for config restore and clone applies: the plan knows
+  exactly how many objects will be written, so the Activity bar, restore
+  dialog, and Clone page now show true percentage progress (done/total
+  objects) instead of a raw API-call count. Backups keep the API-call
+  counter - an export has no reliable total.
+- The Clone page states plainly that secrets are never cloned: recreated
+  apps/providers get NEW client secrets and signing keys, and cloned users
+  arrive without passwords or MFA.
+
 ## [1.2.11] - 2026-07-21
 ### Fixed
 - Authentik backups now capture the FULL object for providers, stages,

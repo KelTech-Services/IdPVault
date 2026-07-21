@@ -101,17 +101,23 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         data_key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
-        if job_id is not None:
-            # live API-call progress for the Activity area; the sampler thread
-            # self-stops once the job leaves "running"
-            from app.core.jobs import sampler
-            sampler(adapter, job_id)
 
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
         live = adapter.export()
         adapter.begin_restore(snap, live)   # adapters build id-remap state here
         plan = build_plan(snap, live, selection, adapter)
 
+        # Real 0-100% progress: the plan tells us exactly how many objects will
+        # be written, so the job reports done/total per object instead of a
+        # raw API-call count.
+        _prog = None
+        if job_id is not None and mode == "apply":
+            from app.core.jobs import set_progress as _prog
+            total_writes = sum(1 for it in plan
+                               if it.get("restorable", True) and it["action"] != "identical"
+                               and not it["managed"])
+            _prog(job_id, 0, total_writes or None)
+        done_writes = 0
         for item in plan:
             obj = item.pop("_obj")
             live_obj = item.pop("_live")
@@ -140,6 +146,12 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
             except Exception as e:
                 item["status"] = "failed"
                 item["error"] = str(e)[:300]
+            done_writes += 1
+            if _prog is not None:
+                try:
+                    _prog(job_id, done_writes)
+                except Exception:
+                    pass   # progress is cosmetic, never fail the restore
 
         summary: dict = {"mode": mode, "total": len(plan)}
         if t.id != src.id:
