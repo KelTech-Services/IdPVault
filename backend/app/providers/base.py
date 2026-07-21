@@ -6,6 +6,19 @@ of the tenant, suitable for encryption, diffing, and (eventually) restore.
 from abc import ABC, abstractmethod
 
 
+class CallCounter:
+    """Minimal API-call counter for providers without an adaptive rate limiter
+    (Okta's AdaptiveRateLimiter counts its own). The jobs progress sampler and
+    the backup estimate line both read adapter._rl.calls, so every adapter
+    needs one. Wire it up as an httpx request event hook."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def count(self, _request=None) -> None:
+        self.calls += 1
+
+
 class ProviderAdapter(ABC):
     name: str = "base"
     # Config restore ordering: resource types in dependency order (parents first);

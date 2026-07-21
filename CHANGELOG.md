@@ -58,6 +58,10 @@ All notable changes to IdPVault are documented here. Format loosely follows
 - The overdue-backup watchdog alert had no Settings checkbox, so saving alert
   settings silently unsubscribed it. It is now part of the Config Backups
   group and re-enables on the next settings save.
+- API calls were only counted for Okta (its adaptive rate limiter did the
+  counting), so Authentik and Auth0 backups always showed "-" for API calls
+  and never produced a duration estimate. All three providers now count
+  every API request; counts appear from the next backup onward.
 
 ## [1.2.8] - 2026-07-20
 ### Added

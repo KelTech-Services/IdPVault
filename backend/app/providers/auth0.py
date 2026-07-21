@@ -57,6 +57,8 @@ class Auth0Adapter(ProviderAdapter):
         super().__init__(base_url, credentials)
         self._tok = None
         self._tok_exp = 0.0
+        from app.providers.base import CallCounter
+        self._rl = CallCounter()   # API-call counting for progress + estimates
 
     def _creds(self) -> tuple[str, str]:
         cid, _, secret = self.credentials.partition(":")
@@ -81,6 +83,7 @@ class Auth0Adapter(ProviderAdapter):
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self._token()}"},
             timeout=30,
+            event_hooks={"request": [self._rl.count]},
         )
 
     def validate_credentials(self) -> bool:

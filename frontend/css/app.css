@@ -99,8 +99,10 @@ input::placeholder{color:var(--placeholder)}
 .empty svg{width:30px;height:30px;stroke:var(--dim);opacity:.5;margin-bottom:12px}
 .empty .cta{margin-top:14px}
 .chartgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:0}
+.chartgrid.four{grid-template-columns:repeat(4,1fr)}
 .chartgrid .chart{height:150px;margin-top:8px}
-@media(max-width:1100px){.chartgrid{grid-template-columns:1fr}}
+@media(max-width:1500px){.chartgrid.four{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1100px){.chartgrid{grid-template-columns:1fr}.chartgrid.four{grid-template-columns:repeat(2,1fr)}}
 .skeleton{background:linear-gradient(90deg,var(--panel2),var(--panel3),var(--panel2));background-size:200% 100%;animation:sk 1.3s infinite;border-radius:5px;height:11px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 td button{padding:6px 11px;font-size:.79rem}

@@ -45,6 +45,8 @@ class AuthentikAdapter(ProviderAdapter):
         self._pk_remap: dict = {}
         self._live_pks: set = set()
         self._snap_pks: set = set()
+        from app.providers.base import CallCounter
+        self._rl = CallCounter()   # API-call counting for progress + estimates
 
     def natural_key(self, resource_type: str, obj: dict) -> str:
         field = self._NK.get(resource_type)
@@ -123,6 +125,7 @@ class AuthentikAdapter(ProviderAdapter):
             base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.credentials}"},
             timeout=30,
+            event_hooks={"request": [self._rl.count]},
         )
 
     def validate_credentials(self) -> bool:
