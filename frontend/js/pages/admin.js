@@ -172,9 +172,11 @@ const ALERT_CATALOG = [
   {key:'identity_drift', label:'Users & Access changes detected', when:'a Users & Access backup finds users, memberships, or assignments changed vs the previous snapshot; the change list is included in the backup message'},
   {key:'identity_backup_success', label:'Users & Access backup succeeded', when:'a Users & Access backup completes successfully (can be noisy)'},
 ];
-function renderAlertEvents(enabled){
-  document.getElementById('s_events').innerHTML = ALERT_CATALOG.map(e =>
+function renderAlertEvents(enabledEmail, enabledWebhook){
+  const grp = (id, enabled) => document.getElementById(id).innerHTML = ALERT_CATALOG.map(e =>
     `<label><input type="checkbox" value="${e.key}" ${enabled.includes(e.key)?'checked':''}> ${esc(e.label)} <span class="tipi" title="${esc(e.when)}">ⓘ</span></label>`).join('');
+  grp('s_events_email', enabledEmail);
+  grp('s_events_webhook', enabledWebhook);
 }
 /* ---------- license ---------- */
 async function loadLicense(){
@@ -268,7 +270,9 @@ async function loadSettings(){
     document.getElementById('s_from').value = smtp.from_addr || '';
     document.getElementById('s_webhook').value = s.alert_webhook_url || '';
     document.getElementById('s_webhookfmt').value = s.alert_webhook_format || 'auto';
-    renderAlertEvents(Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied','identity_drift']);
+    const legacyEv = Array.isArray(s.alert_events) ? s.alert_events : ['drift_detected','backup_failed','restore_applied','identity_drift'];
+    renderAlertEvents(Array.isArray(s.alert_events_email) ? s.alert_events_email : legacyEv,
+                      Array.isArray(s.alert_events_webhook) ? s.alert_events_webhook : legacyEv);
     schedSet('sd', s.default_schedule_cron || null);
     schedSet('si', s.default_identity_schedule_cron || null);
     initTzPicker(s.org_timezone || 'UTC');
@@ -290,7 +294,8 @@ async function saveSettings(){
             username: v('s_user'), from_addr: v('s_from') },
     alert_webhook_url: v('s_webhook'),
     alert_webhook_format: v('s_webhookfmt'),
-    alert_events: [...document.querySelectorAll('#s_events input:checked')].map(c=>c.value),
+    alert_events_email: [...document.querySelectorAll('#s_events_email input:checked')].map(c=>c.value),
+    alert_events_webhook: [...document.querySelectorAll('#s_events_webhook input:checked')].map(c=>c.value),
     default_schedule_cron: schedGet('sd') || '',
     default_identity_schedule_cron: schedGet('si') || '',
     org_timezone: v('s_tz') || 'UTC',

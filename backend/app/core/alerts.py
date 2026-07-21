@@ -29,11 +29,21 @@ def _cfg() -> dict:
         return dict(row.value) if row else {}
 
 
-def _enabled(cfg: dict) -> list:
-    ev = cfg.get("alert_events")
+def _enabled_for(cfg: dict, channel: str) -> list:
+    """Per-channel subscriptions (channel = 'email' | 'webhook') with legacy
+    fallback: alert_events_email / alert_events_webhook -> the pre-split
+    alert_events list -> category defaults."""
+    ev = cfg.get(f"alert_events_{channel}")
+    if ev is None:
+        ev = cfg.get("alert_events")
     if ev is None:
         return [k for k, v in ALERT_EVENTS.items() if v["default"]]
     return ev
+
+
+def _enabled(cfg: dict) -> list:
+    """Union of both channels - used for category-fallback decisions."""
+    return list({*_enabled_for(cfg, "email"), *_enabled_for(cfg, "webhook")})
 
 
 def _admin_emails() -> list:
@@ -67,23 +77,28 @@ def _post_webhook(url, fmt, title, body, color="#4d9fff", fields=None):
 
 
 def send_alert(category: str, title: str, body: str, fields=None) -> None:
-    """Deliver an alert if the admin is subscribed to its category. Never raises."""
+    """Deliver an alert on each channel whose subscription includes its
+    category (email and webhook are subscribed independently). Never raises."""
     try:
         cfg = _cfg()
-        if category not in _enabled(cfg):
-            return
-        color = ALERT_EVENTS.get(category, {}).get("color", "#4d9fff")
-        url = cfg.get("alert_webhook_url")
-        if url:
-            fmt = _webhook_format(url, cfg.get("alert_webhook_format", "auto"))
-            _post_webhook(url, fmt, title, body, color, fields)
+    except Exception as e:
+        log.warning("alert config load failed: %s", e)
+        return
+    color = ALERT_EVENTS.get(category, {}).get("color", "#4d9fff")
+    try:
+        if category in _enabled_for(cfg, "webhook"):
+            url = cfg.get("alert_webhook_url")
+            if url:
+                fmt = _webhook_format(url, cfg.get("alert_webhook_format", "auto"))
+                _post_webhook(url, fmt, title, body, color, fields)
     except Exception as e:
         log.warning("webhook alert failed: %s", e)
     try:
-        from app.core.mailer import send_mail
-        detail = body + ("\n\n" + "\n".join(f"{k}: {v}" for k, v in (fields or {}).items()) if fields else "")
-        for addr in _admin_emails():
-            send_mail(addr, f"[IdPVault] {title}", detail)
+        if category in _enabled_for(cfg, "email"):
+            from app.core.mailer import send_mail
+            detail = body + ("\n\n" + "\n".join(f"{k}: {v}" for k, v in (fields or {}).items()) if fields else "")
+            for addr in _admin_emails():
+                send_mail(addr, f"[IdPVault] {title}", detail)
     except Exception as e:
         log.info("email alert skipped: %s", e)
 

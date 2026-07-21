@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.9] - 2026-07-21
+### Changed
+- Alert subscriptions are now per channel: separate checkbox lists control
+  which event categories are emailed to admins and which are posted to the
+  webhook (check a category in both lists to get it in both places).
+  Existing installs keep their current behavior - the old single list applies
+  to both channels until the new settings are saved.
+
 ## [1.2.8] - 2026-07-20
 ### Added
 - Restore history on the Backups page: every restore preview and apply
