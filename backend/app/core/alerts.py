@@ -17,6 +17,7 @@ ALERT_EVENTS = {
     "backup_failed":   {"label": "Backup failed",                "default": True,  "color": "#ff6b6b"},
     "backup_success":  {"label": "Backup succeeded",             "default": False, "color": "#3ecf8e"},
     "restore_applied": {"label": "Restore applied",              "default": True,  "color": "#4d9fff"},
+    "clone_applied":   {"label": "Clone applied",                "default": True,  "color": "#b57bff"},
     "identity_drift":  {"label": "Users & Access changes detected", "default": True,  "color": "#ffb454"},
     "identity_backup_success": {"label": "Users & Access backup succeeded", "default": False, "color": "#3ecf8e"},
     "backup_stale":    {"label": "Backup overdue / stale",       "default": True,  "color": "#ff6b6b"},
@@ -183,6 +184,67 @@ def alert_failure(tenant_name: str, error: str) -> None:
     send_alert("backup_failed", f"Backup FAILED - {tenant_name}",
                "A backup did not complete. Check tenant credentials and IdP availability.",
                {"Tenant": tenant_name, "Error": error[:400]})
+
+
+def _clone_result(summary: dict) -> str:
+    """'N applied, N failed, N ignored' from either a config restore summary
+    (flat statuses dict) or a Users & Access one (per-category counts)."""
+    ok = bad = ign = 0
+    st = (summary or {}).get("statuses")
+    if st:
+        ok = st.get("created", 0) + st.get("updated", 0) + st.get("created_new_credentials", 0)
+        bad = st.get("failed", 0)
+        ign = (st.get("skipped", 0) + st.get("unsupported", 0)
+               + st.get("skipped_managed", 0) + st.get("skipped_system", 0))
+    else:
+        for c in (summary or {}).values():
+            if isinstance(c, dict):
+                ok += c.get("created", 0) + c.get("reverted", 0) + c.get("added", 0)
+                bad += c.get("failed", 0)
+                ign += c.get("skipped", 0) + c.get("existing", 0)
+    return f"{ok} applied, {bad} failed, {ign} ignored"
+
+
+def alert_clone(source_name: str, target_name: str, kind: str, snapshot_ts: str,
+                summary: dict, apps: list | None = None,
+                type_counts: dict | None = None, note: str | None = None,
+                target_tenant_id: int | None = None) -> None:
+    """Clones get their OWN category and template. A clone touches hundreds of
+    objects, so instead of a raw object dump the message leads with the
+    application list, compact per-type counts, and a link to the target's
+    restore history for the full per-object report."""
+    result = _clone_result(summary)
+    fields = {"Source": source_name, "Target": target_name, "Cloned": kind,
+              "Snapshot": snapshot_ts, "Result": result}
+    lines = [f"A {kind} clone from \"{source_name}\" was applied into \"{target_name}\"."]
+    if apps:
+        lines += ["", "Applications ([+] created, [~] updated, [x] failed):"]
+        lines += [f"  {a}" for a in apps[:20]]
+        if len(apps) > 20:
+            lines.append(f"  ... and {len(apps) - 20} more")
+    if type_counts:
+        lines += ["", "Everything else - applied / failed / ignored:"]
+        for rt, c in type_counts.items():
+            if c.get("ok") or c.get("bad") or c.get("ign"):
+                lines.append(f"  {rt.replace('_', ' ')}: "
+                             f"{c.get('ok', 0)} / {c.get('bad', 0)} / {c.get('ign', 0)}")
+    if note:
+        lines += ["", f"Justification: {note[:400]}"]
+    pub = ""
+    try:
+        pub = (_cfg().get("public_url") or "").rstrip("/")
+    except Exception:
+        pass
+    lines.append("")
+    if pub and target_tenant_id:
+        lines.append(f"Full per-object report: {pub}/#/t/{target_tenant_id}/backups "
+                     "(Restore history)")
+    else:
+        lines.append(f"Full per-object report: IdPVault -> \"{target_name}\" -> "
+                     "Backups -> Restore history")
+    send_alert("clone_applied",
+               f"Clone applied - {source_name} -> {target_name}",
+               "\n".join(lines), fields)
 
 
 def alert_restore(tenant_name: str, kind: str, summary: dict, note: str | None = None) -> None:

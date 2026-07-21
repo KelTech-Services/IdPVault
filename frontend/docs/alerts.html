@@ -8,6 +8,7 @@
 <table><tr><th>Alert type</th><th>Covers</th></tr>
 <tr><td>Config Backups</td><td>changes detected during a config backup (change list included in the message), config backup failures, and the daily overdue-backup watchdog</td></tr>
 <tr><td>Users &amp; Access Backups</td><td>users, memberships, or assignments changed vs the previous Users &amp; Access snapshot (change list included), and Users &amp; Access backup failures</td></tr>
-<tr><td>Restores</td><td>a config or Users &amp; Access restore writes to a live tenant</td></tr>
+<tr><td>Restores</td><td>a config or Users &amp; Access restore writes to a live tenant (same-tenant restores)</td></tr>
+<tr><td>Clones</td><td>a clone (config or Users &amp; Access) is applied from one tenant into another. Clones touch hundreds of objects, so instead of a raw change dump the alert leads with the application list, compact per-type applied/failed/ignored counts, and a link to the target tenant's restore history (the link uses the Public URL from System settings when set)</td></tr>
 <tr><td>Successful backups too</td><td>ALSO alert when a backup completes with no changes (noisy; off by default). Applies to whichever backup types are checked above, per channel.</td></tr></table>
 <p>With the defaults you only hear from IdPVault when something actually changed, failed, was restored, or went overdue.</p>

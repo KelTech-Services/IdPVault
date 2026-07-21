@@ -170,6 +170,30 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
                                 "snapshot": snapshot_ts, "total": len(plan)}))
         db.commit()
         if mode == "apply":
-            from app.core.alerts import alert_restore
-            alert_restore(t.name, "config", summary, note=run.note)
+            if t.id != src.id:
+                # Clones get their own alert category + template: app list,
+                # compact per-type counts, link to the target's restore history.
+                from app.core.alerts import alert_clone
+                apps, type_counts = [], {}
+                for it in plan:
+                    s_, rt = it.get("status"), it["resource_type"]
+                    if rt == "applications":
+                        mark = {"created": "[+]", "updated": "[~]",
+                                "failed": "[x]"}.get(s_)
+                        if mark:
+                            apps.append(f"{mark} {it.get('object_name') or it.get('object_id')}")
+                        continue   # apps are listed by name, not counted
+                    b = type_counts.setdefault(rt, {"ok": 0, "bad": 0, "ign": 0})
+                    if s_ in ("created", "updated", "created_new_credentials"):
+                        b["ok"] += 1
+                    elif s_ == "failed":
+                        b["bad"] += 1
+                    else:
+                        b["ign"] += 1
+                alert_clone(src.name, t.name, "config", snapshot_ts, summary,
+                            apps=apps, type_counts=type_counts, note=run.note,
+                            target_tenant_id=t.id)
+            else:
+                from app.core.alerts import alert_restore
+                alert_restore(t.name, "config", summary, note=run.note)
         return {"restore_run_id": run.id, "summary": summary, "items": plan}

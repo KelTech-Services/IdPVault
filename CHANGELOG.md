@@ -3,6 +3,21 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.16] - 2026-07-21
+### Added
+- Clones now have their own alert category with a purpose-built template.
+  Previously a clone fired the generic "Restore applied" alert (twice when
+  cloning config + Users & Access), and the target's next backup added a
+  giant drift alert on top. The new "Clones" checkbox (per channel, email and
+  webhook, in System settings > Alerts) sends ONE summary alert per clone
+  part: source -> target, snapshot, applied/failed/ignored result, the
+  application list by name ([+] created, [~] updated, [x] failed), compact
+  per-type counts for everything else, the justification, and a link to the
+  target tenant's restore history (clickable when the Public URL system
+  setting is set). Same-tenant restores keep the existing "Restores" alert.
+  NOTE: existing installs have explicit alert subscriptions saved, so the new
+  Clones checkbox starts unchecked - tick it once per channel.
+
 ## [1.2.15] - 2026-07-21
 ### Fixed
 - Failed config backups can now be deleted. Failed runs never write snapshot

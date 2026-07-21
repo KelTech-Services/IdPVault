@@ -169,13 +169,15 @@ async function importOrgsFile(inp){
 const ALERT_GROUPS = [
   {key:'cfg',      label:'Config Backups',          when:'changes detected during a config backup (change list included in the message), config backup failures, and the overdue-backup watchdog'},
   {key:'ua',       label:'Users & Access Backups',  when:'users, memberships, or assignments changed vs the previous Users & Access snapshot (change list included), and Users & Access backup failures'},
-  {key:'restores', label:'Restores',                when:'a config or Users & Access restore is written to a live tenant'},
+  {key:'restores', label:'Restores',                when:'a config or Users & Access restore is written to a live tenant (same-tenant restores)'},
+  {key:'clones',   label:'Clones',                  when:'a clone (config or Users & Access) is applied from one tenant into another - one summary alert with the application list, per-type counts, and a link to the target tenant\'s restore history'},
   {key:'success',  label:'Successful backups too',  when:'also alert when a backup completes with NO changes (noisy; off by default). Applies to whichever backup types are checked above, for this channel.'},
 ];
 function _alertGroupsFromCats(list){
   return {cfg: list.includes('drift_detected'),
           ua: list.includes('identity_drift'),
           restores: list.includes('restore_applied'),
+          clones: list.includes('clone_applied'),
           success: list.includes('backup_success') || list.includes('identity_backup_success')};
 }
 function _alertCatsFromGroups(g){
@@ -183,6 +185,7 @@ function _alertCatsFromGroups(g){
   if(g.cfg){ cats.push('drift_detected', 'backup_failed', 'backup_stale'); if(g.success) cats.push('backup_success'); }
   if(g.ua){ cats.push('identity_drift'); if(!cats.includes('backup_failed')) cats.push('backup_failed'); if(g.success) cats.push('identity_backup_success'); }
   if(g.restores) cats.push('restore_applied');
+  if(g.clones) cats.push('clone_applied');
   return cats;
 }
 function _alertGroupChecks(id){

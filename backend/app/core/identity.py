@@ -368,8 +368,19 @@ def apply_identity_restore(tenant_id: int, snapshot_ts: str, actor: str,
                                 "snapshot": snapshot_ts,
                                 "users_created": created}))
         db.commit()
-        from app.core.alerts import alert_restore
-        alert_restore(t.name, "identity", summary, note=run.note)
+        if t.id != src.id:
+            # Clone: dedicated alert category + template (compact per-category
+            # counts, link to the target's restore history).
+            from app.core.alerts import alert_clone
+            type_counts = {k: {"ok": c.get("created", 0) + c.get("reverted", 0) + c.get("added", 0),
+                               "bad": c.get("failed", 0),
+                               "ign": c.get("skipped", 0) + c.get("existing", 0)}
+                           for k, c in summary.items() if isinstance(c, dict)}
+            alert_clone(src.name, t.name, "Users & Access", snapshot_ts, summary,
+                        type_counts=type_counts, note=run.note, target_tenant_id=t.id)
+        else:
+            from app.core.alerts import alert_restore
+            alert_restore(t.name, "identity", summary, note=run.note)
         return {"restore_run_id": run.id, "summary": summary, "manual_steps": manual}
 
 
