@@ -3,6 +3,31 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.22] - 2026-07-22
+### Added
+- Terraform export (included with Business and MSP licenses): turn any config
+  backup or the live state into HCL for the official Terraform providers
+  (goauthentik/authentik, okta/okta, auth0/auth0).
+  - Live State: every object row has a "Terraform" action showing that
+    object's resource block plus a matching import block, with copy and
+    download.
+  - Backups: every snapshot row has a "Terraform..." export - pick resource
+    types, download a zip with one .tf file per type, provider setup,
+    variables, import blocks, and a coverage README.
+  - Resources are emitted against the providers' own published schemas.
+    Secret values are NEVER written into HCL; every secret becomes a
+    sensitive Terraform variable.
+  - Cross-references between exported objects are rewritten to Terraform
+    references, so a bundle applied to a fresh tenant wires itself together
+    instead of carrying source-instance ids.
+  - Import blocks use each resource's real import id (slug for Authentik
+    applications, flows, and sources; uuid/pk elsewhere), so
+    `terraform plan` adopts the EXISTING objects instead of recreating
+    them. Validated end to end against a live Authentik instance:
+    a full-tenant export planned as 365 imported, 0 destroyed, 0 errors.
+  - Anything the official provider cannot represent is reported in the
+    coverage README, never silently dropped.
+
 ## [1.2.21] - 2026-07-22
 ### Changed
 - Internal hardening: snapshot path containment guard rewritten to the
