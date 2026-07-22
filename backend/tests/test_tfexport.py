@@ -70,5 +70,21 @@ def test_bundle_refs_and_imports():
         "authentik", export, ["providers", "applications"], "T", "ts1")
     assert report["total"] == 2 and not report["skipped"]
     assert "authentik_provider_oauth2.prov.id" in files["applications.tf"]
-    assert 'id = "app-uuid-1"' in files["import.tf"]
+    # applications are slug-id in the provider: import by slug, not uuid
+    assert 'id = "app"' in files["import.tf"]
+    assert 'id = "7"' in files["import.tf"]  # int-pk types import by pk
     assert "README.md" in files and "variables.tf" in files
+
+
+def test_slug_id_refs_use_uuid():
+    export = {
+        "flows": [{"pk": "flow-uuid-9", "name": "auth", "slug": "auth-flow",
+                   "title": "Auth", "designation": "authentication"}],
+        "providers": [{"component": "ak-provider-oauth2-form", "pk": 3,
+                       "name": "p", "authorization_flow": "flow-uuid-9"}],
+    }
+    files, _ = tfexport.export_bundle(
+        "authentik", export, ["flows", "providers"], "T", "ts")
+    # reference to a slug-id resource must use .uuid (its .id is the slug)
+    assert "authentik_flow.auth.uuid" in files["providers.tf"]
+    assert 'id = "auth-flow"' in files["import.tf"]

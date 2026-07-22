@@ -160,6 +160,16 @@ def _schema_type_is_string(t) -> bool:
     return t == "string"
 
 
+def _tf_var_type(t) -> str:
+    """Terraform variable type expression for a schema attribute type."""
+    if isinstance(t, str):
+        return t if t in ("string", "number", "bool") else "any"
+    if (isinstance(t, list) and len(t) == 2 and t[0] in ("list", "set", "map")
+            and isinstance(t[1], str) and t[1] in ("string", "number", "bool")):
+        return f"{t[0]}({t[1]})"
+    return "any"
+
+
 def tf_resource_for(provider: str, rtype: str, obj: dict):
     """Map one of our export objects to its Terraform resource type.
 
@@ -255,10 +265,26 @@ def _flatten(provider: str, rtype: str, obj: dict) -> dict:
     return flat
 
 
+def _uses_slug_id(tf_type: str) -> bool:
+    """Authentik resources whose Terraform id is the SLUG (the provider does
+    SetId(res.Slug): applications, flows, sources - verified in provider
+    source). Imports use the slug; references to them must use .uuid."""
+    return (tf_type in ("authentik_application", "authentik_flow")
+            or tf_type.startswith("authentik_source_"))
+
+
+def import_id(provider: str, rtype: str, tf_type: str, obj: dict):
+    """The id a `terraform import` of this resource expects."""
+    if provider == "authentik" and _uses_slug_id(tf_type):
+        return obj.get("slug")
+    return object_id(provider, rtype, obj)
+
+
 def object_id(provider: str, rtype: str, obj: dict):
-    """The id used both for import blocks and the cross-reference index."""
+    """The pk/id other objects use to REFERENCE this one (ref index key)."""
     if provider == "authentik":
-        return obj.get("pk") or obj.get("pbm_uuid") or obj.get("uuid")
+        return (obj.get("pk") or obj.get("pbm_uuid") or obj.get("uuid")
+                or obj.get("brand_uuid"))
     if provider == "okta":
         return obj.get("id")
     if provider == "auth0":
@@ -297,14 +323,18 @@ def _ref_expr(value, ref_index: dict, provider: str, attr: str):
     style numerics colliding with a pk)."""
     if not ref_index:
         return None
+
+    def _expr(t, label):
+        # Slug-id resources: their .id is the slug; peers reference the uuid.
+        return f"{t}.{label}.{'uuid' if _uses_slug_id(t) else 'id'}"
+
     if isinstance(value, str) and value in ref_index:
-        t, label = ref_index[value]
-        return f"{t}.{label}.id"
+        return _expr(*ref_index[value])
     if isinstance(value, int) and (provider != "authentik"
                                    or attr in _AK_REF_ATTRS):
         hit = ref_index.get(str(value))
         if hit:
-            return f"{hit[0]}.{hit[1]}.id"
+            return _expr(*hit)
     return None
 
 
@@ -348,14 +378,16 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
         secret = meta.get("sensitive") or _SECRET_RE.search(name)
         if secret and (value not in (None, "") or meta["req"]):
             var = f"{label}_{name}"
-            variables.append((var, f"{tf_type}.{label} {name}"))
+            variables.append((var, f"{tf_type}.{label} {name}",
+                              _tf_var_type(meta.get("type"))))
             lines.append(f"  {name} = var.{var}")
             continue
         if value is None or value == "" and not meta["req"]:
             if meta["req"]:
                 var = f"{label}_{name}"
                 variables.append((var, f"{tf_type}.{label} {name} (required, "
-                                       "not present in the export)"))
+                                       "not present in the export)",
+                                  _tf_var_type(meta.get("type"))))
                 lines.append(f"  {name} = var.{var}")
             continue
         lines.append(f"  {name} = "
@@ -411,8 +443,12 @@ def _variables_tf(provider: str, extra_vars: list) -> str:
         s = "\n  sensitive   = true" if sensitive else ""
         blocks.append(f'variable "{name}" {{\n  type        = string\n'
                       f'  description = "{desc}"{s}\n}}')
-    for name, desc in extra_vars:
-        blocks.append(f'variable "{name}" {{\n  type        = string\n'
+    seen = set()
+    for name, desc, vtype in extra_vars:
+        if name in seen:
+            continue
+        seen.add(name)
+        blocks.append(f'variable "{name}" {{\n  type        = {vtype}\n'
                       f'  description = "{_escape(desc)}"\n'
                       f"  sensitive   = true\n}}")
     return "\n\n".join(blocks) + "\n"
@@ -426,7 +462,7 @@ def export_object(provider: str, rtype: str, obj: dict) -> dict:
                 "name": display_name(provider, rtype, obj)}
     label = sanitize_label(display_name(provider, rtype, obj))
     hcl, dropped, variables = emit_resource(provider, tf_type, obj, rtype, label)
-    oid = object_id(provider, rtype, obj)
+    oid = import_id(provider, rtype, tf_type, obj)
     return {"ok": True, "tf_type": tf_type, "label": label, "hcl": hcl,
             "import_block": emit_import(tf_type, label, oid) if oid else None,
             "dropped": dropped, "variables": [v[0] for v in variables],
@@ -470,7 +506,7 @@ def export_bundle(provider: str, export: dict, selected_rtypes: list,
         all_vars.extend(variables)
         if dropped:
             dropped_by_type.setdefault(rtype, set()).update(dropped)
-        oid = object_id(provider, rtype, obj)
+        oid = import_id(provider, rtype, tf_type, obj)
         if oid is not None:
             imports.append(emit_import(tf_type, label, oid))
         t = report["types"].setdefault(rtype, {"exported": 0})
