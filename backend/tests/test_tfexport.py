@@ -104,3 +104,88 @@ def test_okta_group_profile_flattening():
     assert "privileged" in out["hcl"]
     assert not out["variables"]  # nothing required is missing
     assert 'id = "00g1mhw6k55XP0scT358"' in out["import_block"]
+
+
+def test_okta_custom_saml_app():
+    obj = {"id": "0oa1", "name": "template_saml_2_0", "label": "GSS Dynatrace",
+           "signOnMode": "SAML_2_0", "status": "ACTIVE",
+           "visibility": {"hide": {"web": True, "iOS": True},
+                          "autoSubmitToolbar": False},
+           "credentials": {"userNameTemplate": {
+               "template": "${source.login}", "type": "BUILT_IN"}},
+           "settings": {"signOn": {
+               "ssoAcsUrl": "https://example.com/login",
+               "recipient": "https://example.com/login",
+               "audience": "https://example.com/",
+               "subjectNameIdFormat":
+                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+               "responseSigned": True, "signatureAlgorithm": "RSA_SHA256",
+               "attributeStatements": [
+                   {"type": "EXPRESSION", "name": "email",
+                    "values": ["user.email"]},
+                   {"type": "GROUP", "name": "role",
+                    "filterType": "REGEX", "filterValue": ".*"}]}}}
+    out = tfexport.export_object("okta", "apps", obj)
+    assert out["ok"] and out["tf_type"] == "okta_app_saml"
+    hcl = out["hcl"]
+    assert 'sso_url = "https://example.com/login"' in hcl      # ssoAcsUrl rename
+    assert "preconfigured_app" not in hcl                      # custom app
+    assert "hide_web = true" in hcl and "hide_ios = true" in hcl
+    assert 'user_name_template = "$${source.login}"' in hcl    # escaped ${
+    assert 'user_name_template_type = "BUILT_IN"' in hcl
+    assert hcl.count("attribute_statements {") == 2            # nested blocks
+    assert 'filter_type = "REGEX"' in hcl and 'filter_value = ".*"' in hcl
+    assert "name" not in out["dropped"] and "visibility" not in out["dropped"]
+
+
+def test_okta_oin_app_and_settings_json():
+    obj = {"id": "0oa2", "name": "jira_datacenter", "label": "GSS Jira Test",
+           "signOnMode": "SAML_2_0", "status": "ACTIVE",
+           "settings": {"app": {"baseURL": "https://jira.example.com",
+                                "helpUrl": None}}}
+    out = tfexport.export_object("okta", "apps", obj)
+    assert out["ok"]
+    assert 'preconfigured_app = "jira_datacenter"' in out["hcl"]
+    assert "app_settings_json = jsonencode(" in out["hcl"]
+    assert "baseURL" in out["hcl"]
+
+
+def test_okta_oauth_app_type_and_groups_claim():
+    obj = {"id": "0oa3", "name": "oidc_client", "label": "COD Harbor",
+           "signOnMode": "OPENID_CONNECT", "status": "ACTIVE",
+           "credentials": {"oauthClient": {"client_id": "abc123"}},
+           "settings": {"oauthClient": {
+               "application_type": "web",
+               "grant_types": ["authorization_code"],
+               "redirect_uris": ["https://example.com/cb"],
+               "response_types": ["code"],
+               "groupsClaim": {"type": "FILTER", "filterType": "STARTS_WITH",
+                               "value": "harbor_cod", "name": "groups"}}}}
+    out = tfexport.export_object("okta", "apps", obj)
+    assert out["ok"] and out["tf_type"] == "okta_app_oauth"
+    hcl = out["hcl"]
+    assert 'type = "web"' in hcl                    # application_type rename
+    assert "groups_claim {" in hcl
+    assert 'filter_type = "STARTS_WITH"' in hcl and 'value = "harbor_cod"' in hcl
+    assert not out["variables"] or "type" not in " ".join(out["variables"])
+
+
+def test_okta_system_app_skipped():
+    out = tfexport.export_object(
+        "okta", "apps", {"id": "x", "name": "saasure",
+                         "label": "Okta Admin Console",
+                         "signOnMode": "OPENID_CONNECT"})
+    assert not out["ok"] and "system app" in out["reason"]
+
+
+def test_auth0_client_blocks():
+    obj = {"client_id": "c1", "name": "My API Client", "app_type": "non_interactive",
+           "jwt_configuration": {"alg": "RS256", "lifetime_in_seconds": 36000},
+           "refresh_token": {"rotation_type": "rotating", "expiration_type":
+                             "expiring"}}
+    out = tfexport.export_object("auth0", "clients", obj)
+    assert out["ok"]
+    hcl = out["hcl"]
+    assert "jwt_configuration {" in hcl and 'alg = "RS256"' in hcl
+    assert "refresh_token {" in hcl and 'rotation_type = "rotating"' in hcl
+    assert "jwt_configuration" not in out["dropped"]

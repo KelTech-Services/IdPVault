@@ -48,6 +48,21 @@ _AK_REF_ATTRS = {
     "configuration_stages",
 }
 
+# Okta built-in/system apps: Terraform cannot create or manage these.
+_OKTA_SYSTEM_APPS = {"saasure", "okta_enduser", "okta_browser_plugin",
+                     "okta_account_settings", "okta_iga_reviewer",
+                     "okta_flow_sso", "flow", "okta_admin_console"}
+
+# Okta `name` values that mean CUSTOM app (anything else is an OIN catalog
+# name and becomes preconfigured_app).
+_OKTA_CUSTOM_APP_NAMES = {"oidc_client", "template_saml_2_0",
+                          "template_saml_1_1", "bookmark", "template_swa",
+                          "template_swa3links", "template_sps",
+                          "template_basic_auth", "template_wsfed"}
+
+# Terraform meta-blocks that must never be emitted from data.
+_SKIP_BLOCKS = {"timeouts"}
+
 # Okta application signOnMode -> Terraform resource.
 _OKTA_APP_BY_MODE = {
     "OPENID_CONNECT": "okta_app_oauth",
@@ -198,6 +213,8 @@ def tf_resource_for(provider: str, rtype: str, obj: dict):
 
     if provider == "okta":
         if rtype == "apps":
+            if (obj.get("name") or "") in _OKTA_SYSTEM_APPS:
+                return None, "Okta system app - not manageable via Terraform"
             mode = obj.get("signOnMode") or obj.get("sign_on_mode") or ""
             if mode in _OKTA_APP_BY_MODE:
                 return _check(_OKTA_APP_BY_MODE[mode])
@@ -236,8 +253,10 @@ def tf_resource_for(provider: str, rtype: str, obj: dict):
     return None, f"unknown provider {provider}"
 
 
-def _flatten(provider: str, rtype: str, obj: dict) -> dict:
-    """Normalize a source object to a flat snake_case dict of candidate args."""
+def _flatten(provider: str, rtype: str, obj: dict, attrs=None) -> dict:
+    """Normalize a source object to a flat snake_case dict of candidate args.
+    `attrs` (the target resource's schema attribute names) enables mappings
+    that need to know what the provider accepts (e.g. app_settings_json)."""
     if provider == "okta":
         flat = {}
         for k, v in obj.items():
@@ -255,6 +274,57 @@ def _flatten(provider: str, rtype: str, obj: dict) -> dict:
         if client_id:
             flat.setdefault("client_id", client_id)
         flat.setdefault("label", obj.get("label") or obj.get("name"))
+        if rtype == "apps":
+            # OIN catalog name -> preconfigured_app; custom-app template
+            # names carry no information.
+            nm = flat.pop("name", None)
+            if nm and nm not in _OKTA_CUSTOM_APP_NAMES:
+                flat.setdefault("preconfigured_app", nm)
+            # visibility / accessibility structures -> their flat arguments.
+            vis = obj.get("visibility") or {}
+            flat.pop("visibility", None)
+            hide = vis.get("hide") or {}
+            if hide.get("web") is not None:
+                flat.setdefault("hide_web", hide["web"])
+            if hide.get("iOS") is not None:
+                flat.setdefault("hide_ios", hide["iOS"])
+            if vis.get("autoSubmitToolbar") is not None:
+                flat.setdefault("auto_submit_toolbar", vis["autoSubmitToolbar"])
+            if vis.get("appLinks"):
+                flat.setdefault("app_links_json", vis["appLinks"])
+            acc = obj.get("accessibility") or {}
+            flat.pop("accessibility", None)
+            if acc.get("selfService") is not None:
+                flat.setdefault("accessibility_self_service", acc["selfService"])
+            if acc.get("errorRedirectUrl"):
+                flat.setdefault("accessibility_error_redirect_url",
+                                acc["errorRedirectUrl"])
+            if acc.get("loginRedirectUrl"):
+                flat.setdefault("accessibility_login_redirect_url",
+                                acc["loginRedirectUrl"])
+            # API names that differ from the provider's argument names.
+            if flat.get("application_type") and "type" not in flat:
+                flat["type"] = flat.pop("application_type")
+            if flat.get("sso_acs_url") and "sso_url" not in flat:
+                flat["sso_url"] = flat.pop("sso_acs_url")
+            unt = creds.get("userNameTemplate") or {}
+            if unt.get("template"):
+                flat.setdefault("user_name_template", unt["template"])
+            if unt.get("type"):
+                flat.setdefault("user_name_template_type", unt["type"])
+            if unt.get("pushStatus"):
+                flat.setdefault("user_name_template_push_status",
+                                unt["pushStatus"])
+            # OIN per-app settings with no native argument go to
+            # app_settings_json - the provider's own mechanism for them.
+            if attrs and "app_settings_json" in attrs:
+                leftovers = {k: v for k, v in (settings.get("app") or {}).items()
+                             if _camel_to_snake(k) not in attrs
+                             and v is not None}
+                if leftovers:
+                    flat.setdefault("app_settings_json", leftovers)
+                    for k in leftovers:   # captured - don't report as dropped
+                        flat.pop(_camel_to_snake(k), None)
         # Non-app types (groups, user types...) keep their name/description
         # inside `profile`; anything else in the profile is a custom attribute
         # (okta_group exposes those as jsonencoded custom_profile_attributes).
@@ -392,6 +462,40 @@ def _emit_attr_value(value, meta, ref_index, provider, attr, indent=1):
     return _render(value, indent)
 
 
+def _emit_blocks(schema, flat, consumed, ref_index, provider):
+    """Emit nested blocks (attribute_statements, groups_claim, auth0 client
+    blocks...) validated against the schema's block specs. Source values are
+    dicts or lists of dicts under the block's (snake_case) name."""
+    out = []
+    for bname in sorted(schema.get("blocks", {})):
+        if bname in _SKIP_BLOCKS:
+            continue
+        consumed.add(bname)
+        val = flat.get(bname)
+        if not val:
+            continue
+        spec = schema["blocks"][bname]
+        battrs = (spec.get("schema") or {}).get("attrs") or {}
+        entries = val if isinstance(val, list) else [val]
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+            es = {_camel_to_snake(k): v for k, v in e.items()}
+            body = []
+            for an in sorted(battrs):
+                m = battrs[an]
+                if an == "id" or not (m["req"] or m["opt"]):
+                    continue
+                v = es.get(an)
+                if v is None or v == "" or v == []:
+                    continue
+                body.append(f"    {an} = "
+                            f"{_emit_attr_value(v, m, ref_index, provider, an, 2)}")
+            if body:
+                out.append(f"  {bname} {{\n" + "\n".join(body) + "\n  }")
+    return out
+
+
 def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
                   label: str, ref_index=None):
     """Emit one resource block.
@@ -401,7 +505,7 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
     """
     schema = load_schema(provider)["resources"][tf_type]
     attrs = schema["attrs"]
-    flat = _flatten(provider, rtype, obj)
+    flat = _flatten(provider, rtype, obj, attrs)
     ref_index = ref_index or {}
     lines = [f'resource "{tf_type}" "{label}" {{']
     variables, consumed = [], set()
@@ -431,6 +535,7 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
         lines.append(f"  {name} = "
                      f"{_emit_attr_value(value, meta, ref_index, provider, name)}")
 
+    lines.extend(_emit_blocks(schema, flat, consumed, ref_index, provider))
     lines.append("}")
 
     dropped = sorted(k for k, v in flat.items()
