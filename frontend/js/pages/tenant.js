@@ -1993,8 +1993,8 @@ async function exTfObject(oid){
     if(d.import_block)
       notes.push('The import block adopts the EXISTING object when you plan against THIS tenant. <span style="color:var(--amber)"><b>Pushing this block to another instance (staging to prod)? Remove the import section above</b></span> so Terraform creates the object there. Details in Docs → Terraform export.');
     notes.push('<span style="color:var(--amber)"><b>Ids inside this block (groups, providers, flows...) belong to THIS tenant and never translate to another instance.</b></span> Pushing elsewhere? Replace them with the target tenant\'s ids, or use the snapshot Terraform export, which rewrites cross-references between exported objects automatically.');
-    if(/^\s*# /m.test(d.hcl))
-      notes.push('Commented lines are fields the object has but left blank - kept so every available argument is visible. Uncomment one to set it; Terraform ignores them as-is, so leaving or deleting them is equally fine.');
+    if(/^\s*#/m.test(d.hcl))
+      notes.push('Commented lines are available fields that are currently blank - kept so every argument is visible. Delete the single # to use one (the line is already aligned); Terraform ignores them as-is, so leaving or removing them is equally fine.');
     document.getElementById('tf_notes').innerHTML = notes.map(n => `<div>- ${n}</div>`).join('');
     document.getElementById('tfmodal').classList.remove('hidden');
   }catch(e){ toast(e.message, true); }

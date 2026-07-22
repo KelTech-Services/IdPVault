@@ -588,13 +588,15 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
                 # silently omitting it. `description` always shows when the
                 # schema supports it, even if the API omitted the key: it is
                 # the one field humans always look for.
+                # No space after # - deleting the single # character leaves
+                # the line perfectly indented and ready to use.
                 t = meta.get("type")
                 if _schema_type_is_string(t):
-                    lines.append(f'  # {name} = ""')
+                    lines.append(f'  #{name} = ""')
                 elif isinstance(t, list) and t and t[0] in ("list", "set"):
-                    lines.append(f"  # {name} = []")
+                    lines.append(f"  #{name} = []")
                 elif isinstance(t, list) and t and t[0] == "map":
-                    lines.append(f"  # {name} = {{}}")
+                    lines.append(f"  #{name} = {{}}")
             continue
         lines.append(f"  {name} = "
                      f"{_emit_attr_value(value, meta, ref_index, provider, name)}")
@@ -753,9 +755,10 @@ def _readme(provider: str, tenant_name: str, snapshot_ts: str,
           "- `import.tf` - import blocks so `terraform plan` adopts your",
           "  existing objects instead of recreating them. Delete it when",
           "  applying this export to a different (fresh) tenant.",
-          "- Commented lines inside resources are fields the object has but",
-          "  left blank - kept so every available argument is visible.",
-          "  Terraform ignores them; uncomment to set, or delete freely.", "",
+          "- Commented lines inside resources are available fields that are",
+          "  currently blank - kept so every argument is visible. Delete the",
+          "  single # to use one (the line is already aligned); Terraform",
+          "  ignores them as-is.", "",
           "## Coverage", ""]
     for rtype, t in sorted(report["types"].items()):
         L.append(f"- {rtype}: {t['exported']} exported")

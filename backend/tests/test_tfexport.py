@@ -96,7 +96,7 @@ def test_blank_present_fields_stay_visible():
     obj = {"id": "00g9", "type": "OKTA_GROUP",
            "profile": {"name": "No Desc Group", "description": None}}
     out = tfexport.export_object("okta", "groups", obj)
-    assert out["ok"] and '# description = ""' in out["hcl"]
+    assert out["ok"] and '#description = ""' in out["hcl"]
 
 
 def test_description_always_present_even_when_api_omits_it():
@@ -105,11 +105,11 @@ def test_description_always_present_even_when_api_omits_it():
     obj = {"id": "00g10", "type": "OKTA_GROUP",
            "profile": {"name": "Slack Users"}}
     out = tfexport.export_object("okta", "groups", obj)
-    assert out["ok"] and '# description = ""' in out["hcl"]
+    assert out["ok"] and '#description = ""' in out["hcl"]
     # ordering: name first, description right after (priority order)
     lines = [l.strip() for l in out["hcl"].splitlines()]
     assert lines[1].startswith("name =")
-    assert lines[2].startswith('# description')
+    assert lines[2].startswith('#description')
 
 
 def test_attr_priority_ordering():
