@@ -103,7 +103,7 @@ PAGE = """<!DOCTYPE html>
 <style>{css}</style>
 </head><body>
 <header class="top">
-<a href="/"><img src="/logo.png" alt="IdPVault"></a>
+<a href="https://idpvault.com"><img src="/logo.png" alt="IdPVault"></a>
 <div class="t">Docs <span>· self-hosted IdP backup &amp; restore</span></div>
 <div class="links"><a href="https://idpvault.com">idpvault.com</a>
 <a href="https://idpvault.com/pricing">Pricing</a>

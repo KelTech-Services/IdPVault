@@ -1,7 +1,7 @@
 <!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
 <h3>Plans</h3>
 <table><tr><th></th><th>Community (free)</th><th>Business</th><th>MSP</th></tr>
-<tr><td>Tenants</td><td>1</td><td>4</td><td>4 included, add more any time</td></tr>
+<tr><td>Tenants</td><td>1</td><td>2 included, add more any time</td><td>2 included, add more any time</td></tr>
 <tr><td>Users</td><td>1 (the first-run admin)</td><td>Unlimited</td><td>Unlimited</td></tr>
 <tr><td>Config backup, drift, events, alerts, config restore</td><td>Included</td><td>Included</td><td>Included</td></tr>
 <tr><td>Users &amp; Access backup &amp; restore</td><td>Not included</td><td>Included</td><td>Included</td></tr>
@@ -10,6 +10,6 @@
 <h3>How license keys work</h3>
 <p>A key is a cryptographically signed token verified <b>entirely offline</b> against a public key built into the app. IdPVault never phones home, sends no telemetry, and needs no internet access to validate a license. Install, inspect, or remove the key in <b>Administration → License</b>.</p>
 <h3>Terms &amp; renewal</h3>
-<p>Licenses are sold as annual terms. Your renewal key can be installed any time before expiry; its term extends from the old expiry date, so renewing early never costs you time. The License panel always shows the expiry date and a day countdown. MSP tenant add-ons can be purchased whenever needed; a replacement key with the higher tenant count is issued immediately.</p>
+<p>Licenses are sold as annual terms. Your renewal key can be installed any time before expiry; its term extends from the old expiry date, so renewing early never costs you time. The License panel always shows the expiry date and a day countdown. Tenant add-ons ($500/tenant/yr, Business and MSP) can be purchased whenever needed; a replacement key with the higher tenant count is issued immediately.</p>
 <h3>If a license expires or is removed</h3>
 <p>After a 3-day grace window, the instance downgrades <b>non-destructively</b>: nothing is deleted. Your oldest tenant stays fully operational; other tenants keep all data and snapshots but pause backup/restore; Users &amp; Access features pause. Everything resumes the moment a valid key is installed.</p>
