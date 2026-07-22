@@ -1,0 +1,28 @@
+<!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
+<h3>What it is</h3>
+<p>Terraform export (included with Business and MSP licenses) turns your IdP configuration into HCL for the <b>official</b> Terraform providers: goauthentik/authentik, okta/okta, and auth0/auth0. Two ways to use it:</p>
+<p><b>Per object:</b> every row in Live State (and in a snapshot's Browse view) has a <b>Terraform</b> button showing that object as a resource block, plus a matching import block, with copy and download.</p>
+<p><b>Whole tenant:</b> every backup row on the Backups page has a <b>Terraform...</b> export: pick resource types, download a zip with one .tf file per type, provider setup, variables, import blocks, and a coverage README.</p>
+<p>Blocks are generated against each provider's own published schema. You need Terraform 1.5 or newer (import blocks). Export is read-only: it never writes anything to your identity provider.</p>
+<h3>The import block</h3>
+<p>Every exported resource comes with an import block like this:</p>
+<pre>import {
+  to = okta_app_saml.duo_admin_panel
+  id = "0oaim59q48RDNPzik357"
+}</pre>
+<p>Terraform only manages what is in its state file, and a fresh state file is empty. Without the import block, <code>terraform plan</code> against your tenant would try to CREATE a duplicate of every object. The import block tells Terraform "this resource is the EXISTING object with this id, adopt it into state". Your first plan then shows <i>will be imported</i> instead of <i>will be created</i>, and Terraform manages the real object from then on. It replaces running the legacy <code>terraform import</code> command once per object by hand.</p>
+<h3>Same tenant, or a different one?</h3>
+<p><b>Bringing THIS tenant under Terraform management:</b> keep the import blocks. Plan, review, apply: your existing objects are adopted, nothing is recreated.</p>
+<p><b>Promoting to a DIFFERENT instance</b> (staging to prod, a fresh tenant, disaster recovery): <b>remove the import blocks</b>. Those ids only exist in the source tenant; in the target you want Terraform to create the objects. In the zip bundle that is one file (<code>import.tf</code>) to delete.</p>
+<p><b>The target already has some of the objects</b> (created by hand earlier): write import blocks using the TARGET tenant's ids. If the target tenant is also in IdPVault, its own Terraform view gives you each object's id.</p>
+<h3>Cross-references between objects</h3>
+<p>Provider-assigned ids are per-instance: an application whose provider is #48 in staging points at some unrelated object (or nothing) in prod. The <b>bundle export handles this for you</b>: when a referenced object is part of the same export, the reference is rewritten to a Terraform expression (for example <code>protocol_provider = authentik_provider_oauth2.web.id</code>), so the whole set wires itself together wherever you apply it. A <b>single copied block</b> keeps literal source ids: fine for self-contained objects, but anything with wiring should either travel via the bundle or have its ids reviewed against the target.</p>
+<h3>Secrets are never exported</h3>
+<p>Secret values (client secrets, private keys, passwords) are NEVER written into HCL, even though IdPVault holds them in the snapshot. Every secret becomes a Terraform variable marked <code>sensitive = true</code> in <code>variables.tf</code>; you supply values at plan time (tfvars, environment, or your secret manager). Provider credentials (API URL and token) are variables too.</p>
+<h3>Honest coverage</h3>
+<p>Not everything can be represented in the official providers, and IdPVault never drops anything silently:</p>
+<p>- The bundle README lists every skipped object with its reason (for example Okta system apps like the Admin Console, which Terraform cannot manage, or built-in groups).</p>
+<p>- Fields with no argument in the official provider (usually computed or read-only) are listed per type in the README and in the per-object view.</p>
+<p>- Known provider-side gaps: Okta user and app schemas map to per-property Terraform resources (not exported yet); Okta policy conditions beyond the included-groups piece live on policy rules; Auth0 resource server scopes and client token_endpoint_auth_method moved to separate Terraform resource types.</p>
+<h3>Convergence check</h3>
+<p>After importing, run <code>terraform plan</code> again and review the remaining diffs: variable placeholders you have not filled in yet and provider defaults account for most of them. The apply is in your hands; IdPVault only generates the code.</p>
