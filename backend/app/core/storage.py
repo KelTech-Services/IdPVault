@@ -37,7 +37,7 @@ def _contained(path: str) -> str:
     """Resolve and require the path to stay inside the data dir (anti-traversal)."""
     base = os.path.realpath(get_settings().data_dir)
     full = os.path.realpath(path)
-    if full != base and not full.startswith(base + os.sep):
+    if not full.startswith(base + os.sep):
         raise ValueError("path escapes the data directory")
     return full
 
