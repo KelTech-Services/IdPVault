@@ -90,6 +90,15 @@ def test_slug_id_refs_use_uuid():
     assert 'id = "auth-flow"' in files["import.tf"]
 
 
+def test_blank_present_fields_stay_visible():
+    # A field the source HAS but is blank appears COMMENTED - visible but
+    # inert to Terraform, never silently vanished.
+    obj = {"id": "00g9", "type": "OKTA_GROUP",
+           "profile": {"name": "No Desc Group", "description": None}}
+    out = tfexport.export_object("okta", "groups", obj)
+    assert out["ok"] and '# description = ""' in out["hcl"]
+
+
 def test_okta_group_profile_flattening():
     obj = {"id": "00g1mhw6k55XP0scT358", "type": "OKTA_GROUP",
            "objectClass": ["okta:user_group"],
