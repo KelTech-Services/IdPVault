@@ -88,3 +88,19 @@ def test_slug_id_refs_use_uuid():
     # reference to a slug-id resource must use .uuid (its .id is the slug)
     assert "authentik_flow.auth.uuid" in files["providers.tf"]
     assert 'id = "auth-flow"' in files["import.tf"]
+
+
+def test_okta_group_profile_flattening():
+    obj = {"id": "00g1mhw6k55XP0scT358", "type": "OKTA_GROUP",
+           "objectClass": ["okta:user_group"],
+           "profile": {"name": "Slack Users", "description": "Slack access",
+                       "privileged": "FALSE"}}
+    out = tfexport.export_object("okta", "groups", obj)
+    assert out["ok"] and out["label"] == "slack_users"
+    assert out["name"] == "Slack Users"
+    assert 'name = "Slack Users"' in out["hcl"]
+    assert 'description = "Slack access"' in out["hcl"]
+    assert "custom_profile_attributes = jsonencode(" in out["hcl"]
+    assert "privileged" in out["hcl"]
+    assert not out["variables"]  # nothing required is missing
+    assert 'id = "00g1mhw6k55XP0scT358"' in out["import_block"]

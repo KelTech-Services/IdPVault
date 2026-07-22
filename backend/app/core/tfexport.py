@@ -255,6 +255,21 @@ def _flatten(provider: str, rtype: str, obj: dict) -> dict:
         if client_id:
             flat.setdefault("client_id", client_id)
         flat.setdefault("label", obj.get("label") or obj.get("name"))
+        # Non-app types (groups, user types...) keep their name/description
+        # inside `profile`; anything else in the profile is a custom attribute
+        # (okta_group exposes those as jsonencoded custom_profile_attributes).
+        prof = obj.get("profile")
+        if rtype != "apps" and isinstance(prof, dict):
+            flat.pop("profile", None)
+            custom = {}
+            for k, v in prof.items():
+                sk = _camel_to_snake(k)
+                if sk in ("name", "description"):
+                    flat.setdefault(sk, v)
+                else:
+                    custom[k] = v
+            if custom:
+                flat.setdefault("custom_profile_attributes", custom)
         return flat
     # authentik and auth0 payloads are already snake_case.
     flat = dict(obj)
@@ -297,8 +312,10 @@ def object_id(provider: str, rtype: str, obj: dict):
 
 
 def display_name(provider: str, rtype: str, obj: dict) -> str:
-    return str(obj.get("name") or obj.get("label") or obj.get("slug")
-               or obj.get("domain") or obj.get("client_id")
+    prof = obj.get("profile")
+    prof_name = prof.get("name") if isinstance(prof, dict) else None
+    return str(obj.get("name") or obj.get("label") or prof_name
+               or obj.get("slug") or obj.get("domain") or obj.get("client_id")
                or obj.get("id") or obj.get("pk") or "unnamed")
 
 
