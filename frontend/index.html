@@ -570,6 +570,28 @@
     <div style="margin-top:16px;text-align:right"><button id="fd_cancelbtn" onclick="closeFulldr()">Cancel</button> <button id="fd_applybtn" class="del hidden" onclick="fulldrApply()">Replace database</button></div>
   </div>
 </div>
+<div id="tfmodal" class="modal hidden">
+  <div class="box" style="width:680px">
+    <h2>Terraform</h2>
+    <div id="tf_meta" class="muted" style="font-size:.85rem;margin-bottom:8px"></div>
+    <pre id="tf_hcl" style="user-select:text"></pre>
+    <div id="tf_notes" class="muted" style="font-size:.78rem;margin-top:8px"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button onclick="closeTf()">Close</button>
+      <button onclick="tfCopy()">Copy</button>
+      <button class="primary" onclick="tfDownload()">Download .tf</button>
+    </div>
+  </div>
+</div>
+<div id="tfbundlemodal" class="modal hidden">
+  <div class="box" style="width:520px">
+    <h2>Export Terraform</h2>
+    <p class="muted" style="font-size:.85rem;margin-bottom:10px">Generates HCL for the official Terraform provider from this backup: one .tf file per selected type, plus provider setup, variables for every secret (secret values are never written), import blocks, and a coverage README.</p>
+    <div id="tfb_types" style="max-height:300px;overflow:auto"></div>
+    <div id="tfb_status" class="muted" style="font-size:.85rem;margin-top:10px"></div>
+    <div style="margin-top:16px;text-align:right"><button onclick="closeTfBundle()">Cancel</button> <button class="primary" id="tfb_go" onclick="tfBundleGo()">Export zip</button></div>
+  </div>
+</div>
 <div id="toast" class="hidden"></div>
 <script src="/vendor/vchart.min.js"></script>
 <script src="/js/core.js?v=build"></script>

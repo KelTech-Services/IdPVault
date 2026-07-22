@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_jobs, routes_license, routes_metrics, routes_orgs, routes_restore, routes_settings, routes_tenants, routes_users
+from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_jobs, routes_license, routes_metrics, routes_orgs, routes_restore, routes_settings, routes_tenants, routes_tfexport, routes_users
 from app.config import get_settings
 from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
@@ -103,6 +103,9 @@ app.include_router(routes_metrics.router)
 app.include_router(routes_settings.router, prefix="/api/v1")
 app.include_router(routes_license.router, prefix="/api/v1")
 app.include_router(routes_orgs.router, prefix="/api/v1")
+app.include_router(routes_tfexport.router, prefix="/api/v1")
+
+
 class UIStaticFiles(StaticFiles):
     """Serve HTML with no-cache so browsers revalidate on every load (304s still
     apply via ETag). A stale cached index.html against a newer API once made a

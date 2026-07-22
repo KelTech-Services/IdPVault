@@ -467,7 +467,7 @@ async function showSnaps(id, slug){
       <td class="muted">${fmtBytes(s.size || 0)}</td>
       <td class="muted">${s.db_dump_status === 'failed' ? '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)" title="Full-DR is configured but the database dump FAILED for this snapshot - this snapshot has no dump. Check the Full-DR Postgres URL in the tenant settings.">dump failed</span>' : s.db_dump_size != null ? `${fmtBytes(s.db_dump_size)}${me.role==='admin' ? ` <button class="ghost" style="color:var(--red)" onclick="openFulldr('${s.ts}')" title="Replace the Full-DR database with this snapshot's dump - full credential recovery for self-hosted Authentik. Atomic: any failure rolls back and changes nothing.">Restore DB… ${TIPI}</button>` : ''}` : '-'}</td>
       <td class="chgcell" data-ts="${s.ts}"><span class="muted">…</span></td>
-      <td style="text-align:right"><button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
+      <td style="text-align:right">${_feat('identity') ? `<button class="ghost" onclick="openTfBundle('${s.ts}')" title="Export this backup as Terraform HCL for the official provider: pick resource types, get a zip with .tf files, secret variables, import blocks and a coverage README">Terraform… ${TIPI}</button> ` : ''}<button onclick="openBrowse('${s.ts}')">Browse</button> ${admin?(_tenants.find(x=>x.id===id)?.active===false?`<button disabled title="${LIC_TIP_TENANT}">Restore… ${TIPI}</button>`:`<button onclick="openRestore('${s.ts}')">Restore…</button>`):''}</td></tr>`).join('');
     fillSnapChanges(id);
   } catch(e){ sb.innerHTML = `<tr><td colspan="9" class="muted">Failed: ${esc(e.message)}</td></tr>`; }
 }
@@ -1447,7 +1447,7 @@ async function exLoadObjects(){
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
       <td title="${esc(o.object_name||'-')}">${icons ? appIconHtml(o.object_name) : ''}${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
-      <td class="rowact" style="text-align:right">${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
+      <td class="rowact" style="text-align:right">${_feat('identity') ? `<button class="ghost" onclick="event.stopPropagation();exTfObject('${esc(o.object_id)}')" title="View this object as a Terraform resource block for the official ${esc(_tenants.find(x=>x.id===_ex.tenantId)?.provider || '')} provider, with an import block to adopt it into state">Terraform ${TIPI}</button> ` : ''}${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function exViewObject(oid){
@@ -1970,4 +1970,78 @@ function lvOpen(rt, oid){
   const lvs = document.getElementById('lv_search'); if(lvs) lvs.value = '';
   exOpenCat(rt);
   if(rt === 'users') exViewUser(oid); else exViewObject(oid);
+}
+
+/* ---------- Terraform export (Business/MSP; engine in app/core/tfexport.py) ---------- */
+let _tf = null;
+async function exTfObject(oid){
+  try{
+    const src = _ex.mode === 'current' ? 'current' : _ex.snap;
+    const d = await api(`/tenants/${_ex.tenantId}/terraform/object?rtype=${encodeURIComponent(_ex.cat)}&obj_id=${encodeURIComponent(oid)}&source=${encodeURIComponent(src)}`);
+    if(!d.ok){ toast(`Not exportable: ${d.reason}`, true); return; }
+    _tf = d;
+    document.getElementById('tf_meta').innerHTML =
+      `<b>${esc(d.name)}</b> as <code>${esc(d.tf_type)}.${esc(d.label)}</code>` +
+      (src === 'current' ? ' (from live state)' : ` (from backup ${fmtSnap(src)})`);
+    document.getElementById('tf_hcl').textContent =
+      d.hcl + (d.import_block ? '\n\n' + d.import_block : '');
+    const notes = [];
+    if(d.variables && d.variables.length)
+      notes.push(`Secrets and missing required values are variables (never emitted): ${d.variables.map(esc).join(', ')}`);
+    if(d.dropped && d.dropped.length)
+      notes.push(`Fields with no argument in the official provider (usually computed/read-only): ${d.dropped.map(esc).join(', ')}`);
+    if(d.import_block)
+      notes.push('The import block adopts the EXISTING object when you plan against this tenant. Remove it when applying to a different tenant.');
+    document.getElementById('tf_notes').innerHTML = notes.map(n => `<div>- ${n}</div>`).join('');
+    document.getElementById('tfmodal').classList.remove('hidden');
+  }catch(e){ toast(e.message, true); }
+}
+function closeTf(){ document.getElementById('tfmodal').classList.add('hidden'); }
+function tfCopy(){
+  navigator.clipboard.writeText(document.getElementById('tf_hcl').textContent)
+    .then(() => toast('Copied'), () => toast('Copy failed', true));
+}
+function tfDownload(){
+  if(!_tf) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([document.getElementById('tf_hcl').textContent], {type:'text/plain'}));
+  a.download = `${_tf.label}.tf`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+let _tfb = null;
+async function openTfBundle(ts){
+  _tfb = { ts };
+  const box = document.getElementById('tfb_types');
+  box.innerHTML = '<div class="empty">Loading…</div>';
+  document.getElementById('tfb_status').textContent = '';
+  document.getElementById('tfb_go').disabled = false;
+  document.getElementById('tfbundlemodal').classList.remove('hidden');
+  try{
+    const d = await api(`/tenants/${snapTenantId}/snapshots/${ts}/explore`);
+    const cats = d.categories.filter(c => c.count);
+    if(!cats.length){ box.innerHTML = '<div class="empty">Nothing in this snapshot.</div>'; return; }
+    box.innerHTML = cats.map(c =>
+      `<label style="display:block;margin:4px 0"><input type="checkbox" class="tfb_t" value="${esc(c.resource_type)}" checked> ${esc(ovLabel(c.resource_type))} <span class="muted">(${c.count})</span></label>`).join('');
+  }catch(e){ box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function closeTfBundle(){ document.getElementById('tfbundlemodal').classList.add('hidden'); }
+async function tfBundleGo(){
+  const types = [...document.querySelectorAll('.tfb_t:checked')].map(c => c.value);
+  if(!types.length) return toast('Select at least one resource type.', true);
+  const st = document.getElementById('tfb_status');
+  st.textContent = 'Generating…';
+  document.getElementById('tfb_go').disabled = true;
+  try{
+    const r = await fetch(`/api/v1/tenants/${snapTenantId}/terraform/bundle`,
+      {method:'POST', headers:{'Content-Type':'application/json'},
+       body: JSON.stringify({types, source: _tfb.ts})});
+    if(!r.ok){ const b = await r.json().catch(()=>({})); throw new Error(b.detail || 'HTTP '+r.status); }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = `${window._snapSlug || 'tenant'}-terraform-${_tfb.ts}.zip`;
+    a.click(); URL.revokeObjectURL(a.href);
+    closeTfBundle();
+    toast('Terraform bundle downloaded');
+  }catch(e){ st.textContent = e.message; document.getElementById('tfb_go').disabled = false; }
 }
