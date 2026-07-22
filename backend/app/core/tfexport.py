@@ -247,7 +247,12 @@ def _flatten(provider: str, rtype: str, obj: dict) -> dict:
         flat.setdefault("label", obj.get("label") or obj.get("name"))
         return flat
     # authentik and auth0 payloads are already snake_case.
-    return dict(obj)
+    flat = dict(obj)
+    if provider == "authentik" and rtype == "applications" \
+            and flat.get("provider") is not None:
+        # API field `provider` = the TF argument `protocol_provider`.
+        flat.setdefault("protocol_provider", flat.pop("provider"))
+    return flat
 
 
 def object_id(provider: str, rtype: str, obj: dict):

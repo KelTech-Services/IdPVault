@@ -2019,7 +2019,7 @@ async function openTfBundle(ts){
   document.getElementById('tfbundlemodal').classList.remove('hidden');
   try{
     const d = await api(`/tenants/${snapTenantId}/snapshots/${ts}/explore`);
-    const cats = d.categories.filter(c => c.count);
+    const cats = d.categories.filter(c => c.count && c.resource_type !== 'blueprints');
     if(!cats.length){ box.innerHTML = '<div class="empty">Nothing in this snapshot.</div>'; return; }
     box.innerHTML = cats.map(c =>
       `<label style="display:block;margin:4px 0"><input type="checkbox" class="tfb_t" value="${esc(c.resource_type)}" checked> ${esc(ovLabel(c.resource_type))} <span class="muted">(${c.count})</span></label>`).join('');

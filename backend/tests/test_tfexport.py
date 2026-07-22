@@ -63,7 +63,8 @@ def test_bundle_refs_and_imports():
         "providers": [{"component": "ak-provider-oauth2-form", "pk": 7,
                        "name": "prov", "authorization_flow": "x"}],
         "applications": [{"pk": "app-uuid-1", "name": "App", "slug": "app",
-                          "protocol_provider": 7}],
+                          "provider": 7}],  # raw API field name; engine
+                                            # must rename to protocol_provider
     }
     files, report = tfexport.export_bundle(
         "authentik", export, ["providers", "applications"], "T", "ts1")
