@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.core import crypto, storage
 from app.core.diff import normalize
-from app.core.events import _id as obj_id, _name as obj_name
+from app.core.events import _id as obj_id, _kind as obj_kind, _name as obj_name
 from app.core.security import require_admin, require_tenant_read
 from app.models.db import AuditLog, SessionLocal, Tenant
 
@@ -78,7 +78,8 @@ def _load_pair(tenant_id: int, ts: str, request: Request):
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
-        slug, key = t.slug, crypto.unwrap_data_key(t.wrapped_data_key)
+        slug, key, prov = (t.slug, crypto.unwrap_data_key(t.wrapped_data_key),
+                           t.provider)
     from app.core import storage as st
     snaps = st.list_snapshots(slug)
     latest = snaps[-1] if snaps else None
@@ -86,12 +87,14 @@ def _load_pair(tenant_id: int, ts: str, request: Request):
         from app.core import livestate
         export = livestate.get_live_export(tenant_id)
         cur = st.read_snapshot(slug, latest, key) if latest else {}
-        return export, cur, {"mode": "current", "is_latest": False, "latest": latest}
+        return export, cur, {"mode": "current", "is_latest": False,
+                             "latest": latest, "provider": prov}
     if ts not in snaps:
         raise HTTPException(404, "snapshot not found")
     export = st.read_snapshot(slug, ts, key)
     cur = export if ts == latest else st.read_snapshot(slug, latest, key)
-    return export, cur, {"mode": "snapshot", "is_latest": ts == latest, "latest": latest}
+    return export, cur, {"mode": "snapshot", "is_latest": ts == latest,
+                         "latest": latest, "provider": prov}
 
 
 @router.get("/tenants/{tenant_id}/snapshots/{ts}/explore")
@@ -130,13 +133,15 @@ def explore(tenant_id: int, ts: str, request: Request,
             status = "modified"
         else:
             status = "unchanged"
-        rows.append({"object_id": oid, "object_name": obj_name(o), "status": status})
+        rows.append({"object_id": oid, "object_name": obj_name(o), "status": status,
+                     "object_type": obj_kind(info["provider"], resource_type, o)})
     for oid, c in cur_idx.items():
         if oid in snap_ids:
             continue
         if ql and ql not in obj_name(c).lower() and ql not in oid.lower():
             continue
-        rows.append({"object_id": oid, "object_name": obj_name(c), "status": "new"})
+        rows.append({"object_id": oid, "object_name": obj_name(c), "status": "new",
+                     "object_type": obj_kind(info["provider"], resource_type, c)})
     if info["mode"] == "current":
         # In the live view, roles invert: view-only objects are NOT-YET-BACKED-UP
         # ("new"), base-only objects were DELETED since the backup.

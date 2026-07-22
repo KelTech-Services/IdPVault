@@ -1445,7 +1445,7 @@ async function exLoadObjects(){
     const canW = me.role === 'admin' || me.role === 'org_admin';
     const inactive = _tenants.find(x=>x.id===_ex.tenantId)?.active === false;
     tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="exViewObject('${esc(o.object_id)}')">
-      <td title="${esc(o.object_name||'-')}">${icons ? appIconHtml(o.object_name) : ''}${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+      <td title="${esc(o.object_name||'-')}">${icons ? appIconHtml(o.object_name) : ''}${esc(o.object_name||'-')}${o.object_type ? ` <span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">${esc(o.object_type)}</span>` : ''}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td>${_ex.isLatest ? '<span class="muted">-</span>' : exStatusTag(o.status)}</td>
       <td class="rowact" style="text-align:right">${_feat('identity') ? `<button class="ghost" onclick="event.stopPropagation();exTfObject('${esc(o.object_id)}')" title="View this object as a Terraform resource block for the official ${esc(_tenants.find(x=>x.id===_ex.tenantId)?.provider || '')} provider, with an import block to adopt it into state">Terraform ${TIPI}</button> ` : ''}${canW && !inactive && o.status !== 'new' ? `<button class="ghost" onclick="event.stopPropagation();exRestoreObject('${esc(o.object_id)}')" title="Preview restoring this object from this backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`).join('');
   }catch(e){ tb.innerHTML = `<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }

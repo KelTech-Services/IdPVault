@@ -30,6 +30,39 @@ def _id(obj: dict) -> str:
     return ""
 
 
+_OKTA_APP_KIND = {"OPENID_CONNECT": "OIDC", "SAML_2_0": "SAML",
+                  "SAML_1_1": "SAML 1.1", "AUTO_LOGIN": "Auto Login",
+                  "BROWSER_PLUGIN": "SWA", "SECURE_PASSWORD_STORE": "Password Store",
+                  "BOOKMARK": "Bookmark", "BASIC_AUTH": "Basic Auth",
+                  "WS_FEDERATION": "WS-Fed"}
+_AUTH0_CLIENT_KIND = {"regular_web": "Regular Web", "spa": "Single Page App",
+                      "native": "Native", "non_interactive": "Machine to Machine"}
+
+
+def _kind(provider: str, resource_type: str, obj: dict) -> str:
+    """Human 'type' badge for explorer object lists (OIDC, SAML, Bookmark...).
+    Empty string when there is nothing meaningful to say."""
+    if provider == "okta" and resource_type == "apps":
+        m = obj.get("signOnMode") or ""
+        return _OKTA_APP_KIND.get(m, m.replace("_", " ").title())
+    if provider == "authentik":
+        if resource_type == "applications":
+            v = (obj.get("provider_obj") or {}).get("verbose_name") or ""
+        elif resource_type in ("providers", "stages", "policies",
+                               "property_mappings", "sources"):
+            v = obj.get("verbose_name") or ""
+        else:
+            return ""
+        return v.removesuffix(" Provider") if v else ""
+    if provider == "auth0":
+        if resource_type == "clients":
+            t = obj.get("app_type") or ""
+            return _AUTH0_CLIENT_KIND.get(t, t.replace("_", " ").title())
+        if resource_type == "connections":
+            return obj.get("strategy") or ""
+    return ""
+
+
 def _changed_fields(before: dict, after: dict) -> list[str]:
     from app.core.diff import normalize
     before, after = normalize(before), normalize(after)
