@@ -127,6 +127,8 @@ def test_okta_custom_saml_app():
                     "filterType": "REGEX", "filterValue": ".*"}]}}}
     out = tfexport.export_object("okta", "apps", obj)
     assert out["ok"] and out["tf_type"] == "okta_app_saml"
+    assert out["name"] == "GSS Dynatrace"      # label, never the catalog name
+    assert out["label"] == "gss_dynatrace"
     hcl = out["hcl"]
     assert 'sso_url = "https://example.com/login"' in hcl      # ssoAcsUrl rename
     assert "preconfigured_app" not in hcl                      # custom app
@@ -189,3 +191,47 @@ def test_auth0_client_blocks():
     assert "jwt_configuration {" in hcl and 'alg = "RS256"' in hcl
     assert "refresh_token {" in hcl and 'rotation_type = "rotating"' in hcl
     assert "jwt_configuration" not in out["dropped"]
+
+
+def test_authentik_oauth2_redirect_uris_and_outpost_providers():
+    prov = {"component": "ak-provider-oauth2-form", "pk": 5, "name": "web",
+            "authorization_flow": "f",
+            "redirect_uris": [{"matching_mode": "strict",
+                               "url": "https://example.com/cb"}]}
+    hcl, dropped, _ = tfexport.emit_resource(
+        "authentik", "authentik_provider_oauth2", prov, "providers", "web")
+    assert "allowed_redirect_uris" in hcl and "https://example.com/cb" in hcl
+    assert "redirect_uris" not in dropped
+    op = {"pk": "o1", "name": "outpost", "type": "proxy", "providers": [5, 7]}
+    hcl, dropped, _ = tfexport.emit_resource(
+        "authentik", "authentik_outpost", op, "outposts", "outpost")
+    assert "protocol_providers" in hcl and "providers" not in dropped
+
+
+def test_okta_profile_mapping():
+    obj = {"id": "prm1", "source": {"id": "src1", "name": "user"},
+           "target": {"id": "tgt1", "name": "appuser"},
+           "properties": {"firstName": {"expression": "user.firstName",
+                                        "pushStatus": "PUSH"}}}
+    out = tfexport.export_object("okta", "profile_mappings", obj)
+    assert out["ok"]
+    hcl = out["hcl"]
+    assert 'source_id = "src1"' in hcl and 'target_id = "tgt1"' in hcl
+    assert "mappings {" in hcl
+    assert 'id = "firstName"' in hcl               # block-level required id
+    assert 'expression = "user.firstName"' in hcl
+    assert 'push_status = "PUSH"' in hcl
+    assert "source" not in out["dropped"] and "properties" not in out["dropped"]
+
+
+def test_okta_policy_groups_and_auth0_cross_origin():
+    pol = {"id": "p1", "name": "MFA policy", "type": "MFA_ENROLL",
+           "status": "ACTIVE",
+           "conditions": {"people": {"groups": {"include": ["g1", "g2"]}}}}
+    out = tfexport.export_object("okta", "policies_mfa", pol)
+    assert out["ok"] and "groups_included" in out["hcl"] and "g1" in out["hcl"]
+    cl = {"client_id": "c9", "name": "Web App", "app_type": "regular_web",
+          "cross_origin_authentication": True}
+    out = tfexport.export_object("auth0", "clients", cl)
+    assert out["ok"] and "cross_origin_auth = true" in out["hcl"]
+    assert "cross_origin_authentication" not in out["dropped"]

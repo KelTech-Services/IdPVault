@@ -45,7 +45,7 @@ _AK_REF_ATTRS = {
     "user_settings_flow", "device_code_flow", "configure_flow",
     "certificate", "signing_kp", "verification_kp", "encryption_kp",
     "property_mappings", "property_mappings_group", "jwks_sources",
-    "configuration_stages",
+    "configuration_stages", "protocol_providers",
 }
 
 # Okta built-in/system apps: Terraform cannot create or manage these.
@@ -273,8 +273,30 @@ def _flatten(provider: str, rtype: str, obj: dict, attrs=None) -> dict:
         client_id = (creds.get("oauthClient") or {}).get("client_id")
         if client_id:
             flat.setdefault("client_id", client_id)
-        flat.setdefault("label", obj.get("label") or obj.get("name"))
+        if rtype == "profile_mappings":
+            src, tgt = obj.get("source") or {}, obj.get("target") or {}
+            if isinstance(src, dict) and src.get("id"):
+                flat.pop("source", None)
+                flat["source_id"] = src["id"]
+            if isinstance(tgt, dict) and tgt.get("id"):
+                flat.pop("target", None)
+                flat["target_id"] = tgt["id"]
+            props = obj.get("properties")
+            if isinstance(props, dict):
+                flat.pop("properties", None)
+                flat.setdefault("mappings", [
+                    {"id": k, "expression": (v or {}).get("expression"),
+                     "pushStatus": (v or {}).get("pushStatus")}
+                    for k, v in props.items()])
+        if rtype.startswith("policies_"):
+            # The people/groups condition maps to groups_included on the
+            # policy resources; the rest of `conditions` stays reported.
+            inc = ((((obj.get("conditions") or {}).get("people") or {})
+                    .get("groups")) or {}).get("include")
+            if inc:
+                flat.setdefault("groups_included", inc)
         if rtype == "apps":
+            flat.setdefault("label", obj.get("label") or obj.get("name"))
             # OIN catalog name -> preconfigured_app; custom-app template
             # names carry no information.
             nm = flat.pop("name", None)
@@ -341,6 +363,10 @@ def _flatten(provider: str, rtype: str, obj: dict, attrs=None) -> dict:
             if custom:
                 flat.setdefault("custom_profile_attributes", custom)
         if rtype == "network_zones":
+            def _s(x):   # {country, region} dicts -> provider strings
+                if isinstance(x, dict):
+                    return x.get("region") or x.get("country") or str(x)
+                return x
             # Enhanced dynamic zones return {include, exclude} dicts where the
             # provider wants flat sets. Unmappable leftovers keep a distinct
             # key so they land in the dropped-fields report, never silently.
@@ -353,21 +379,31 @@ def _flatten(provider: str, rtype: str, obj: dict, attrs=None) -> dict:
                 v = flat.get(src)
                 if isinstance(v, dict):
                     flat.pop(src)
-                    def _s(x):   # {country, region} dicts -> provider strings
-                        if isinstance(x, dict):
-                            return x.get("region") or x.get("country") or str(x)
-                        return x
                     if v.get("include"):
                         flat[inc] = [_s(x) for x in v["include"]]
                     if v.get("exclude"):
                         flat[exc] = [_s(x) for x in v["exclude"]]
+            # Plain dynamic zones carry a flat locations list.
+            if isinstance(flat.get("locations"), list):
+                flat["dynamic_locations"] = [_s(x) for x in flat.pop("locations")]
         return flat
     # authentik and auth0 payloads are already snake_case.
     flat = dict(obj)
-    if provider == "authentik" and rtype == "applications" \
-            and flat.get("provider") is not None:
-        # API field `provider` = the TF argument `protocol_provider`.
-        flat.setdefault("protocol_provider", flat.pop("provider"))
+    if provider == "authentik":
+        if rtype == "applications" and flat.get("provider") is not None:
+            # API field `provider` = the TF argument `protocol_provider`.
+            flat.setdefault("protocol_provider", flat.pop("provider"))
+        if rtype == "providers" and isinstance(flat.get("redirect_uris"), list):
+            # API redirect_uris = TF allowed_redirect_uris (same shape:
+            # list of {matching_mode, url} maps).
+            flat.setdefault("allowed_redirect_uris", flat.pop("redirect_uris"))
+        if rtype == "outposts" and flat.get("providers") is not None:
+            # API field `providers` = the TF argument `protocol_providers`.
+            flat.setdefault("protocol_providers", flat.pop("providers"))
+    if provider == "auth0" and rtype == "clients" \
+            and "cross_origin_authentication" in flat:
+        flat.setdefault("cross_origin_auth",
+                        flat.pop("cross_origin_authentication"))
     return flat
 
 
@@ -403,9 +439,11 @@ def object_id(provider: str, rtype: str, obj: dict):
 
 
 def display_name(provider: str, rtype: str, obj: dict) -> str:
+    # label BEFORE name: for Okta apps `name` is the catalog id
+    # (duoadminpanel); `label` is the human name (Duo Admin Panel).
     prof = obj.get("profile")
     prof_name = prof.get("name") if isinstance(prof, dict) else None
-    return str(obj.get("name") or obj.get("label") or prof_name
+    return str(obj.get("label") or obj.get("name") or prof_name
                or obj.get("slug") or obj.get("domain") or obj.get("client_id")
                or obj.get("id") or obj.get("pk") or "unnamed")
 
@@ -484,7 +522,9 @@ def _emit_blocks(schema, flat, consumed, ref_index, provider):
             body = []
             for an in sorted(battrs):
                 m = battrs[an]
-                if an == "id" or not (m["req"] or m["opt"]):
+                # Unlike resource-level id (Terraform meta), a block-level id
+                # can be a REQUIRED argument (okta_profile_mapping mappings).
+                if (an == "id" and not m["req"]) or not (m["req"] or m["opt"]):
                     continue
                 v = es.get(an)
                 if v is None or v == "" or v == []:
