@@ -95,6 +95,10 @@ function renderNav(){
   const t = currentTenant();
   let html = '';
   if(t){
+    // Single-tenant admins still need the Dashboard - it is where
+    // "+ Add tenant" lives (adding tenant #2 must always be reachable).
+    if(visibleTenants().length === 1 && me && me.role === 'admin')
+      html += _navBtn('#/fleet', 'Dashboard', NAV_ICONS.fleet);
     if(visibleTenants().length > 1) html += `<div class="navgroup">${esc(t.name)}</div>`;
     html += tenantPages(t).map(p => _navBtn(`#/t/${t.id}/${p.key}`, p.label, NAV_ICONS[p.key === 'settings' ? 'tsettings' : p.key])).join('');
   } else {
@@ -142,7 +146,8 @@ function route(){
   if(!GLOBAL_VIEWS[page]){ location.hash = defaultRoute(); return; }
   const adminOnly = ['orgs', 'appusers', 'audit', 'license', 'settings'];
   if(adminOnly.includes(page) && !adminPages().some(p => p.key === page)){ location.hash = defaultRoute(); return; }
-  if(page === 'fleet' && visibleTenants().length === 1){ location.hash = defaultRoute(); return; }
+  if(page === 'fleet' && visibleTenants().length === 1
+     && !(me && me.role === 'admin')){ location.hash = defaultRoute(); return; }
   if(page === 'clone' && !cloneEligible()){ location.hash = defaultRoute(); return; }
   if(page === 'fleet' || page === 'clone') currentTenantId = null;
   _activeHash = '#/' + page;
