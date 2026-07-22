@@ -3,6 +3,42 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.23] - 2026-07-22
+### Added
+- Object type badges in Live State and snapshot Browse: Okta apps show
+  OIDC / SAML / SWA / Bookmark, Authentik objects show their provider or
+  component kind, Auth0 clients show their application type.
+- Terraform export docs page (in-app and on docs.idpvault.com): import
+  blocks explained, same-tenant vs different-tenant workflows, cross
+  references, secrets, coverage.
+### Changed
+- Terraform export polish, validated against real tenants on all three
+  providers (Authentik full-tenant plan: 365 imported, 0 destroyed):
+  - Display names and resource labels use the human label, never catalog
+    ids (Duo Admin Panel, not duoadminpanel).
+  - Okta apps: full custom SAML/OIDC fidelity (sso_url, user name
+    templates, visibility and accessibility arguments, attribute
+    statements and groups claim blocks), OIN apps become
+    preconfigured_app with app_settings_json, and Okta system apps
+    (Admin Console, Workflows, Dashboard) are skipped with an honest
+    reason instead of half-exported.
+  - Okta groups export their profile correctly (name, description,
+    custom profile attributes); profile mappings emit source, target and
+    property mappings; policies carry their included groups; network
+    zone location lists map to the provider's arguments.
+  - Authentik: OAuth2 provider redirect URIs and outpost provider links
+    now export; Auth0: cross origin authentication maps correctly.
+  - Blocks read like hand-written templates: identity fields first, then
+    description, type and status. Available-but-blank fields (always
+    including description) appear as aligned commented lines - delete
+    the single # to use one.
+  - The per-object view warns in amber when a block is bound for another
+    instance: remove the import section, and ids never translate across
+    tenants.
+### Fixed
+- Single-tenant installs: admins keep a Dashboard entry in the nav, so
+  "+ Add tenant" is always reachable when adding a second tenant.
+
 ## [1.2.22] - 2026-07-22
 ### Added
 - Terraform export (included with Business and MSP licenses): turn any config
