@@ -1991,7 +1991,7 @@ async function exTfObject(oid){
     if(d.dropped && d.dropped.length)
       notes.push(`Fields with no argument in the official provider (usually computed/read-only): ${d.dropped.map(esc).join(', ')}`);
     if(d.import_block)
-      notes.push('The import block adopts the EXISTING object when you plan against this tenant. Remove it when applying to a different tenant.');
+      notes.push('The import block adopts the EXISTING object when you plan against THIS tenant. <span style="color:var(--amber)"><b>Pushing this block to another instance (staging to prod)? Remove the import section above</b></span> so Terraform creates the object there, and review any literal ids that reference objects not included with it. Details in Docs → Terraform export.');
     document.getElementById('tf_notes').innerHTML = notes.map(n => `<div>- ${n}</div>`).join('');
     document.getElementById('tfmodal').classList.remove('hidden');
   }catch(e){ toast(e.message, true); }

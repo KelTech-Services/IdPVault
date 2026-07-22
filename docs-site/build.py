@@ -30,6 +30,9 @@ TOPICS = [
      "Selective restore with dry-run previews and per-object reports."),
     ("clone", "Clone & promote",
      "Apply a snapshot into another tenant: staging to prod, standby, DR."),
+    ("terraform", "Terraform export",
+     "Snapshots and live state as HCL for the official providers, with "
+     "import blocks."),
     ("identity", "Users & Access backup",
      "Back up and restore users, memberships, and app assignments."),
     ("alerts", "Alerts & notifications",

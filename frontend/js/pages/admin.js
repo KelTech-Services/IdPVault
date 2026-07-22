@@ -253,6 +253,7 @@ const DOC_TOPICS = [
   {key:'drift-events',    title:'Drift & events'},
   {key:'restore',         title:'Config restore'},
   {key:'clone',           title:'Clone & promote'},
+  {key:'terraform',       title:'Terraform export'},
   {key:'identity',        title:'Users & Access backup'},
   {key:'alerts',          title:'Alerts & notifications'},
   {key:'users-security',  title:'Users & security'},
