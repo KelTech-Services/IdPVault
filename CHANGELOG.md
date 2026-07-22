@@ -3,6 +3,12 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.2.21] - 2026-07-22
+### Changed
+- Internal hardening: snapshot path containment guard rewritten to the
+  canonical realpath + prefix-check form so static analysis recognizes it.
+  No functional change; all paths were already validated and contained.
+
 ## [1.2.20] - 2026-07-21
 ### Added
 - Full-DR restore: snapshots that carry an encrypted pg_dump now have a
