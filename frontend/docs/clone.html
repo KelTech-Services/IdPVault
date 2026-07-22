@@ -1,4 +1,4 @@
-<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Clone-and-Promote". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
+<!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
 <h3>What Clone does</h3>
 <p>Clone applies a snapshot from one tenant into a <b>different tenant of the same provider</b>: promote staging to production, seed a standby instance, spin up a matching environment, or rebuild after a disaster. The <b>Clone</b> page appears in the sidebar as soon as two active tenants share a provider (admins and org admins with write access). Cross-provider cloning is not possible - an Okta snapshot cannot be applied to an Authentik tenant.</p>
 <ul>

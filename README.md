@@ -123,10 +123,11 @@ Notes that apply everywhere: the app listens on port 8080 inside the container
 volumes, so `docker compose down` never loses anything; back up the
 `idpvault_secrets` volume (master key) and `idpvault_postgres` with your host
 backup tool; put a reverse proxy with HTTPS in front for anything beyond
-localhost (see the Deployment doc in-app or on the wiki).
+localhost (see the [Deployment doc](https://docs.idpvault.com/deployment.html)).
 
 ## Support & contact
 
+Documentation: [docs.idpvault.com](https://docs.idpvault.com) (also built into the app under **Docs**).
 Bugs, feature requests, and questions: [open a GitHub issue](https://github.com/KelTech-Services/IdPVault/issues/new/choose).
 Security reports: privately only, per [SECURITY.md](SECURITY.md).
 

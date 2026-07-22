@@ -1,4 +1,4 @@
-<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Deployment-and-Proxy". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
+<!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
 <h3>Install: compose up, done</h3>
 <p>Deploy the example compose stack and start it - that's the whole install. No folders to pre-create, no files to seed. On first boot IdPVault generates its master encryption key inside the secrets volume, fixes volume ownership itself, then drops to a non-root user (uid 10001) to run. Set <code>PUID</code> and <code>PGID</code> in the stack environment to run under your own user/group ids instead (the usual NAS convention) - ownership fixes follow whichever ids you set. Named volumes are the default; prefer host bind mounts? Swap the volume names for host paths in the stack - nothing else changes.</p>
 <h3>Architecture</h3>

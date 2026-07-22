@@ -1,4 +1,4 @@
-<!-- SYNC NOTE: this doc is mirrored to the GitHub wiki page "Config-Restore". If you edit this file, update the wiki page too (and vice versa). New docs get added in BOTH places. -->
+<!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
 <h3>How restore works</h3>
 <p>Restore compares a snapshot against the <b>live</b> tenant and builds a plan: each object is <i>create</i> (missing live), <i>update</i> (differs), or <i>identical</i>. You always run a read-only <b>preview</b> first; nothing is written until you click Apply and confirm.</p>
 <ul>
