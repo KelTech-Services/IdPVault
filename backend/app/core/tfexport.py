@@ -270,6 +270,27 @@ def _flatten(provider: str, rtype: str, obj: dict) -> dict:
                     custom[k] = v
             if custom:
                 flat.setdefault("custom_profile_attributes", custom)
+        if rtype == "network_zones":
+            # Enhanced dynamic zones return {include, exclude} dicts where the
+            # provider wants flat sets. Unmappable leftovers keep a distinct
+            # key so they land in the dropped-fields report, never silently.
+            for src, inc, exc in (("asns", "asns", "asns_exclude"),
+                                  ("locations", "dynamic_locations",
+                                   "dynamic_locations_exclude"),
+                                  ("ip_service_categories",
+                                   "ip_service_categories_include",
+                                   "ip_service_categories_exclude")):
+                v = flat.get(src)
+                if isinstance(v, dict):
+                    flat.pop(src)
+                    def _s(x):   # {country, region} dicts -> provider strings
+                        if isinstance(x, dict):
+                            return x.get("region") or x.get("country") or str(x)
+                        return x
+                    if v.get("include"):
+                        flat[inc] = [_s(x) for x in v["include"]]
+                    if v.get("exclude"):
+                        flat[exc] = [_s(x) for x in v["exclude"]]
         return flat
     # authentik and auth0 payloads are already snake_case.
     flat = dict(obj)
