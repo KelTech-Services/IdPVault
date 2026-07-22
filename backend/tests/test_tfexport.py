@@ -99,6 +99,29 @@ def test_blank_present_fields_stay_visible():
     assert out["ok"] and '# description = ""' in out["hcl"]
 
 
+def test_description_always_present_even_when_api_omits_it():
+    # Okta omits the description key entirely when never set; the schema
+    # still supports it, so the commented line must appear regardless.
+    obj = {"id": "00g10", "type": "OKTA_GROUP",
+           "profile": {"name": "Slack Users"}}
+    out = tfexport.export_object("okta", "groups", obj)
+    assert out["ok"] and '# description = ""' in out["hcl"]
+    # ordering: name first, description right after (priority order)
+    lines = [l.strip() for l in out["hcl"].splitlines()]
+    assert lines[1].startswith("name =")
+    assert lines[2].startswith('# description')
+
+
+def test_attr_priority_ordering():
+    obj = {"id": "0oa9", "name": "duoadminpanel", "label": "Duo Admin Panel",
+           "signOnMode": "SAML_2_0", "status": "ACTIVE",
+           "visibility": {"hide": {"iOS": False, "web": False}}}
+    out = tfexport.export_object("okta", "apps", obj)
+    body = [l.strip() for l in out["hcl"].splitlines()[1:] if l.strip() != "}"]
+    first_real = [l for l in body if not l.startswith("#")]
+    assert first_real[0].startswith("label =")   # identity first, never buried
+
+
 def test_okta_group_profile_flattening():
     obj = {"id": "00g1mhw6k55XP0scT358", "type": "OKTA_GROUP",
            "objectClass": ["okta:user_group"],

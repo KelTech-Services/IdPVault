@@ -63,6 +63,17 @@ _OKTA_CUSTOM_APP_NAMES = {"oidc_client", "template_saml_2_0",
 # Terraform meta-blocks that must never be emitted from data.
 _SKIP_BLOCKS = {"timeouts"}
 
+# Attribute emission order: identity first, then description and core
+# type/status fields - the convention every provider's example templates
+# share - then the rest in stable (alphabetical) order.
+_ATTR_PRIORITY = ["label", "name", "slug", "description", "type", "status",
+                  "priority"]
+
+
+def _attr_order(attrs) -> list:
+    pri = [a for a in _ATTR_PRIORITY if a in attrs]
+    return pri + sorted(a for a in attrs if a not in _ATTR_PRIORITY)
+
 # Okta application signOnMode -> Terraform resource.
 _OKTA_APP_BY_MODE = {
     "OPENID_CONNECT": "okta_app_oauth",
@@ -520,7 +531,7 @@ def _emit_blocks(schema, flat, consumed, ref_index, provider):
                 continue
             es = {_camel_to_snake(k): v for k, v in e.items()}
             body = []
-            for an in sorted(battrs):
+            for an in _attr_order(battrs):
                 m = battrs[an]
                 # Unlike resource-level id (Terraform meta), a block-level id
                 # can be a REQUIRED argument (okta_profile_mapping mappings).
@@ -550,7 +561,7 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
     lines = [f'resource "{tf_type}" "{label}" {{']
     variables, consumed = [], set()
 
-    for name in sorted(attrs):
+    for name in _attr_order(attrs):
         meta = attrs[name]
         settable = meta["req"] or meta["opt"]
         if name == "id" or not settable:
@@ -571,10 +582,12 @@ def emit_resource(provider: str, tf_type: str, obj: dict, rtype: str,
                                        "not present in the export)",
                                   _tf_var_type(meta.get("type"))))
                 lines.append(f"  {name} = var.{var}")
-            elif name in flat:
+            elif name in flat or name == "description":
                 # The source object HAS this field, just blank - keep it
                 # visible as a commented line (inert to Terraform) instead of
-                # silently omitting it.
+                # silently omitting it. `description` always shows when the
+                # schema supports it, even if the API omitted the key: it is
+                # the one field humans always look for.
                 t = meta.get("type")
                 if _schema_type_is_string(t):
                     lines.append(f'  # {name} = ""')
