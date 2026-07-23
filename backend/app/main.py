@@ -43,11 +43,16 @@ async def lifespan(app: FastAPI):
     reconcile_snapshot_rows()   # drop DB rows for snapshots no longer on disk
     scheduler.start()
     load_tenant_jobs()
+    # One boot-time entitlement refresh so renewals made while the container
+    # was down apply immediately (no-op for Community/legacy/offline installs).
+    from app.core.activation import refresh as _license_refresh
+    scheduler.add_job(_license_refresh, id="license-refresh-boot",
+                      replace_existing=True)
     yield
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="1.2.23", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="1.3.0", lifespan=lifespan)
 
 
 @app.middleware("http")

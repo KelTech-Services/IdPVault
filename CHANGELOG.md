@@ -3,6 +3,37 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.0] - 2026-07-23
+### Added
+- Activation licensing: license keys purchased at idpvault.com are now short
+  activation keys (IDPV-XXXX-XXXX-XXXX-XXXX). Pasting one exchanges it with the
+  KelTech license server (license.keltech.ai) for a signed entitlement bound to
+  this install, verified offline with the same embedded public key as always.
+  The only data ever sent is the license key and a random install id - never
+  tenants, configuration, or usage. One license runs on one install at a time
+  and can be deactivated and moved freely.
+- Deactivate license button: releases the activation on the license server so
+  the key is immediately usable on another install.
+- Daily license check-in plus a boot-time refresh: renewals and tenant add-ons
+  apply automatically, no new key to install. Check-in failures never interrupt
+  a valid entitlement.
+- Offline license files for air-gapped installs: the customer portal issues an
+  instance-bound entitlement file for your install id (now shown on the License
+  page). Upload it on the License page - verified entirely offline, the app
+  never contacts any server.
+- Install id on the License page (random, contains no information about you or
+  your tenants).
+### Changed
+- License page: one input accepts an activation key, an offline license file,
+  or a classic full key; status now shows how the install is licensed and the
+  last license server check-in result.
+- Docs (Licensing & tiers), README, and SECURITY.md updated for activation
+  licensing and the exact data sent.
+### Compatibility
+- Existing full license keys keep working unchanged (verified offline, no
+  network calls). The free Community tier still makes zero network connections.
+- The 3-day grace window and non-destructive downgrade are unchanged.
+
 ## [1.2.23] - 2026-07-22
 ### Added
 - Object type badges in Live State and snapshot Browse: Okta apps show

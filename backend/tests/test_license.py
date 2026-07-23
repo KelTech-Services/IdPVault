@@ -75,7 +75,7 @@ def test_perpetual(monkeypatch):
 
 
 def test_free_tier_when_no_token(monkeypatch):
-    monkeypatch.setattr(lic, "_stored_token", lambda: None)
+    monkeypatch.setattr(lic, "_stored", lambda: {})
     info = lic.current_license()
     assert not info["valid"]
     assert info["max_tenants"] == 1 and info["max_users"] == 1
@@ -97,7 +97,50 @@ def test_gating_helpers(monkeypatch):
 
 
 def test_invalid_stored_token_falls_to_free(monkeypatch):
-    monkeypatch.setattr(lic, "_stored_token", lambda: "not.a.real.token")
+    monkeypatch.setattr(lic, "_stored", lambda: {"token": "not.a.real.token"})
     info = lic.current_license()
     assert not info["valid"] and info.get("invalid_present") is True
     assert info["max_tenants"] == 1
+
+
+# ---------- v1.3.0 activation licensing ----------
+from app.core import activation as act
+
+
+def test_activation_key_detection():
+    assert act.is_activation_key("IDPV-JHGK-B9QF-6DGH-5GMT")
+    assert act.is_activation_key("  idpv-jhgk-b9qf-6dgh-5gmt  ")   # normalized
+    assert not act.is_activation_key("TFSM-AAAA-BBBB-CCCC-DDDD")   # other product
+    assert not act.is_activation_key("IDPV-JHGK-B9QF-6DGH")        # short
+    assert not act.is_activation_key("eyJjdXN0b21lciI.abc")        # legacy token
+    assert act.norm_key(" idpv-x ") == "IDPV-X"
+
+
+def test_entitlement_bound_to_instance(monkeypatch):
+    priv, pub = _keypair()
+    monkeypatch.setattr(lic, "PUBLIC_KEY_B64", pub)
+    monkeypatch.setattr(act, "instance_id", lambda: "AAAA-BBBB-CCCC")
+    tok = _mint(priv, kind="entitlement", instance_id="AAAA-BBBB-CCCC",
+                license_key="IDPV-JHGK...")
+    data = lic.verify(tok)
+    assert data and data["_status"] == "active" and data["license_key"] == "IDPV-JHGK..."
+    # Same token on a DIFFERENT install: rejected outright.
+    monkeypatch.setattr(act, "instance_id", lambda: "XXXX-YYYY-ZZZZ")
+    assert lic.verify(tok) is None
+
+
+def test_legacy_token_ignores_instance(monkeypatch):
+    # No "kind" in the payload = legacy full key: instance id never consulted.
+    priv, pub = _keypair()
+    monkeypatch.setattr(lic, "PUBLIC_KEY_B64", pub)
+    monkeypatch.setattr(act, "instance_id",
+                        lambda: (_ for _ in ()).throw(AssertionError("must not be called")))
+    assert lic.verify(_mint(priv)) is not None
+
+
+def test_peek_is_unverified_parse_only():
+    priv, _ = _keypair()
+    tok = _mint(priv, kind="entitlement", instance_id="AAAA")
+    p = lic.peek(tok)
+    assert p and p["kind"] == "entitlement" and p["instance_id"] == "AAAA"
+    assert lic.peek("garbage") is None

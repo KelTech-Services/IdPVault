@@ -15,8 +15,12 @@ mitigation plan within 7 days for confirmed issues.
 
 ## Scope notes
 
-- IdPVault is self-hosted: there is no hosted service, no telemetry, and no
-  phone-home. License keys are verified entirely offline.
+- IdPVault is self-hosted: there is no hosted service and no telemetry. The
+  only outbound call the app ever makes on its own is license activation and a
+  daily license check-in (license key + random install id only) for activated
+  paid licenses; Community tier, legacy keys, and offline license files make no
+  network calls. Entitlements are verified offline against an embedded public
+  key.
 - All secrets (IdP credentials, snapshots, SMTP password) are encrypted at rest
   with envelope encryption rooted in a master key that never leaves your host.
 - The only unauthenticated endpoint is `/healthz`; `/metrics` requires a token.

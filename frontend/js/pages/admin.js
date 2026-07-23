@@ -207,21 +207,38 @@ async function loadLicense(){
   const box = document.getElementById('lic_status'); if(!box) return;
   try { _license = await api('/license'); } catch(e){ box.textContent = 'Failed to load license: ' + e.message; return; }
   const l = _license;
-  document.getElementById('lic_clear').classList.toggle('hidden', !(l.valid || l.invalid_present));
+  const inst = document.getElementById('lic_instance'); if(inst) inst.textContent = l.instance_id || '-';
+  const clr = document.getElementById('lic_clear');
+  clr.classList.toggle('hidden', !(l.valid || l.invalid_present));
+  clr.textContent = l.kind==='activation' ? 'Deactivate license' : 'Remove license';
   if(!l.valid){
-    const bad = l.invalid_present ? '<span class="st-failed">The installed license key is invalid or fully expired - paid features are paused.</span><br>' : '';
-    box.innerHTML = bad + `<b>Community tier</b> (free) - ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. `
+    const bad = l.invalid_present ? '<span class="st-failed">The installed license is invalid or fully expired - paid features are paused.</span><br>' : '';
+    box.innerHTML = bad + `<b>Community tier</b> (free) - ${l.tenant_count}/${l.max_tenants} tenant · ${l.user_count}/${l.max_users} user · config backup &amp; restore included. Runs fully offline - the Community tier never contacts any server. `
       + `A paid license unlocks more tenants, more users, and Users &amp; Access backup &amp; restore. <a href="https://idpvault.com" target="_blank" rel="noopener">Get a license at idpvault.com</a>`;
     return;
   }
-  const expDate = l.expires ? new Date(l.expires*1000).toISOString().slice(0,10) : 'never';
+  const expDate = l.expires ? fmtUS(new Date(l.expires*1000).toISOString().slice(0,10)) : 'never';
   const daysToExp = l.expires ? Math.max(0, Math.floor((l.expires*1000 - Date.now())/86400000)) : null;
   const grace = l.status==='grace'
-    ? ` <span class="st-failed">- EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Install your renewal key now.</span>` : '';
+    ? ` <span class="st-failed">- EXPIRED: in the ${l.grace_days}-day grace window, ${l.days_left} day(s) before paid features pause. Renew now.</span>` : '';
+  const kindLine = l.kind==='activation'
+    ? `Activated${l.license_key ? ' (' + esc(l.license_key) + ')' : ''} - renews automatically via license.keltech.ai. Only the license key and this install id are ever sent.`
+    : (l.kind==='offline'
+      ? `Offline license file${l.license_key ? ' (' + esc(l.license_key) + ')' : ''} - never phones home. Renew and download a fresh file from the customer portal before expiry.`
+      : `License key verified offline.`);
+  const refreshErr = l.refresh_error
+    ? `<br><span class="st-failed">License server check-in failed: ${esc(l.refresh_error)}</span>` : '';
   box.innerHTML = `<b class="tiername">${esc(l.tier)}</b> license - ${esc(l.customer||'')} · expires <b>${expDate}</b>`
     + (daysToExp!=null && l.status==='active' ? ` <span class="muted">(${daysToExp} days from now)</span>` : '') + grace
     + `<br>Tenants: ${l.tenant_count} / ${l.max_tenants==null?'unlimited':l.max_tenants} · Users: ${l.user_count} / ${l.max_users==null?'unlimited':l.max_users} · Features: ${esc((l.features||[]).join(', ')||'-')}`
-    + `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry - the new key's term extends from the old expiry date, so renewing early never loses time.</span>`;
+    + `<br><span class="muted" style="font-size:.78rem">${kindLine}</span>` + refreshErr
+    + (l.kind==='activation' ? '' : `<br><span class="muted" style="font-size:.78rem">Renewal keys can be installed any time before expiry - the new key's term extends from the old expiry date, so renewing early never loses time.</span>`);
+}
+function licFilePicked(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { document.getElementById('lic_key').value = (r.result||'').trim(); inp.value=''; installLicense(); };
+  r.readAsText(f);
 }
 async function installLicense(){
   const key = v('lic_key');
@@ -237,7 +254,11 @@ async function installLicense(){
   } catch(e){ toast('Install failed: ' + e.message, true); }
 }
 async function clearLicense(){
-  if(!confirm('Remove the installed license? The instance reverts to the free Community tier (1 tenant, no Users & Access backup). Nothing is deleted - paid actions pause until a license is installed again.')) return;
+  const act = _license && _license.kind === 'activation';
+  const msg = act
+    ? 'Deactivate this license? It is released on the license server and becomes immediately usable on another install. This instance reverts to the free Community tier (1 tenant, no Users & Access backup). Nothing is deleted - paid actions pause until a license is installed again.'
+    : 'Remove the installed license? The instance reverts to the free Community tier (1 tenant, no Users & Access backup). Nothing is deleted - paid actions pause until a license is installed again.';
+  if(!confirm(msg)) return;
   try {
     await api('/license', {method:'DELETE'});
     toast('License removed - running in Community tier.');

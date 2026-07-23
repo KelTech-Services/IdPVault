@@ -455,10 +455,11 @@
     <h2>License</h2>
     <div id="lic_status" class="muted" style="font-size:.85rem;margin-bottom:14px">Loading…</div>
     <div class="formgrid">
-      <div style="grid-column:span 2"><label>License key</label><input id="lic_key" type="password" placeholder="paste your license key - issued when you purchase at idpvault.com"><div class="muted" style="font-size:.76rem;margin-top:5px">If paid features do not appear or are still grayed out after successfully installing a license, please hard refresh the page.</div></div>
+      <div style="grid-column:span 2"><label>License key</label><input id="lic_key" type="password" placeholder="paste your license key (IDPV-XXXX-XXXX-XXXX-XXXX) or the contents of an offline license file"><div class="muted" style="font-size:.76rem;margin-top:5px">Issued when you purchase at idpvault.com. Activation keys check in with license.keltech.ai; only your license key and this install id are ever sent - never your tenants or data. Air-gapped? <a href="#" onclick="document.getElementById('lic_file').click();return false">Upload an offline license file</a> instead - it never phones home.<input id="lic_file" type="file" class="hidden" onchange="licFilePicked(this)"></div><div class="muted" style="font-size:.76rem;margin-top:5px">If paid features do not appear or are still grayed out after successfully installing a license, please hard refresh the page.</div></div>
     </div>
     <button class="primary" onclick="installLicense()">Install license</button>
     <button id="lic_clear" class="hidden" onclick="clearLicense()">Remove license</button>
+    <div class="muted" style="font-size:.78rem;margin-top:12px">Install id: <b id="lic_instance">…</b> <span class="tipi" title="A random id for this install - the customer portal asks for it when issuing an offline license file. It contains no information about you or your tenants.">ⓘ</span></div>
   </section>
 </main>
 <main id="view-settings" class="hidden">

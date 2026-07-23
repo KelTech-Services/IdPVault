@@ -190,11 +190,16 @@ The app itself is open-core:
 
 Flat, published pricing at https://idpvault.com.
 
-License keys are Ed25519-signed tokens verified **entirely offline** against a
-public key embedded in the app - IdPVault never phones home and sends no
-telemetry. Install/manage keys in **Settings → License**. If a license expires
-(after a 3-day grace window) or is removed, nothing is deleted: your oldest
-tenant stays fully operational, other tenants keep all their data and snapshots
-but pause backup/restore, and identity features pause - everything resumes as
-soon as a valid key is installed. Renewal keys can be installed early; their
-term extends from the previous expiry.
+Paid licenses activate against the KelTech license server (license.keltech.ai)
+and receive an Ed25519-signed entitlement verified **offline** against a public
+key embedded in the app. The only data ever sent is your license key and a
+random install id - never your tenants, never your configuration. There is no
+telemetry anywhere in the product; the free Community tier and offline license
+files (for air-gapped installs, issued via the customer portal) make **zero**
+network connections. One license runs on one install at a time and can be
+deactivated and moved freely. Install/manage licenses in
+**Administration → License**. If a license expires (after a 3-day grace window)
+or is removed, nothing is deleted: your oldest tenant stays fully operational,
+other tenants keep all their data and snapshots but pause backup/restore, and
+identity features pause - everything resumes as soon as a valid license is
+installed. Renewals apply automatically at the daily check-in.

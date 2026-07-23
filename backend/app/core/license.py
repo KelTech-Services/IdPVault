@@ -1,7 +1,10 @@
 """Open-core license verification. Licenses are Ed25519-signed tokens verified
-OFFLINE against an embedded public key — the app never phones home. Without a
-valid license the app runs in the free Community tier (1 tenant, no identity
-backup).
+OFFLINE against an embedded public key. Activation keys (IDPV-...) are traded
+for a signed, instance-bound entitlement via app/core/activation.py - the only
+data that ever leaves the install is the license key and a random instance id.
+Community tier, legacy full keys, and offline entitlement files never make any
+network call. Without a valid license the app runs in the free Community tier
+(1 tenant, no identity backup).
 
 Token format:  base64url(payload_json) + "." + base64url(signature)
 Payload: customer, tier, max_tenants (null = unlimited), features[], issued, expires
@@ -44,6 +47,11 @@ def verify(token: str) -> dict | None:
         pub = Ed25519PublicKey.from_public_bytes(base64.b64decode(PUBLIC_KEY_B64))
         pub.verify(_b64url(sig_b64), payload)          # raises InvalidSignature
         data = json.loads(payload)
+        if data.get("kind") == "entitlement":
+            # Activation/offline entitlements are bound to ONE install.
+            from app.core.activation import instance_id
+            if data.get("instance_id") != instance_id():
+                return None
         exp = data.get("expires")
         if exp:
             now = datetime.now(timezone.utc).timestamp()
@@ -60,24 +68,47 @@ def verify(token: str) -> dict | None:
         return None
 
 
-def _stored_token() -> str | None:
+def peek(token: str) -> dict | None:
+    """UNVERIFIED payload parse - for error messaging only, never for gating."""
+    try:
+        return json.loads(_b64url(token.strip().split(".", 1)[0]))
+    except Exception:
+        return None
+
+
+def _stored() -> dict:
     from app.models.db import SessionLocal, Setting
     with SessionLocal() as db:
         row = db.get(Setting, "license")
-        return (row.value.get("token") if row else None) or None
+        return dict(row.value) if row else {}
+
+
+def _stored_token() -> str | None:
+    return _stored().get("token") or None
 
 
 def current_license() -> dict:
     """Entitlements as configured RIGHT NOW: the installed token's payload if it
     verifies (with status/days_left), the FREE tier otherwise. 'invalid_present'
     flags a stored token that no longer verifies (bad or past grace)."""
-    token = _stored_token()
+    cur = _stored()
+    token = cur.get("token") or None
     if not token:
         return dict(FREE)
+    # kind: how this install is licensed. "activation" = IDPV key kept fresh by
+    # the license server; "offline" = portal-issued entitlement file (never
+    # phones home); "legacy" = classic full key (grandfathered, offline).
+    kind = cur.get("kind") or (
+        "offline" if (peek(token) or {}).get("kind") == "entitlement" else "legacy")
+    extras = {"kind": kind, "refreshed": cur.get("refreshed"),
+              "refresh_error": cur.get("refresh_error")}
     data = verify(token)
     if not data:
-        return {**FREE, "status": "expired_or_invalid", "invalid_present": True}
-    return {"tier": data.get("tier", "pro"),
+        return {**FREE, **extras, "status": "expired_or_invalid",
+                "invalid_present": True}
+    return {**extras,
+            "license_key": data.get("license_key"),
+            "tier": data.get("tier", "pro"),
             "max_tenants": data.get("max_tenants"),      # None = unlimited
             "max_users": data.get("max_users"),          # None = unlimited
             "features": data.get("features", []),

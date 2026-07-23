@@ -74,6 +74,11 @@ def load_tenant_jobs() -> None:
     from app.models.db import SessionLocal, Tenant
 
     scheduler.add_job(health_check, CronTrigger.from_crontab("30 0 * * *"), id="health-check", replace_existing=True)
+    # Daily entitlement refresh (activation-kind licenses only; Community,
+    # legacy, and offline-file installs return instantly with zero network).
+    from app.core.activation import refresh as license_refresh
+    scheduler.add_job(license_refresh, CronTrigger.from_crontab("15 1 * * *"),
+                      id="license-refresh", replace_existing=True)
     from apscheduler.triggers.interval import IntervalTrigger
     from app.core.livestate import sweep as livestate_sweep
     # Live-state sweep shares the serial pool with backups; the TTL check inside
