@@ -118,6 +118,19 @@ def explore(tenant_id: int, ts: str, request: Request,
         return out
     if resource_type not in export and resource_type not in cur:
         raise HTTPException(404, "resource type not in this snapshot")
+    from app.core.tfexport import tf_resource_for
+    prov = info["provider"]
+
+    def _tf(o):
+        # Per-object Terraform exportability, from the same engine the export
+        # uses. Lets the UI disable + explain the button instead of erroring
+        # on click (e.g. Auth0 global client, Okta system apps, built-ins).
+        try:
+            tf_type, reason = tf_resource_for(prov, resource_type, o)
+            return (tf_type is not None), (None if tf_type else reason)
+        except Exception:
+            return True, None   # never block the button on a lookup hiccup
+
     ql = (q or "").lower()
     cur_idx = {obj_id(o): o for o in cur.get(resource_type, [])}
     rows, snap_ids = [], set()
@@ -133,15 +146,19 @@ def explore(tenant_id: int, ts: str, request: Request,
             status = "modified"
         else:
             status = "unchanged"
+        tf_ok, tf_reason = _tf(o)
         rows.append({"object_id": oid, "object_name": obj_name(o), "status": status,
-                     "object_type": obj_kind(info["provider"], resource_type, o)})
+                     "object_type": obj_kind(info["provider"], resource_type, o),
+                     "tf_ok": tf_ok, "tf_reason": tf_reason})
     for oid, c in cur_idx.items():
         if oid in snap_ids:
             continue
         if ql and ql not in obj_name(c).lower() and ql not in oid.lower():
             continue
+        tf_ok, tf_reason = _tf(c)
         rows.append({"object_id": oid, "object_name": obj_name(c), "status": "new",
-                     "object_type": obj_kind(info["provider"], resource_type, c)})
+                     "object_type": obj_kind(info["provider"], resource_type, c),
+                     "tf_ok": tf_ok, "tf_reason": tf_reason})
     if info["mode"] == "current":
         # In the live view, roles invert: view-only objects are NOT-YET-BACKED-UP
         # ("new"), base-only objects were DELETED since the backup.

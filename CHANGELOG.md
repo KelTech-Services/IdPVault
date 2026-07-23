@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.3] - 2026-07-24
+### Changed
+- In Live State and snapshot Browse, the Terraform button is now disabled
+  (with a hover tooltip explaining why) for objects the official provider
+  cannot manage - Auth0's global client, Okta system apps, built-in groups,
+  and the like - instead of showing an active button that errored on click.
+  The object is still backed up; only its Terraform export is unavailable.
+
 ## [1.3.2] - 2026-07-24
 ### Added
 - Auth0 backups now capture Application Grants (client grants - the M2M
