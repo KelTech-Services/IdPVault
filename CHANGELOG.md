@@ -3,6 +3,13 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.2] - 2026-07-24
+### Added
+- Auth0 backups now capture Application Grants (client grants - the M2M
+  application-to-API authorizations), and Terraform export emits them as
+  auth0_client_grant with import blocks. Grants are backup/export only for
+  now (not restored). Synced from the shared Terraform engine.
+
 ## [1.3.1] - 2026-07-23
 ### Security
 - Entitlements are now product-stamped: one KelTech signing key serves every

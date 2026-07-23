@@ -100,6 +100,7 @@ _OKTA_IDP_BY_TYPE = {"OIDC": "okta_idp_oidc", "SAML2": "okta_idp_saml"}
 # Auth0 rtypes (ours) -> Terraform resource, all 1:1.
 _AUTH0_BY_RTYPE = {
     "clients": "auth0_client",
+    "client_grants": "auth0_client_grant",
     "connections": "auth0_connection",
     "resource_servers": "auth0_resource_server",
     "roles": "auth0_role",
@@ -450,6 +451,10 @@ def object_id(provider: str, rtype: str, obj: dict):
 
 
 def display_name(provider: str, rtype: str, obj: dict) -> str:
+    # Auth0 client grants have no name of their own - show the wiring.
+    # (client_id would win the fallback chain below and read as noise.)
+    if provider == "auth0" and rtype == "client_grants":
+        return f"{obj.get('client_id', '?')} to {obj.get('audience', '?')}"
     # label BEFORE name: for Okta apps `name` is the catalog id
     # (duoadminpanel); `label` is the human name (Duo Admin Panel).
     prof = obj.get("profile")

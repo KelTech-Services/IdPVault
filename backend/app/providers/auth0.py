@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 # Paginated list endpoints (page / per_page).
 PAGED = {
     "clients": "/api/v2/clients",
+    "client_grants": "/api/v2/client-grants",   # M2M app -> API authorizations
     "connections": "/api/v2/connections",
     "resource_servers": "/api/v2/resource-servers",
     "roles": "/api/v2/roles",
@@ -41,7 +42,8 @@ class Auth0Adapter(ProviderAdapter):
     name = "auth0"
     supports_identity = True
     restore_order = ["resource_servers", "connections", "roles", "clients", "rules"]
-    never_restore = {"tenant_settings", "branding", "custom_domains", "actions"}
+    never_restore = {"tenant_settings", "branding", "custom_domains", "actions",
+                     "client_grants"}   # composite-keyed; export-only for now
     # restore write paths + id field per type; actions/singletons excluded above.
     _WRITE_PATH = {"clients": "/api/v2/clients", "connections": "/api/v2/connections",
                    "resource_servers": "/api/v2/resource-servers", "roles": "/api/v2/roles",
