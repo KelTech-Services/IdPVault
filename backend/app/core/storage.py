@@ -248,6 +248,14 @@ def write_changes_cache(tenant_slug: str, ts: str, data: dict) -> None:
         pass   # cache is best-effort; the diff recomputes next time
 
 
+def delete_tenant_tree(tenant_slug: str) -> None:
+    """Remove EVERYTHING stored for a tenant (config snapshots, identities,
+    DB dumps, caches). Called on tenant delete: the wrapped data key dies with
+    the tenant row, so these files would be undecryptable anyway."""
+    path = _contained(os.path.join(get_settings().data_dir, _safe_slug(tenant_slug)))
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def delete_snapshot(tenant_slug: str, ts: str) -> None:
     """Remove a config snapshot dir (objects, manifest, dump, caches)."""
     base = os.path.realpath(get_settings().data_dir)

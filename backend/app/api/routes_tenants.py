@@ -116,18 +116,33 @@ def list_tenants(request: Request) -> list[dict]:
 
 @router.delete("/tenants/{tenant_id}", dependencies=[Depends(require_admin)])
 def delete_tenant(tenant_id: int) -> dict:
-    """Remove a tenant record. Snapshots on disk are intentionally kept."""
+    """Remove a tenant and everything stored for it. Dependent rows go first
+    (the tenant FKs have no cascade - deleting any tenant that had ever run a
+    backup 500'd on snapshots_tenant_id_fkey, fixed v1.3.1), then the tenant
+    row, one transaction. The on-disk tree goes too: the wrapped data key dies
+    with the tenant row, so those files would be undecryptable anyway."""
+    from app.core import storage
     from app.core.scheduler import scheduler
+    from app.models.db import (BackupRun, Event, IdentitySnapshot, Job,
+                               RestoreRun, Snapshot, TenantState)
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)
         if t is None:
             raise HTTPException(404, "tenant not found")
         slug = t.slug
+        for model in (TenantState, Snapshot, BackupRun, Event,
+                      IdentitySnapshot, RestoreRun, Job):
+            db.query(model).filter(model.tenant_id == tenant_id).delete()
         db.delete(t)
         db.add(AuditLog(action="tenant.delete", detail={"slug": slug}))
         db.commit()
+    for job_id in (f"backup-{tenant_id}", f"identity-{tenant_id}"):
+        try:
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
     try:
-        scheduler.remove_job(f"backup-{tenant_id}")
+        storage.delete_tenant_tree(slug)
     except Exception:
         pass
     return {"deleted": tenant_id, "slug": slug}

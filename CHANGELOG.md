@@ -12,6 +12,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
 ### Changed
 - License page: the air-gapped note now links the offline license file
   generator (idpvault.com/offline-license) next to the upload control.
+### Fixed
+- Deleting a tenant failed with a 500 for any tenant that had ever run a
+  backup (foreign-key violation on its snapshot history). Delete now removes
+  the tenant's history rows (state, snapshots, runs, events, jobs) and its
+  on-disk data in the same operation - the files would be undecryptable
+  without the tenant's data key anyway.
 
 ## [1.3.0] - 2026-07-23
 ### Added
