@@ -3,6 +3,16 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.1] - 2026-07-23
+### Security
+- Entitlements are now product-stamped: one KelTech signing key serves every
+  KelTech app, so each app rejects entitlements issued for a different
+  product. Prevents a license for one product from unlocking another via the
+  offline-file path. Legacy full keys are unaffected.
+### Changed
+- License page: the air-gapped note now links the offline license file
+  generator (idpvault.com/offline-license) next to the upload control.
+
 ## [1.3.0] - 2026-07-23
 ### Added
 - Activation licensing: license keys purchased at idpvault.com are now short

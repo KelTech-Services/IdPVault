@@ -48,7 +48,11 @@ def verify(token: str) -> dict | None:
         pub.verify(_b64url(sig_b64), payload)          # raises InvalidSignature
         data = json.loads(payload)
         if data.get("kind") == "entitlement":
-            # Activation/offline entitlements are bound to ONE install.
+            # Entitlements are product-stamped (one signing key serves every
+            # KelTech app) and bound to ONE install. Legacy payloads (no kind)
+            # skip both checks - grandfathered.
+            if data.get("product") != "idpvault":
+                return None
             from app.core.activation import instance_id
             if data.get("instance_id") != instance_id():
                 return None

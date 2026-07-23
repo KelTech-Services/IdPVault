@@ -121,12 +121,25 @@ def test_entitlement_bound_to_instance(monkeypatch):
     monkeypatch.setattr(lic, "PUBLIC_KEY_B64", pub)
     monkeypatch.setattr(act, "instance_id", lambda: "AAAA-BBBB-CCCC")
     tok = _mint(priv, kind="entitlement", instance_id="AAAA-BBBB-CCCC",
-                license_key="IDPV-JHGK...")
+                product="idpvault", license_key="IDPV-JHGK...")
     data = lic.verify(tok)
     assert data and data["_status"] == "active" and data["license_key"] == "IDPV-JHGK..."
     # Same token on a DIFFERENT install: rejected outright.
     monkeypatch.setattr(act, "instance_id", lambda: "XXXX-YYYY-ZZZZ")
     assert lic.verify(tok) is None
+
+
+def test_entitlement_product_stamped(monkeypatch):
+    # One signing key serves every KelTech app - a TFsmith entitlement must
+    # NEVER unlock IdPVault (and vice versa).
+    priv, pub = _keypair()
+    monkeypatch.setattr(lic, "PUBLIC_KEY_B64", pub)
+    monkeypatch.setattr(act, "instance_id", lambda: "AAAA-BBBB-CCCC")
+    wrong = _mint(priv, kind="entitlement", instance_id="AAAA-BBBB-CCCC",
+                  product="tfsmith")
+    assert lic.verify(wrong) is None
+    unstamped = _mint(priv, kind="entitlement", instance_id="AAAA-BBBB-CCCC")
+    assert lic.verify(unstamped) is None
 
 
 def test_legacy_token_ignores_instance(monkeypatch):
