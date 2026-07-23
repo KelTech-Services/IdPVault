@@ -1486,11 +1486,11 @@ function exBackToList(){
 }
 const OV_SECTIONS = [
   {name:'Directory', types:['users','groups','roles','user_schemas','user_types','user_type_schemas','profile_mappings']},
-  {name:'Applications', types:['applications','apps','clients','providers','resource_servers','actions','rules']},
+  {name:'Applications', types:['applications','apps','clients','client_grants','providers','resource_servers','actions','rules']},
   {name:'Security & access', types:['flows','stages','flow_stage_bindings','policies','policy_bindings','policies_signon','policies_password','policies_mfa','policies_access','authorization_servers','idps','network_zones','certificates','connections']},
   {name:'System', types:['brands','outposts','blueprints','property_mappings','event_hooks','inline_hooks','tenant_settings','custom_domains','branding']},
 ];
-const OV_LABELS = {policies_signon:'Sign-on policies', policies_password:'Password policies', policies_mfa:'MFA policies', policies_access:'Access policies', idps:'Identity providers', resource_servers:'APIs (resource servers)', tenant_settings:'Tenant settings'};
+const OV_LABELS = {policies_signon:'Sign-on policies', policies_password:'Password policies', policies_mfa:'MFA policies', policies_access:'Access policies', idps:'Identity providers', clients:'Applications (clients)', resource_servers:'APIs (resource servers)', client_grants:'Application grants', tenant_settings:'Tenant settings'};
 function ovLabel(rt){ const s = OV_LABELS[rt] || String(rt).replace(/_/g,' '); return s.charAt(0).toUpperCase() + s.slice(1); }
 
 /* ---------- v1.2: tenant trend charts ---------- */

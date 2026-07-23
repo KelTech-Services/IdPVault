@@ -9,6 +9,13 @@ All notable changes to IdPVault are documented here. Format loosely follows
   application-to-API authorizations), and Terraform export emits them as
   auth0_client_grant with import blocks. Grants are backup/export only for
   now (not restored). Synced from the shared Terraform engine.
+### Changed
+- Auth0 rail labels follow the Auth0 dashboard: "Applications (clients)",
+  with Application grants grouped under Applications.
+- Auth0's auto-created global client ("All Applications" - the tenant-wide
+  classic login page config, not a real application) is skipped in Terraform
+  export with an honest reason, like Okta's system apps. It is still backed
+  up.
 
 ## [1.3.1] - 2026-07-23
 ### Security

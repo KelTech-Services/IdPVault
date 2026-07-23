@@ -258,6 +258,12 @@ def tf_resource_for(provider: str, rtype: str, obj: dict):
         return None, f"no Terraform mapping for {rtype}"
 
     if provider == "auth0":
+        if rtype == "clients" and obj.get("global"):
+            # Auth0 auto-creates one global client per tenant ("All
+            # Applications") carrying tenant-wide classic login page config -
+            # not a real application and not sanely managed via auth0_client.
+            return None, ("Auth0 global client (tenant login page) - "
+                          "not manageable via Terraform")
         if rtype in _AUTH0_BY_RTYPE:
             return _check(_AUTH0_BY_RTYPE[rtype])
         return None, f"no Terraform mapping for {rtype}"
