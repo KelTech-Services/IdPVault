@@ -3,6 +3,19 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.4] - 2026-07-29
+- A resource type your identity provider will not let IdPVault read no longer
+  fails the whole backup. Previously a single unreadable endpoint meant the
+  backup produced nothing at all; now every other resource type is captured
+  normally and the one that was refused is recorded on the snapshot with the
+  reason from your provider. This affects, for example, Okta orgs without API
+  Access Management, which return an error for authorization servers.
+- Refused resource types are recorded on the snapshot manifest, never inside
+  the snapshot itself, so they cannot appear as drift, raise an alert, or be
+  treated as something to restore.
+- Errors from a provider now include that provider's own error code rather
+  than only an HTTP status.
+
 ## [1.3.3] - 2026-07-24
 ### Changed
 - In Live State and snapshot Browse, the Terraform button is now disabled

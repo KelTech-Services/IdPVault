@@ -2,7 +2,8 @@
 import httpx
 
 from app.core.ratelimit import AdaptiveRateLimiter
-from app.providers.base import ProviderAdapter
+from app.providers.base import (SKIPPABLE_STATUS, ProviderAdapter,
+                                record_unavailable)
 
 RESOURCES = {
     "apps": "/api/v1/apps",
@@ -146,7 +147,17 @@ class OktaAdapter(ProviderAdapter):
 
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
-            out = {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+            # Per-resource, NOT a comprehension: one unreadable endpoint used
+            # to abort the whole backup, so an org without API Access
+            # Management could never be backed up at all.
+            out: dict = {}
+            for rtype, path in RESOURCES.items():
+                try:
+                    out[rtype] = self._paged(c, path)
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code not in SKIPPABLE_STATUS:
+                        raise
+                    record_unavailable(out, rtype, e.response)
 
             # per-user-type schemas (default already captured; add non-default types)
             type_schemas = []

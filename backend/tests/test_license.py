@@ -157,3 +157,61 @@ def test_peek_is_unverified_parse_only():
     p = lic.peek(tok)
     assert p and p["kind"] == "entitlement" and p["instance_id"] == "AAAA"
     assert lic.peek("garbage") is None
+
+
+# --- one unreadable resource type must not fail a whole backup (7/29) ---
+
+def test_unavailable_never_reaches_a_snapshot_diff_or_restore():
+    """REGRESSION GUARD: an Okta org without API Access Management 401s on
+    /api/v1/authorizationServers. Adapters record that instead of aborting the
+    export, but the marker must NEVER live inside a stored snapshot - there it
+    would diff as drift, fire an alert, and be handed to a restore plan as if
+    it were a resource type."""
+    import httpx
+
+    from app.providers.base import (UNAVAILABLE_KEY, describe_unavailable,
+                                    record_unavailable, split_unavailable)
+
+    r = httpx.Response(401, json={
+        "errorCode": "E0000015",
+        "errorSummary": "You do not have permission to access the feature"})
+    msg = describe_unavailable(r)
+    assert "E0000015" in msg and "not licensed" in msg
+
+    export = {"apps": [{"id": "a"}], "groups": []}
+    record_unavailable(export, "authorization_servers", r)
+    assert export[UNAVAILABLE_KEY]                      # recorded on the export
+    assert export["authorization_servers"] == []
+
+    clean, unavailable = split_unavailable(export)
+    assert UNAVAILABLE_KEY not in clean                 # stripped for storage
+    assert not any(k.startswith("_") for k in clean)
+    assert set(clean) == {"apps", "groups", "authorization_servers"}
+    assert unavailable["authorization_servers"].startswith("HTTP 401")
+    # the original is untouched, so callers that want the reason still have it
+    assert UNAVAILABLE_KEY in export
+
+
+def test_split_unavailable_is_safe_on_a_normal_export():
+    from app.providers.base import split_unavailable
+    e = {"apps": [{"id": 1}], "groups": [{"id": 2}]}
+    clean, un = split_unavailable(e)
+    assert clean == e and un == {}
+
+
+def test_diff_does_not_see_a_stripped_marker():
+    """A live export with the marker, diffed against a stored snapshot without
+    it, must not report a phantom added resource type."""
+    import httpx
+
+    from app.core.diff import diff_exports
+    from app.providers.base import record_unavailable, split_unavailable
+
+    stored = {"apps": [{"id": "a"}]}
+    live = {"apps": [{"id": "a"}]}
+    record_unavailable(live, "authorization_servers", httpx.Response(403))
+    live_clean, _ = split_unavailable(live)
+    d = diff_exports(stored, live_clean)
+    for rt, ch in d.items():
+        assert rt != "_unavailable"
+        assert not ch["added"], f"phantom drift on {rt}"

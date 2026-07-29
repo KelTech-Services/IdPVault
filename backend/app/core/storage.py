@@ -48,6 +48,12 @@ def snapshot_dir(tenant_slug: str, ts: str) -> str:
 
 
 def write_snapshot(tenant_slug: str, data_key: bytes, export: dict) -> dict:
+    # Resource types the tenant refused are recorded in the MANIFEST, never in
+    # the snapshot. If they lived in the object graph they would surface as
+    # drift in diff_exports, fire alerts, and be handed to a restore plan as a
+    # resource type. The stored export stays pure config only.
+    from app.providers.base import split_unavailable
+    export, unavailable = split_unavailable(export)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     path = snapshot_dir(tenant_slug, ts)
     os.makedirs(path, exist_ok=True)
@@ -62,6 +68,7 @@ def write_snapshot(tenant_slug: str, data_key: bytes, export: dict) -> dict:
         "counts": {k: len(v) for k, v in export.items()},
         "sha256_plain": hashlib.sha256(raw).hexdigest(),
         "size_encrypted": len(blob),
+        "unavailable": unavailable,
     }
     with open(os.path.join(path, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)

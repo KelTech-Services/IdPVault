@@ -1,7 +1,8 @@
 """Authentik adapter. Auth: API token (Bearer). Paginated via ?page= / pagination.next."""
 import httpx
 
-from app.providers.base import ProviderAdapter
+from app.providers.base import (SKIPPABLE_STATUS, ProviderAdapter,
+                                record_unavailable)
 
 RESOURCES = {
     # superuser_full_list: WITHOUT it Authentik filters this list through the
@@ -168,7 +169,14 @@ class AuthentikAdapter(ProviderAdapter):
 
     def export(self) -> dict[str, list[dict]]:
         with self._client() as c:
-            out = {rtype: self._paged(c, path) for rtype, path in RESOURCES.items()}
+            out: dict = {}
+            for rtype, path in RESOURCES.items():
+                try:
+                    out[rtype] = self._paged(c, path)
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code not in SKIPPABLE_STATUS:
+                        raise
+                    record_unavailable(out, rtype, e.response)
             for rtype in self._HYDRATE:
                 hydrated = []
                 for o in out.get(rtype, []):

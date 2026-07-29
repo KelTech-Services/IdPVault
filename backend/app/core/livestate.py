@@ -39,7 +39,8 @@ def get_live_export(tenant_id: int) -> dict:
         key = crypto.unwrap_data_key(t.wrapped_data_key)
         creds = crypto.decrypt(t.enc_credentials, key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
-    export = adapter.export()
+    from app.providers.base import split_unavailable
+    export, _unavail = split_unavailable(adapter.export())
     _live_cache[tenant_id] = (_t.monotonic(), export)
     return export
 
@@ -111,10 +112,13 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
             return summary
 
     adapter = get_adapter(provider, base_url, creds)
-    live = adapter.export()
+    from app.providers.base import split_unavailable
+    # Strip BEFORE counting or diffing: a live export carrying the metadata key
+    # would diff against a stored snapshot as a phantom added resource type.
+    live, unavailable = split_unavailable(adapter.export())
     counts = {k: len(v) for k, v in live.items()}
     summary = {"source": "live", "latest_snapshot": latest,
-               "counts": counts, "categories": {},
+               "counts": counts, "unavailable": unavailable, "categories": {},
                "drift": {"added": 0, "removed": 0, "changed": 0} if latest else None}
     if latest:
         base = storage.read_snapshot(slug, latest, key)

@@ -110,8 +110,9 @@ def run_restore(tenant_id: int, snapshot_ts: str, selection: dict | None,
         creds = crypto.decrypt(t.enc_credentials, data_key).decode()
         adapter = get_adapter(t.provider, t.base_url, creds)
 
+        from app.providers.base import split_unavailable
         snap = storage.read_snapshot(src.slug, snapshot_ts, src_key)
-        live = adapter.export()
+        live, _unavail = split_unavailable(adapter.export())
         adapter.begin_restore(snap, live)   # adapters build id-remap state here
         # Clones match by natural key only - see build_plan's id_match note.
         plan = build_plan(snap, live, selection, adapter, id_match=(t.id == src.id))

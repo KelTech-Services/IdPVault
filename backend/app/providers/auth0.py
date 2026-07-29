@@ -14,7 +14,8 @@ import time
 
 import httpx
 
-from app.providers.base import ProviderAdapter
+from app.providers.base import (SKIPPABLE_STATUS, ProviderAdapter,
+                                record_unavailable)
 
 log = logging.getLogger(__name__)
 
@@ -130,23 +131,26 @@ class Auth0Adapter(ProviderAdapter):
         body = r.json()
         return body if isinstance(body, list) else [body]
 
-    def _fetch(self, c, rtype, path, paged) -> list[dict]:
+    def _fetch(self, c, out, rtype, path, paged) -> list[dict]:
+        """Records an unreadable resource type instead of failing the backup."""
         try:
             return self._paged(c, path) if paged else self._single(c, path)
         except httpx.HTTPStatusError as e:
-            if rtype in OPTIONAL and 400 <= e.response.status_code < 500:
-                log.warning("auth0 export: %s unavailable (HTTP %s) — skipping",
-                            rtype, e.response.status_code)
-                return []
+            sc = e.response.status_code
+            if (rtype in OPTIONAL and 400 <= sc < 500) or sc in SKIPPABLE_STATUS:
+                log.warning("auth0 export: %s unavailable (HTTP %s) - skipping",
+                            rtype, sc)
+                record_unavailable(out, rtype, e.response)
+                return out[rtype]
             raise
 
     def export(self) -> dict[str, list[dict]]:
         out = {}
         with self._client() as c:
             for rtype, path in PAGED.items():
-                out[rtype] = self._fetch(c, rtype, path, True)
+                out[rtype] = self._fetch(c, out, rtype, path, True)
             for rtype, path in SINGLE.items():
-                out[rtype] = self._fetch(c, rtype, path, False)
+                out[rtype] = self._fetch(c, out, rtype, path, False)
         return out
 
     def _write_with_strip(self, c, method, path, payload):

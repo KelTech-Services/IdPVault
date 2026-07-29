@@ -5,6 +5,56 @@ of the tenant, suitable for encryption, diffing, and (eventually) restore.
 """
 from abc import ABC, abstractmethod
 
+# Reserved key inside an export dict holding {resource_type: human reason} for
+# types the tenant would not let us read. A provider feature that is not
+# licensed (Okta E0000015 without API Access Management) or a token whose admin
+# role excludes one endpoint must NOT cost the customer every other resource
+# type. Keys starting with "_" are metadata, never resource data, and
+# storage.write_snapshot lifts this one into the manifest so it can never
+# reach a diff, a drift alert or a restore plan.
+UNAVAILABLE_KEY = "_unavailable"
+
+# Only these mean "you may not read this". Anything else (5xx, throttling, a
+# transport fault) is a real failure and must still raise.
+SKIPPABLE_STATUS = (401, 403, 404)
+
+
+def describe_unavailable(resp) -> str:
+    """Human reason from a provider's error body, keeping its own error code."""
+    code = summary = ""
+    try:
+        b = resp.json()
+        if isinstance(b, dict):
+            code = str(b.get("errorCode") or b.get("error") or "")
+            summary = str(b.get("errorSummary") or b.get("message")
+                          or b.get("detail") or "")
+    except Exception:
+        pass
+    if code == "E0000015":
+        summary = ("this feature is not enabled on the tenant (Okta API "
+                   "Access Management is not licensed)")
+    bits = [f"HTTP {resp.status_code}"]
+    if code:
+        bits.append(code)
+    if summary:
+        bits.append(summary)
+    return " - ".join(bits)
+
+
+def record_unavailable(out: dict, rtype: str, resp) -> None:
+    out.setdefault(UNAVAILABLE_KEY, {})[rtype] = describe_unavailable(resp)
+    out[rtype] = []
+
+
+def split_unavailable(export: dict) -> tuple[dict, dict]:
+    """(clean_export, unavailable_map). Strips every metadata key so callers
+    that diff, count or restore only ever see real resource types."""
+    if not isinstance(export, dict):
+        return export, {}
+    unavailable = dict(export.get(UNAVAILABLE_KEY) or {})
+    clean = {k: v for k, v in export.items() if not k.startswith("_")}
+    return clean, unavailable
+
 
 class CallCounter:
     """Minimal API-call counter for providers without an adaptive rate limiter
