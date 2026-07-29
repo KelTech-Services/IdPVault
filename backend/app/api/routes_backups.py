@@ -54,7 +54,11 @@ def snapshots(tenant_id: int, request: Request, runs: int = 0) -> list[dict]:
                  "objects": sum((m.get("counts") or {}).values()),
                  "size": m.get("size_encrypted", 0),
                  "db_dump_size": None,
-                 "db_dump_status": (m.get("db_dump") or {}).get("status")}
+                 "db_dump_status": (m.get("db_dump") or {}).get("status"),
+                 # Resource types the IdP refused to hand over for this
+                 # snapshot ({type: reason}). Surfaced in the UI so a partial
+                 # backup can never look like a complete one.
+                 "unavailable": m.get("unavailable") or {}}
         dump = os.path.join(storage.snapshot_dir(slug, ts), "pgdump.sql.enc")
         if os.path.exists(dump):
             entry["db_dump_size"] = os.path.getsize(dump)

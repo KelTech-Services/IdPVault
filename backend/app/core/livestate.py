@@ -105,6 +105,9 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
             m = storage.read_manifest(slug, latest) or {}
             summary = {"source": "snapshot", "latest_snapshot": latest,
                        "counts": m.get("counts") or {}, "categories": {},
+                       # Carry the snapshot's refused types forward: a summary
+                       # derived from a partial snapshot is itself partial.
+                       "unavailable": m.get("unavailable") or {},
                        "drift": {"added": 0, "removed": 0, "changed": 0}}
             summary["identity"] = _identity_section(
                 slug, provider, base_url, creds, key, identity_on, prev_identity, force)

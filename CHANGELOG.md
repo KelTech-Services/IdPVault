@@ -3,6 +3,14 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.3.5] - 2026-07-29
+- A snapshot whose provider refused one or more resource types now says so in
+  the app. The snapshot list shows an amber **partial** badge beside **ok**, and
+  hovering it lists each type with the provider's own reason. The tenant
+  Overview carries the same warning while the condition lasts, and finishing a
+  manual backup that hit one reports it instead of a clean "complete".
+- A partial backup can no longer be mistaken for a complete one.
+
 ## [1.3.4] - 2026-07-29
 - A resource type your identity provider will not let IdPVault read no longer
   fails the whole backup. Previously a single unreadable endpoint meant the

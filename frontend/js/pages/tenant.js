@@ -67,7 +67,13 @@ function renderTenantOverviewView(t, state, dash){
     ${idSec ? `<div class="stat last" style="cursor:pointer" onclick="location.hash='#/t/${t.id}/identity'" title="Open the Users &amp; Access page - users, memberships, and assignments changed since the latest Users &amp; Access backup"><span class="sl">Unbacked Users &amp; Access changes <span class="tipi">ⓘ</span></span><span class="sv" style="color:${idDrift ? 'var(--amber)' : 'inherit'}">${idDrift == null ? '-' : idDrift}</span><span class="ss">${idSub}</span></div>` : ''}
     ${drift && canW && !inactive ? `<span class="actions"><button class="primary" onclick="backupNow(${t.id}, this)">Backup config now</button></span>` : ''}
     ${idDrift && canW && !inactive ? `<span class="actions"><button class="primary ua" onclick="identityBackupNowOv(${t.id}, this)">Backup Users &amp; Access now</button></span>` : ''}`;
-  body.innerHTML = inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '';
+  /* Partial-read warning. The IdP refused one or more resource types, so they
+     are absent from live state AND from every snapshot taken this way. Said
+     plainly on the Overview: a customer must never believe a backup is
+     complete when a type was skipped. No new card - the card row stays even. */
+  const unav = ok && state.unavailable ? Object.entries(state.unavailable) : [];
+  body.innerHTML = (inactive ? '<p class="st-failed" style="font-size:.85rem">License limit reached - backup and restore are paused for this tenant. Manage your license in Administration &gt; License.</p>' : '')
+    + (unav.length ? `<p class="st-unsupported" style="font-size:.85rem">${unav.length} resource type${unav.length > 1 ? 's' : ''} could not be read from this IdP, so ${unav.length > 1 ? 'they are' : 'it is'} not included in backups: ${unav.map(([rt, why]) => `<b>${esc(rt)}</b> (${esc(why)})`).join(', ')}. Everything else is backed up and restored normally.</p>` : '');
 }
 async function overviewRefresh(){
   const btn = document.getElementById('t_ov_refresh');
@@ -244,7 +250,14 @@ async function backupNow(id, btn){
     const res = j.result || {};
     if(res.skipped === 'license') throw new Error('backup skipped - over the license tenant limit');
     const c = res.counts || {}, total = Object.values(c).reduce((a,b)=>a+b,0);
-    toast(`Snapshot ${res.timestamp ? fmtSnap(res.timestamp) : ''} complete - ${total} objects across ${Object.keys(c).length} types.` + (res.drift ? ' ⚠ Drift detected vs previous snapshot.' : ''));
+    /* A partial backup must never read as a clean one: if the IdP refused a
+       resource type, say so in the toast AND flag it red. The snapshot row
+       carries the durable "partial" badge with the per-type reasons. */
+    const un = Object.keys(res.unavailable || {});
+    toast(`Snapshot ${res.timestamp ? fmtSnap(res.timestamp) : ''} complete - ${total} objects across ${Object.keys(c).length} types.`
+      + (res.drift ? ' ⚠ Drift detected vs previous snapshot.' : '')
+      + (un.length ? ` ⚠ PARTIAL: ${un.length} resource type${un.length>1?'s':''} could not be read and ${un.length>1?'are':'is'} NOT in this backup - ${un.join(', ')}.` : ''),
+      un.length > 0);
     if(snapTenantId === id) showSnaps(id, window._snapSlug);
     loadDashboard();
     const bt = _tenants.find(x => x.id === id);
@@ -452,6 +465,17 @@ async function showSnaps(id, slug){
     const trigTag = tg => tg === 'manual' ? '<span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">manual</span>'
       : tg === 'scheduled' ? '<span class="tag" style="background:var(--tag-dim-bg);color:var(--dim)">auto</span>'
       : '<span class="muted">-</span>';
+    /* Durable "partial" badge: the IdP refused one or more resource types for
+       this snapshot, so it is NOT a complete backup. Reasons in the tooltip. */
+    const unTag = s => {
+      const u = s.unavailable || {}, k = Object.keys(u);
+      if(!k.length) return '';
+      const why = k.length + ' resource type' + (k.length > 1 ? 's' : '')
+        + ' could not be read from the IdP and ' + (k.length > 1 ? 'are' : 'is')
+        + ' NOT in this snapshot:\n\n' + k.map(t => t + ' - ' + u[t]).join('\n')
+        + '\n\nEverything else in this snapshot is complete and restorable.';
+      return ` <span class="tag" style="background:var(--tag-amber-bg);color:var(--amber)" title="${esc(why)}">partial ${TIPI}</span>`;
+    };
     sb.innerHTML = snaps.slice().reverse().map(s => s.status === 'failed'
       ? `<tr class="snaprow" data-ts="${s.ts}" data-failed="1">
         <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
@@ -462,7 +486,7 @@ async function showSnaps(id, slug){
       <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
       <td>${fmtSnap(s.ts)}</td>
       <td>${trigTag(s.trigger)}</td>
-      <td><span class="tag ok">ok</span></td>
+      <td><span class="tag ok">ok</span>${unTag(s)}</td>
       <td>${s.objects || 0}</td>
       <td class="muted">${fmtBytes(s.size || 0)}</td>
       <td class="muted">${s.db_dump_status === 'failed' ? '<span class="tag" style="background:var(--tag-red-bg);color:var(--red)" title="Full-DR is configured but the database dump FAILED for this snapshot - this snapshot has no dump. Check the Full-DR Postgres URL in the tenant settings.">dump failed</span>' : s.db_dump_size != null ? `${fmtBytes(s.db_dump_size)}${me.role==='admin' ? ` <button class="ghost" style="color:var(--red)" onclick="openFulldr('${s.ts}')" title="Replace the Full-DR database with this snapshot's dump - full credential recovery for self-hosted Authentik. Atomic: any failure rolls back and changes nothing.">Restore DB… ${TIPI}</button>` : ''}` : '-'}</td>

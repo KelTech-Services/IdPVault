@@ -122,7 +122,10 @@ def _trim(kind, result):
     if kind == "config_backup":
         m = result.get("manifest") or {}
         return {"timestamp": m.get("timestamp"), "counts": m.get("counts"),
-                "drift": bool(result.get("drift")), "skipped": result.get("skipped")}
+                "drift": bool(result.get("drift")), "skipped": result.get("skipped"),
+                # {type: reason} for anything the IdP refused - the toast warns
+                # so a partial backup is never reported as a clean one.
+                "unavailable": m.get("unavailable") or {}}
     if kind == "identity_backup":
         m = result.get("manifest") or {}
         return {"timestamp": m.get("timestamp"), "counts": m.get("counts"),
