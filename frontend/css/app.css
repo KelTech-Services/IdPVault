@@ -3,7 +3,7 @@
 --bg:#0b0f15;--panel:#121922;--panel2:#1a232e;--panel3:#222e3b;--border:#26323f;
 --text:#e6ecf3;--dim:#8b9bad;--accent:#339dff;--accent2:#1f7fe0;--gold:#f0c000;
 --green:#3ecf8e;--red:#ff6b6b;--amber:#ffb454;--violet:#c9a3ff;
---radius:12px;--radius-sm:7px;--radius-lg:16px;--sidebar-w:238px;--shadow:0 8px 30px rgba(0,0,0,.45);
+--radius:12px;--radius-sm:7px;--radius-lg:16px;--sidebar-w:252px;--shadow:0 8px 30px rgba(0,0,0,.45);
 --topbar-bg:rgba(11,15,21,.82);--card-grad-to:#0f151c;--row-hover:rgba(255,255,255,.014);
 --tag-violet-bg:#241a33;--tag-blue-bg:#0f2438;--tag-amber-bg:#33230f;--tag-green-bg:#0e2b20;--tag-red-bg:#331519;--tag-dim-bg:#1a232e;
 --btn-hover-border:#33465a;--on-accent:#06101c;--del-bg:#2a1418;--del-border:#5a2a30;--on-red:#0d0d0f;
@@ -29,7 +29,7 @@ nav#mainnav button.active svg{stroke:var(--accent)}
 #userchip #whoami{font-weight:600;font-size:.9rem}
 #userchip .role{color:var(--dim);font-size:.64rem;text-transform:uppercase;letter-spacing:.6px}
 .sb-actions{display:flex;gap:6px}
-.sb-actions button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:.78rem;padding:7px}
+.sb-actions button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:.78rem;padding:7px 6px;white-space:nowrap}
 .sb-actions button svg{width:14px;height:14px;stroke:currentColor}
 
 .content{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto}
