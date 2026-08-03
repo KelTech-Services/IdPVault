@@ -105,13 +105,14 @@ def sso_callback(request: Request, code: str = "", state: str = "",
 
 class SsoIn(BaseModel):
     mode: str = "off"
-    protocol: str = "oidc"
+    protocol: str = "oidc"               # oidc | saml
     issuer: str | None = None
     client_id: str | None = None
     client_secret: str | None = None     # blank on save = keep the stored one
     scopes: str | None = None
     button_label: str | None = None
     jit_default_role: str | None = None
+    saml_metadata_url: str | None = None
 
 
 @router.get("/sso", dependencies=[Depends(require_admin)])
@@ -128,7 +129,11 @@ def get_config() -> dict:
             "configured": oidc.configured(v),
             "effective_mode": oidc.mode(v),
             "licensed": oidc.licensed(),
-            "jit_roles": list(oidc.JIT_ROLES)}
+            "jit_roles": list(oidc.JIT_ROLES),
+            "saml_metadata_url": v.get("saml_metadata_url") or "",
+            "saml_entity_id": v.get("saml_entity_id") or "",
+            "saml_sso_url": v.get("saml_sso_url") or "",
+            "saml_cert_loaded": bool(v.get("saml_cert_pem"))}
 
 
 @router.put("/sso", dependencies=[Depends(require_admin)])
@@ -138,8 +143,10 @@ def put_config(body: SsoIn, request: Request) -> dict:
                                  "license")
     if body.mode not in oidc.MODES:
         raise HTTPException(422, "mode must be off, optional, or required")
+    if body.protocol not in ("oidc", "saml"):
+        raise HTTPException(422, "protocol must be oidc or saml")
     v = dict(oidc.get_sso())
-    v.update({"mode": body.mode, "protocol": "oidc",
+    v.update({"mode": body.mode, "protocol": body.protocol,
               "issuer": (body.issuer or "").strip().rstrip("/"),
               "client_id": (body.client_id or "").strip(),
               "scopes": (body.scopes or "").strip() or "openid profile email",
@@ -153,17 +160,45 @@ def put_config(body: SsoIn, request: Request) -> dict:
     if body.client_secret:
         v["client_secret_enc"] = crypto.encrypt(
             body.client_secret.strip().encode(), crypto._master_key()).hex()
+    # SAML: the metadata URL is the single input. Entity id, SSO endpoint and
+    # signing certificate are parsed from it AT SAVE TIME and stored, so a
+    # sign-in never depends on the IdP's metadata endpoint being reachable.
+    # Re-saving re-fetches, which is also how a rotated certificate is picked up.
+    old_url = v.get("saml_metadata_url") or ""
+    new_url = (body.saml_metadata_url or "").strip()
+    v["saml_metadata_url"] = new_url
+    if body.protocol == "saml" and new_url:
+        if new_url != old_url or not v.get("saml_cert_pem"):
+            from app.core import saml
+            try:
+                meta = saml.fetch_metadata(new_url)
+            except Exception as e:
+                raise HTTPException(422, f"could not read the IdP metadata: {e}")
+            v["saml_entity_id"] = meta["entity_id"]
+            v["saml_sso_url"] = meta["sso_url"]
+            v["saml_cert_pem"] = meta["cert_pem"]
     if body.mode != "off" and not oidc.configured(v):
-        raise HTTPException(422, "fill in the issuer, client id and client "
+        raise HTTPException(422, "fill in the SAML metadata URL before "
+                            "enabling single sign-on" if body.protocol == "saml"
+                            else "fill in the issuer, client id and client "
                                  "secret before enabling single sign-on")
-    # Turning SSO ON must never be able to lock the install out. "required" is
-    # gated separately once break-glass lands; for now optional/required both
-    # keep password sign-in working, so there is nothing to guard here yet.
+    if body.mode == "required":
+        # The never-locked-out guardrail: an active break-glass admin WITH MFA
+        # must exist before password sign-in can be switched off.
+        with SessionLocal() as db:
+            ok = [u for u in db.query(User).all()
+                  if u.role == "admin" and u.is_active is not False
+                  and u.breakglass and u.mfa_enabled]
+        if not ok:
+            raise HTTPException(422, "before requiring SSO, flag at least one "
+                                     "active admin as break-glass AND enable "
+                                     "MFA on that account - it is the way back "
+                                     "in if the identity provider is down")
     oidc.save_sso(v)
     with SessionLocal() as db:
         db.add(AuditLog(actor=request.state.user["username"],
                         action="sso.config", detail={"mode": body.mode,
-                                                     "protocol": "oidc"}))
+                                        "protocol": body.protocol}))
         db.commit()
     return get_config()
 
@@ -226,6 +261,17 @@ def scim_token(request: Request) -> dict:
 def test_connection() -> dict:
     """Re-fetch discovery so an admin gets a real answer before enabling."""
     v = oidc.get_sso()
+    if oidc.protocol(v) == "saml":
+        if not (v.get("saml_metadata_url") or "").strip():
+            raise HTTPException(422, "enter the IdP metadata URL first")
+        from app.core import saml
+        try:
+            meta = saml.fetch_metadata(v["saml_metadata_url"])
+        except Exception as e:
+            raise HTTPException(502, f"could not read the IdP metadata: {e}")
+        return {"ok": True, "protocol": "saml",
+                "issuer": meta["entity_id"], "sso_url": meta["sso_url"],
+                "userinfo": False}
     if not (v.get("issuer") or "").strip():
         raise HTTPException(422, "enter the issuer URL first")
     try:

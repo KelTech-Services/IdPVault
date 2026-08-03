@@ -39,6 +39,8 @@ TOPICS = [
      "Email and webhook alerts: drift, failures, restores, clones."),
     ("users-security", "Users & security",
      "App users, roles, MFA, sessions, and the audit log."),
+    ("sso", "Single sign-on & SCIM",
+     "OIDC and SAML sign-in, break-glass accounts, SCIM provisioning and push groups."),
     ("licensing", "Licensing & tiers",
      "Community, Business, and MSP tiers; offline license keys."),
     ("msp-orgs", "MSP & client orgs",

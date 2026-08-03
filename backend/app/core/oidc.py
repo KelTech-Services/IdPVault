@@ -266,3 +266,16 @@ def resolve_user(db, claims: dict):
     if last:
         u.last_name = last
     return u, created
+
+
+def password_login_allowed(user, sso_mode: str) -> bool:
+    """Can this account still sign in with a password?
+
+    Mirrors StackMerger exactly: when SSO is "required" the password form is
+    closed to everyone EXCEPT break-glass admins (the emergency door, which is
+    only settable on an admin that has MFA) and external users - client
+    contacts who are not in your directory and so have no SSO identity to use.
+    """
+    if sso_mode != "required":
+        return True
+    return bool(user.breakglass) or bool(user.external)

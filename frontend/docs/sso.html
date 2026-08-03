@@ -1,0 +1,60 @@
+<!-- SOURCE OF TRUTH: this file is served in-app AND auto-published to docs.idpvault.com by .github/workflows/docs.yml (via docs-site/build.py). Edit here only - there is no wiki mirror to sync (wiki retired 7/21/2026). New docs also get a DOC_TOPICS entry in admin.js and a TOPICS entry in docs-site/build.py. -->
+<p>Let people sign in to IdPVault with your identity provider instead of an IdPVault password. Available on <b>Business</b> and <b>MSP</b> licenses. Everything below is configured in <b>Administration &gt; System settings &gt; Single sign-on</b>.</p>
+<p>Single sign-on is about how people sign in to <i>IdPVault itself</i>. It is completely separate from the tenants IdPVault backs up - connecting Okta as your sign-in provider does not connect it as a tenant, and vice versa.</p>
+
+<h3>Modes</h3>
+<ul>
+<li><b>Off</b> - password sign-in only. No SSO button appears.</li>
+<li><b>Optional</b> - the sign-in page shows both the SSO button and the password form. Use this while you are testing.</li>
+<li><b>Required</b> - password sign-in is switched off. Only break-glass admins and external users can still use a password (see below).</li>
+</ul>
+<p>Saving a mode other than Off requires a complete configuration; IdPVault tells you which field is missing rather than saving something that cannot work. Use <b>Test connection</b> before switching anyone over.</p>
+
+<h3>OpenID Connect</h3>
+<p>The recommended protocol - every major provider supports it. You need three things from your provider's application/integration:</p>
+<ul>
+<li><b>Issuer URL</b> - IdPVault reads the rest (authorization, token and JWKS endpoints) from the provider's discovery document at <code>&lt;issuer&gt;/.well-known/openid-configuration</code>.</li>
+<li><b>Client ID</b> and <b>Client secret</b> - create a confidential/web application at your provider. The secret is encrypted at rest; leave the field blank when saving to keep the stored one.</li>
+<li><b>Redirect URI</b> - IdPVault shows it, read-only. Paste it into your provider's application exactly as shown.</li>
+</ul>
+<p>The flow is authorization code with <b>PKCE</b> and a nonce. Set your <b>Public URL</b> on the General section first - the redirect URI is derived from it, and providers reject a mismatch.</p>
+
+<h3>SAML 2.0</h3>
+<p>Pick <b>SAML 2.0</b> in the Protocol dropdown and the fields change to match. Paste your provider's <b>IdP metadata URL</b> and save: IdPVault reads the entity ID, the sign-in endpoint and the signing certificate from that document and stores them. Your provider's <b>SP metadata URL</b> is shown read-only - import it at the provider, or copy the entity ID and ACS URL by hand.</p>
+<p>SP-initiated sign-in only: start at the IdPVault sign-in page, not from a provider dashboard tile. Responses must be signed, are matched to the request that started them, and are read only from the signature-verified part of the document.</p>
+<p><b>Certificate rotation:</b> when your provider rotates its signing certificate, open System settings and save the SSO section again. IdPVault re-reads the metadata URL and picks up the new certificate. Run <b>Test connection</b> to confirm.</p>
+
+<h3>Accounts and roles</h3>
+<p>People are matched to IdPVault accounts by <b>email address</b>, case-insensitively. Someone who signs in through your provider and has no account yet gets one created at first sign-in with the <b>default role for new SSO users</b>. Their first and last name come from your provider and refresh at every sign-in.</p>
+<p>Accounts created this way sign in with SSO only - they never have a password, in any mode. New accounts from a provider are never placed inside an MSP client organization, and provider-driven role mapping only ever grants the global <b>administrator</b> or <b>user</b> roles. Client organization roles are always assigned inside IdPVault.</p>
+
+<h3>Break-glass accounts</h3>
+<p>Setting SSO to <b>Required</b> means nobody can sign in if your identity provider is unreachable - unless you have a way back in. That is what a break-glass account is: an administrator whose password sign-in keeps working even when SSO is required.</p>
+<ul>
+<li>Flag it on the <b>App users</b> page (<b>Make break-glass</b>), or tick the box when creating an administrator.</li>
+<li>Only an administrator can be break-glass, and the account must have <b>MFA enabled</b> - a password-only emergency door is not one IdPVault will accept.</li>
+<li>Break-glass sign-ins are recorded in the audit log as <code>auth.breakglass_login</code>, separate from ordinary sign-ins, so using the emergency door is visible.</li>
+</ul>
+<p>IdPVault will not let you switch SSO to Required until at least one active administrator is flagged break-glass and has MFA on. Once required, it will not let you take that away either: disabling, deleting, demoting, clearing the flag on, or resetting MFA for the last such account is refused, and your directory cannot deactivate it over SCIM. Keep two if you can - then either one can be maintained.</p>
+
+<h3>External (client) users</h3>
+<p>Some people who use IdPVault are not in your directory at all - typically an MSP's client contacts. Tick <b>Client user (external)</b> on their account and they keep password sign-in when SSO is Required. Org-scoped roles (org admin, org viewer) are external automatically, since those people are by definition not your staff.</p>
+
+<h3>SCIM provisioning</h3>
+<p>SCIM 2.0 lets your provider create, update and deactivate IdPVault accounts automatically, and works with either sign-in protocol. Generate a bearer token in the SCIM provisioning section, paste it and the SCIM base URL into your provider, and enable it.</p>
+<ul>
+<li>The token is shown once, at generation. Store it in your provider immediately; IdPVault keeps only a hash of it.</li>
+<li><b>Deprovisioning disables, it never deletes.</b> Removing someone in your directory disables their IdPVault account so the audit trail survives.</li>
+<li>Groups your provider pushes appear under <b>Push Groups</b>. Names and membership are owned by your directory and are read-only in IdPVault; what you control here is which role each group maps to.</li>
+<li>A person gets the <b>highest</b> role they are mapped to across their groups, re-evaluated whenever their membership changes. Leaving every mapped group returns them to the default role for SSO users.</li>
+<li>Only groups inside your provider's SCIM scope arrive here - exclude application-assignment groups you do not want to see.</li>
+</ul>
+<p>Role mapping will not demote the last active administrator and never changes a break-glass account, and provisioning will not deactivate the last active administrator. Every skipped change is written to the audit log with its reason, so a mapping that did not take effect is never silent.</p>
+
+<h3>Troubleshooting</h3>
+<ul>
+<li><b>The provider rejects the redirect URI.</b> Set Public URL in System settings &gt; General to the address people actually use, then re-copy the redirect URI - it is derived from that value.</li>
+<li><b>SAML sign-in fails after a while.</b> The provider probably rotated its signing certificate. Re-save the SSO section to re-read the metadata.</li>
+<li><b>Someone gets a second account.</b> Their provider email does not match the email on their IdPVault account. Matching is on email, so fix the email on the IdPVault account before their first SSO sign-in.</li>
+<li><b>Locked out with SSO required.</b> Sign in with a break-glass admin's password and MFA, then set the mode back to Optional.</li>
+</ul>

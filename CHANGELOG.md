@@ -22,6 +22,20 @@ All notable changes to IdPVault are documented here. Format loosely follows
   role for SSO users.
 - People can now sign in with their email address. Names (first and last) were
   added to accounts and are shown as "First Last (email)" throughout.
+- SAML 2.0 single sign-on, alongside OpenID Connect. Pick the protocol in
+  System settings and the fields change to match. Paste your provider's
+  metadata URL and IdPVault reads the entity ID, sign-in endpoint and signing
+  certificate from it; save again after a certificate rotation to pick up the
+  new one. Your metadata URL is shown for import at the provider.
+- SSO mode **Required** turns password sign-in off, and break-glass accounts.
+  Flag an administrator as break-glass and that account keeps password
+  sign-in when SSO is required - the way back in if your identity provider is
+  down. Break-glass sign-ins are called out separately in the audit log.
+- Client users can be flagged **external**. External people are not in your
+  directory, so they keep password sign-in when SSO is required. Org-scoped
+  roles are external automatically.
+- System settings sections are collapsible, each with a status chip showing
+  what is configured without opening it.
 
 ### Changed
 - Accounts created before this release keep signing in with their username
@@ -38,6 +52,15 @@ All notable changes to IdPVault are documented here. Format loosely follows
   a break-glass account, and provisioning will not deactivate the last active
   administrator. Every skipped change is recorded in the audit log with its
   reason.
+- SSO cannot be set to **Required** until at least one active administrator is
+  flagged break-glass and has MFA enabled. Once required, that pairing cannot
+  be taken away: disabling, deleting, demoting, clearing break-glass on, or
+  resetting MFA for the last such account is refused, and your directory
+  cannot deactivate it over SCIM either.
+- The last active administrator can no longer be disabled, deleted or demoted
+  by any route.
+- Accounts created by your identity provider cannot sign in with a password at
+  all, in any mode.
 
 ## [1.3.4 - 1.3.5] - 2026-07-29
 

@@ -62,6 +62,9 @@ tr:last-child td{border-bottom:none}
 .tag.authentik{background:var(--tag-violet-bg);color:var(--violet)}.tag.okta{background:var(--tag-blue-bg);color:var(--accent)}.tag.auth0{background:var(--tag-amber-bg);color:var(--amber)}
 .tag.admin{background:var(--tag-blue-bg);color:var(--accent)}.tag.user{background:var(--tag-dim-bg);color:var(--dim)}
 .tag.ok{background:var(--tag-green-bg);color:var(--green)}.tag.off{background:var(--tag-red-bg);color:var(--red)}.tag.pending{background:var(--tag-amber-bg);color:var(--amber)}
+.tag.warn{background:var(--tag-amber-bg);color:var(--amber)}.tag.info{background:var(--tag-blue-bg);color:var(--accent)}
+.cbrow{display:flex;gap:8px;align-items:center;font-weight:400;text-transform:none;letter-spacing:0}
+.cbrow input[type=checkbox]{width:auto;margin:0}
 
 button{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 14px;cursor:pointer;font-size:.82rem;font-weight:500;transition:all .12s}
 button:hover{background:var(--panel3);border-color:var(--btn-hover-border)}
@@ -114,6 +117,13 @@ input::placeholder{color:var(--placeholder)}
 .setsec .formgrid{margin-bottom:0;grid-template-columns:repeat(2,1fr);align-content:start}
 .setfoot{border-top:1px solid var(--border);padding-top:16px;margin-top:2px;display:flex;gap:10px;align-items:center}
 .setfoot .spacer{flex:1}
+/* Collapsible settings sections - same pattern as StackMerger and TFsmith */
+.panel h2.collapser{cursor:pointer;user-select:none;margin-bottom:0}
+.panel h2.collapser.open{margin-bottom:16px}
+.panel h2.collapser:hover{color:var(--text)}
+.collapser .chev{display:inline-block;width:11px;font-size:.75rem;line-height:1;transition:transform .15s ease}
+.collapser.open .chev{transform:rotate(90deg)}
+.seccount{font-weight:400;text-transform:none;letter-spacing:0;font-size:.78rem;color:var(--dim)}
 @media(max-width:1100px){.setsec{grid-template-columns:1fr;gap:10px}.setsec .formgrid{grid-template-columns:1fr}}
 .skeleton{background:linear-gradient(90deg,var(--panel2),var(--panel3),var(--panel2));background-size:200% 100%;animation:sk 1.3s infinite;border-radius:5px;height:11px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}

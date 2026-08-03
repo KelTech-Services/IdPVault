@@ -33,9 +33,13 @@ async function loadUsers(){
       <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
       <td class="muted">${esc(u.email||'-')}</td>
       <td><span class="tag ${u.role}">${u.role}</span>${u.org_name?` <span class="muted" style="font-size:.72rem">${esc(u.org_name)}</span>`:''}</td>
-      <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}</td>
+      <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}${
+        u.breakglass ? ' <span class="tag warn" title="Password sign-in stays available for this admin when SSO is set to Required.">break-glass</span>' : ''}${
+        u.sso_user ? ' <span class="tag info" title="Created by your identity provider - signs in with SSO only.">SSO</span>' : ''}${
+        u.external && !u.org_name ? ' <span class="tag info" title="Client user - not in your directory, so password sign-in stays available when SSO is Required.">external</span>' : ''}</td>
       <td style="white-space:nowrap">${u.username===me.username ? '<span class="muted">-</span>' : `
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
+        ${u.role==='admin' ? `<button onclick="patchUser(${u.id}, {breakglass: ${!u.breakglass}})" title="${u.breakglass?'Stop allowing password sign-in for this admin when SSO is Required.':'Allow password sign-in for this admin when SSO is Required. The account needs MFA enabled.'}">${u.breakglass?'Clear break-glass':'Make break-glass'}</button>` : ''}
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
         <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
         <button onclick="resetUserMfa(${u.id}, '${esc(u.username)}')">Reset MFA</button>
@@ -54,6 +58,8 @@ async function createUser(){
       if((v('u_pw')||'').length < 8) return toast('Password must be at least 8 characters.', true);
       body.password = v('u_pw');
     }
+    body.breakglass = body.role==='admin' && document.getElementById('u_bg').checked;
+    body.external = document.getElementById('u_ext').checked;
     const r = await api('/users', {method:'POST', body: JSON.stringify(body)});
     if(r.invite_link){
       const link = location.origin + r.invite_link;
@@ -63,6 +69,7 @@ async function createUser(){
       toast('User created and active - they can sign in now.');
     }
     ['u_name','u_email','u_pw'].forEach(i=>document.getElementById(i).value='');
+    ['u_bg','u_ext'].forEach(i=>document.getElementById(i).checked=false);
     loadUsers();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
@@ -81,6 +88,12 @@ function onUserRoleChange(){
   const r = v('u_role'), isOrg = r==='org_admin' || r==='org_viewer';
   const d = document.getElementById('ud_org'); if(!d) return;
   d.classList.toggle('hidden', !isOrg);
+  // Break-glass is an admin-only concept; org-scoped roles are always external.
+  const bg = document.getElementById('ud_bg');
+  if(bg){ bg.classList.toggle('hidden', r!=='admin');
+    if(r!=='admin') document.getElementById('u_bg').checked = false; }
+  const ext = document.getElementById('u_ext');
+  if(ext){ if(isOrg) ext.checked = true; ext.disabled = isOrg; }
   if(isOrg) document.getElementById('u_org').innerHTML =
     _orgs.length ? _orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')
                  : '<option value="">no orgs yet - create one on the Orgs page</option>';
@@ -278,6 +291,7 @@ const DOC_TOPICS = [
   {key:'identity',        title:'Users & Access backup'},
   {key:'alerts',          title:'Alerts & notifications'},
   {key:'users-security',  title:'Users & security'},
+  {key:'sso',             title:'Single sign-on & SCIM', feature:'identity'},
   {key:'licensing',       title:'Licensing & tiers'},
   {key:'msp-orgs',        title:'MSP & client orgs', feature:'msp'},
   {key:'deployment',      title:'Deployment & proxy'},
@@ -336,6 +350,13 @@ async function loadSettings(){
     document.getElementById('s_pub').value = s.public_url || '';
     document.getElementById('s_enforce').value = s.enforce_host ? 'true' : 'false';
     document.getElementById('s_reqnote').value = s.require_restore_note ? 'true' : 'false';
+    // Header chips - the point of collapsing is being able to tell what is
+    // configured without opening every section.
+    setSecCount('cnt_email', smtp.host ? smtp.host : 'off');
+    const emailEv = Array.isArray(s.alert_events_email) ? s.alert_events_email : legacyEv;
+    const hookEv = Array.isArray(s.alert_events_webhook) ? s.alert_events_webhook : legacyEv;
+    const nEv = new Set([].concat(emailEv, s.alert_webhook_url ? hookEv : [])).size;
+    setSecCount('cnt_alerts', nEv ? nEv + ' subscribed' : 'off');
   } catch(e){ toast(e.message, true); }
 }
 async function saveSettings(){
@@ -427,6 +448,12 @@ async function loadSso(){
     if(!c.licensed){ panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
     document.getElementById('so_mode').value = c.mode || 'off';
+    document.getElementById('so_proto').value = c.protocol || 'oidc';
+    document.getElementById('so_samlmeta').value = c.saml_metadata_url || '';
+    document.getElementById('so_samlent').value = c.saml_entity_id || '(read from metadata on save)';
+    document.getElementById('so_samlcert').value =
+      c.saml_cert_loaded ? 'Loaded from metadata' : 'Not loaded yet';
+    ssoProtoSwitch();
     document.getElementById('so_issuer').value = c.issuer || '';
     document.getElementById('so_client').value = c.client_id || '';
     document.getElementById('so_secret').value = '';
@@ -438,6 +465,8 @@ async function loadSso(){
     role.innerHTML = (c.jit_roles || ['user','admin'])
       .map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
     role.value = c.jit_default_role || 'user';
+    setSecCount('cnt_sso', c.effective_mode === 'off'
+      ? 'off' : (c.protocol || 'oidc').toUpperCase() + ', ' + c.effective_mode);
     const st = document.getElementById('so_state');
     st.textContent = c.effective_mode === 'off' && c.mode !== 'off'
       ? 'Saved as "' + c.mode + '" but not active yet - finish the configuration below.'
@@ -445,6 +474,8 @@ async function loadSso(){
     try{
       const r = await api('/auth/sso/redirect-uri');
       document.getElementById('so_redirect').value = r.redirect_uri || '';
+      document.getElementById('so_samlsp').value =
+        (r.redirect_uri || '').replace('/auth/sso/callback', '/auth/saml/metadata');
     }catch{}
   }catch{ panel.classList.add('hidden'); }
 }
@@ -453,7 +484,8 @@ async function saveSso(){
   const err = document.getElementById('so_err');
   err.textContent = '';
   const body = {
-    mode: v('so_mode'), protocol: 'oidc',
+    mode: v('so_mode'), protocol: v('so_proto'),
+    saml_metadata_url: v('so_samlmeta'),
     issuer: v('so_issuer'), client_id: v('so_client'),
     scopes: v('so_scopes'), button_label: v('so_label'),
     jit_default_role: v('so_role'),
@@ -542,4 +574,26 @@ async function setGroupRole(id, role){
     toast('Role mapping updated - members are being re-evaluated.');
     loadPushGroups();
   }catch(e){ toast(e.message, true); loadPushGroups(); }
+}
+
+
+function ssoProtoSwitch(){
+  // The two protocols need entirely different inputs - show only the live one
+  // rather than a form where half the fields are ignored on save.
+  const saml = document.getElementById('so_proto').value === 'saml';
+  document.getElementById('so_oidcfields').classList.toggle('hidden', saml);
+  document.getElementById('so_samlfields').classList.toggle('hidden', !saml);
+}
+
+/* Collapsible settings sections - same pattern as StackMerger and TFsmith.
+   System settings is a long page; it should open as an index. */
+function toggleSec(id, h){
+  const b = document.getElementById(id);
+  b.classList.toggle('hidden');
+  h.classList.toggle('open', !b.classList.contains('hidden'));
+}
+
+function setSecCount(id, text){
+  const e = document.getElementById(id);
+  if(e) e.textContent = (text === '' || text == null) ? '' : '(' + text + ')';
 }

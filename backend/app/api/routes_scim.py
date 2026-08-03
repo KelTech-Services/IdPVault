@@ -251,6 +251,17 @@ def _set_active(db, u: User, active: bool) -> None:
         _audit(db, "scim.deactivate_skipped",
                {"username": u.username, "reason": "last active administrator"})
         return
+    # A directory mistake must never disable the last break-glass admin while
+    # SSO is required - that is the only way back in.
+    if not active and u.breakglass and oidc.mode() == "required" \
+            and not db.query(User).filter(
+                User.role == "admin", User.id != u.id,
+                User.is_active.is_(True), User.breakglass.is_(True),
+                User.mfa_enabled.is_(True)).count():
+        _audit(db, "scim.deactivate_skipped",
+               {"username": u.username,
+                "reason": "last break-glass admin while SSO is required"})
+        return
     u.is_active = active
     _audit(db, "scim.user_active", {"username": u.username, "active": active})
 

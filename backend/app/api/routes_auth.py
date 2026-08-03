@@ -115,6 +115,18 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
             _register_fail()
             raise HTTPException(401, "invalid credentials")
 
+        # Accounts created by the identity provider have no local password to
+        # begin with; say so plainly instead of a generic 401.
+        if u.sso_user:
+            raise HTTPException(403, "this account signs in with single sign-on")
+        # SSO "required" switches password sign-in off for everyone except
+        # break-glass admins (the emergency door) and external users (client
+        # contacts who are not in your directory).
+        from app.core import oidc as _oidc
+        sso_mode = _oidc.mode()
+        if not _oidc.password_login_allowed(u, sso_mode):
+            raise HTTPException(403, "password sign-in is disabled - use single sign-on")
+
         if u.mfa_enabled:
             trusted = False
             tok = request.cookies.get(TRUST_COOKIE)
@@ -139,7 +151,13 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
         u.failed_logins = 0
         u.locked_until = None
         token = security.create_session(db, u.id)
-        db.add(AuditLog(actor=u.username, action="auth.login", detail={}))
+        # Break-glass sign-ins while SSO is required are LOUD in the audit log.
+        if sso_mode == "required" and u.breakglass:
+            db.add(AuditLog(actor=u.username, action="auth.breakglass_login",
+                            detail={"note": "password sign-in while SSO is required"}))
+        else:
+            db.add(AuditLog(actor=u.username, action="auth.login",
+                            detail={"external": True} if u.external else {}))
         db.commit()
     secure = deploy.is_secure(request)
     response.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=secure,

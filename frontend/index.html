@@ -407,6 +407,12 @@
         <div id="ud_org" class="hidden"><label>Client org</label><select id="u_org"></select></div>
         <div><label>Password setup</label><select id="u_mode" onchange="document.getElementById('u_pwwrap').classList.toggle('hidden', this.value!=='password')"><option value="invite">Send invite link</option><option value="password">Set password now</option></select></div>
         <div id="u_pwwrap" class="hidden"><label>Password (min 8 characters)</label><input id="u_pw" type="password" placeholder="they can change it later in their profile"></div>
+        <div id="ud_bg" class="hidden"><label>Break-glass account</label>
+          <label class="cbrow"><input id="u_bg" type="checkbox"> Keep password sign-in for this admin even when SSO is set to Required</label>
+          <div class="muted" style="font-size:.76rem;margin-top:5px">The way back in if your identity provider is down. Needs MFA enabled on the account. Break-glass sign-ins are called out in the audit log.</div></div>
+        <div><label>Client user (external)</label>
+          <label class="cbrow"><input id="u_ext" type="checkbox"> This person is not in your directory</label>
+          <div class="muted" style="font-size:.76rem;margin-top:5px">External users keep password sign-in when SSO is Required. Org-scoped roles are always external.</div></div>
       </div>
       <button class="primary" onclick="createUser()">Create user</button>
       <p class="muted" style="margin-top:8px;font-size:.78rem">Invite link: emailed if SMTP is configured; either way you get a copyable link. Set password now: no email needed, the account is active immediately - share the password securely.</p>
@@ -468,21 +474,39 @@
 </main>
 <main id="view-settings" class="hidden">
   <section class="panel" id="ssopanel">
-    <h2>Single sign-on <span class="tipi" title="Let people sign in with your identity provider instead of an IdPVault password. Available on Business and MSP licenses.">ⓘ</span></h2>
+    <h2 class="collapser" onclick="toggleSec('sec_sso',this)"><span class="chev">&#9656;</span>Single sign-on <span class="tipi" title="Let people sign in with your identity provider instead of an IdPVault password. Available on Business and MSP licenses.">ⓘ</span> <span class="seccount" id="cnt_sso"></span></h2>
+    <div id="sec_sso" class="hidden">
     <div class="setsec">
-      <div><div class="sst">OpenID Connect</div><div class="ssd">Point IdPVault at your IdP's issuer URL and it reads the rest from the provider's discovery document. Paste the redirect URI below into the IdP when you create the application.</div></div>
+      <div><div class="sst">Protocol</div><div class="ssd">Pick how people sign in. The fields below change to match. Setting the mode to Required needs an active break-glass admin with MFA first - see <a href="#" onclick="_docKey='sso';location.hash='#/docs';return false">Single sign-on &amp; SCIM</a> in the docs.</div></div>
       <div class="formgrid">
+        <div><label>Protocol</label><select id="so_proto" onchange="ssoProtoSwitch()">
+          <option value="oidc">OpenID Connect</option>
+          <option value="saml">SAML 2.0</option></select></div>
         <div><label>Mode</label><select id="so_mode">
           <option value="off">Off</option>
           <option value="optional">Optional - SSO button plus password sign-in</option>
           <option value="required">Required - SSO only</option></select></div>
         <div><label>Default role for new SSO users</label><select id="so_role"></select></div>
-        <div><label>Issuer URL</label><input id="so_issuer" placeholder="https://authentik.example.com/application/o/idpvault/"></div>
-        <div><label>Client ID</label><input id="so_client" autocomplete="off"></div>
-        <div><label>Client secret</label><input id="so_secret" type="password" autocomplete="new-password" placeholder="leave blank to keep the saved one"></div>
-        <div><label>Scopes</label><input id="so_scopes" placeholder="openid profile email"></div>
         <div><label>Sign-in button label</label><input id="so_label" placeholder="Sign in with SSO"></div>
-        <div><label>Redirect URI (paste this into your IdP)</label><input id="so_redirect" readonly></div>
+      </div>
+
+      <div id="so_oidcfields">
+        <div class="formgrid">
+          <div><label>Issuer URL</label><input id="so_issuer" placeholder="https://authentik.example.com/application/o/idpvault/"></div>
+          <div><label>Client ID</label><input id="so_client" autocomplete="off"></div>
+          <div><label>Client secret</label><input id="so_secret" type="password" autocomplete="new-password" placeholder="leave blank to keep the saved one"></div>
+          <div><label>Scopes</label><input id="so_scopes" placeholder="openid profile email"></div>
+          <div style="grid-column:span 2"><label>Redirect URI (paste this into your IdP)</label><input id="so_redirect" readonly></div>
+        </div>
+      </div>
+
+      <div id="so_samlfields" class="hidden">
+        <div class="formgrid">
+          <div style="grid-column:span 2"><label>IdP metadata URL</label><input id="so_samlmeta" placeholder="https://authentik.example.com/api/v3/providers/saml/1/metadata/?download"><div class="muted" style="font-size:.76rem;margin-top:5px">The entity ID, sign-in endpoint and signing certificate are read from here when you save. Save again to pick up a rotated certificate.</div></div>
+          <div><label>IdP entity ID (read from metadata)</label><input id="so_samlent" readonly></div>
+          <div><label>Signing certificate</label><input id="so_samlcert" readonly></div>
+          <div style="grid-column:span 2"><label>Our metadata URL (import this at your IdP)</label><input id="so_samlsp" readonly></div>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
         <button class="primary" onclick="saveSso()">Save single sign-on</button>
@@ -513,10 +537,12 @@
       <div><div class="sst">Push Groups</div><div class="ssd">Groups your identity provider has pushed over SCIM. They are managed entirely in your directory - names and membership are read-only here. Map a group to a role and its members get the highest role they are mapped to; leaving every mapped group returns them to the default role for SSO users.</div></div>
       <div id="pg_table"><p class="muted" style="font-size:.85rem">No groups pushed yet.</p></div>
     </div>
+    </div>
   </section>
 
   <section class="panel">
-    <h2>General</h2>
+    <h2 class="collapser" onclick="toggleSec('sec_gen',this)"><span class="chev">&#9656;</span>General</h2>
+    <div id="sec_gen" class="hidden">
     <div class="setsec">
       <div><div class="sst">Backup defaults</div><div class="ssd">Applied to new tenants - each tenant can override its own schedule and retention. Schedules run in the org timezone. Backups queue and run one at a time; same-tenant runs never overlap.</div></div>
       <div class="formgrid">
@@ -551,9 +577,11 @@
       </div>
     </div>
     <div class="setfoot"><button class="primary" onclick="saveSettings()">Save settings</button></div>
+    </div>
   </section>
   <section class="panel">
-    <h2>Email</h2>
+    <h2 class="collapser" onclick="toggleSec('sec_email',this)"><span class="chev">&#9656;</span>Email <span class="seccount" id="cnt_email"></span></h2>
+    <div id="sec_email" class="hidden">
     <div class="setsec">
       <div><div class="sst">SMTP server</div><div class="ssd">Optional - needed for app-user invites and email alerts. The password is encrypted at rest; leave the host blank to keep email off.</div></div>
       <div class="formgrid">
@@ -571,9 +599,11 @@
       <input id="s_testto" placeholder="you@example.com" style="width:220px">
       <button onclick="testEmail()">Send test email</button>
     </div>
+    </div>
   </section>
   <section class="panel">
-    <h2>Alerts</h2>
+    <h2 class="collapser" onclick="toggleSec('sec_alerts',this)"><span class="chev">&#9656;</span>Alerts <span class="seccount" id="cnt_alerts"></span></h2>
+    <div id="sec_alerts" class="hidden">
     <div class="setsec">
       <div><div class="sst">Delivery</div><div class="ssd">Alerts fire automatically on configuration drift, Users &amp; Access changes, backup failures, and restores. They post to a webhook (Slack, Mattermost, Discord, or ntfy) and, when SMTP is configured, also email all admins. The overdue watchdog alerts when a scheduled backup has not completed within the window below.</div></div>
       <div class="formgrid">
@@ -595,6 +625,7 @@
       <button class="primary" onclick="saveSettings()">Save settings</button>
       <button onclick="testAlert(this)">Send test alert</button>
       <span class="muted" style="font-size:.78rem">save first, then test</span>
+    </div>
     </div>
   </section>
 </main>
