@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
+from sqlalchemy import func
 
 SESSION_DAYS = 30
 _N, _R, _P = 2**14, 8, 1
@@ -99,3 +100,48 @@ def require_tenant_write(request: Request, db, tenant_id: int) -> None:
             return
         raise HTTPException(404, "tenant not found")
     raise HTTPException(403, MSP_CONTACT_MSG)
+
+
+# ---------- corporate identity (v1.4) ----------
+# Email is the sign-in identifier. username stays as the internal/legacy
+# handle so that accounts predating this release keep working unchanged.
+
+def normalize_email(email: str | None) -> str:
+    """Emails are compared and stored lowercase. '' means 'no email set'."""
+    return (email or "").strip().lower()
+
+
+def email_taken(db, email: str, exclude_id: int | None = None) -> bool:
+    """Case-insensitive uniqueness, enforced HERE rather than by a DB index -
+    legacy installs have a first-run admin with email='' and a unique index
+    could not be built over them. An empty email is never 'taken'."""
+    from app.models.db import User
+    email = normalize_email(email)
+    if not email:
+        return False
+    q = db.query(User).filter(func.lower(User.email) == email)
+    if exclude_id is not None:
+        q = q.filter(User.id != exclude_id)
+    return q.first() is not None
+
+
+def username_from_email(db, email: str) -> str:
+    """users.username is varchar(80) + unique; emails can be longer or collide
+    after truncation. Derive a safe internal username for IdP-created users."""
+    from app.models.db import User
+    base = normalize_email(email)[:80] or "user"
+    name, n = base, 2
+    while db.query(User).filter(User.username == name).first():
+        suffix = str(n)
+        name = base[:80 - len(suffix)] + suffix
+        n += 1
+    return name
+
+
+def display_name(u) -> str:
+    """The one true user label: 'First Last (email)'. Falls back to the
+    username for legacy accounts with no name or email set - which includes
+    the first-run admin on every install that predates this release."""
+    name = " ".join(x for x in [(u.first_name or "").strip(),
+                                (u.last_name or "").strip()] if x) or u.username
+    return f"{name} ({u.email})" if u.email else name

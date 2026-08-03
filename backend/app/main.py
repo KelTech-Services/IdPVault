@@ -5,13 +5,22 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_jobs, routes_license, routes_metrics, routes_orgs, routes_restore, routes_settings, routes_tenants, routes_tfexport, routes_users
+from app.api import routes_audit, routes_auth, routes_backups, routes_dashboard, routes_health, routes_identity, routes_jobs, routes_license, routes_metrics, routes_orgs, routes_restore, routes_saml, routes_scim, routes_settings, routes_sso, routes_tenants, routes_tfexport, routes_users
 from app.config import get_settings
 from app.core.scheduler import scheduler, load_tenant_jobs
 from app.models.db import init_db
 
 PUBLIC_API = {"/api/v1/auth/login", "/api/v1/auth/accept-invite",
-              "/api/v1/auth/status", "/api/v1/auth/setup", "/api/v1/auth/forgot"}
+              "/api/v1/auth/status", "/api/v1/auth/setup", "/api/v1/auth/forgot",
+              # SSO starts and finishes BEFORE a session exists, so both legs
+              # have to be reachable unauthenticated. They are still inert
+              # unless SSO is licensed, configured and enabled.
+              "/api/v1/auth/sso/login", "/api/v1/auth/sso/callback",
+              "/api/v1/auth/sso/public",
+              # SAML: metadata is public by design; login starts a
+              # session-less flow; the ACS receives the IdP's POST.
+              "/api/v1/auth/saml/metadata", "/api/v1/auth/saml/login",
+              "/api/v1/auth/saml/acs"}
 
 
 def bootstrap_admin() -> None:
@@ -52,7 +61,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="IdPVault", version="1.3.5", lifespan=lifespan)
+app = FastAPI(title="IdPVault", version="1.4.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -81,7 +90,10 @@ async def security_headers(request: Request, call_next):
 @app.middleware("http")
 async def session_auth(request: Request, call_next):
     path = request.url.path
-    if not path.startswith("/api/") or path in PUBLIC_API:
+    # SCIM authenticates with its own bearer token, not a browser session, so
+    # it bypasses the session gate and does its own check on every route.
+    if (not path.startswith("/api/") or path in PUBLIC_API
+            or path.startswith("/api/scim/v2/")):
         return await call_next(request)  # static UI + login endpoints are public; APIs are not
     from app.core.security import resolve_session
     from app.models.db import SessionLocal
@@ -109,6 +121,9 @@ app.include_router(routes_settings.router, prefix="/api/v1")
 app.include_router(routes_license.router, prefix="/api/v1")
 app.include_router(routes_orgs.router, prefix="/api/v1")
 app.include_router(routes_tfexport.router, prefix="/api/v1")
+app.include_router(routes_sso.router, prefix="/api/v1")
+app.include_router(routes_saml.router, prefix="/api/v1")
+app.include_router(routes_scim.router, prefix="/api")
 
 
 class UIStaticFiles(StaticFiles):

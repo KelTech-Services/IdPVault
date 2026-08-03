@@ -187,7 +187,24 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    # Corporate identity (v1.4): EMAIL is the sign-in identifier for new
+    # accounts, stored lowercase. Deliberately NOT unique at the DB level -
+    # legacy installs carry a first-run admin with email="" (see main.py and
+    # routes_auth first-run setup), and a unique index would refuse to build.
+    # Uniqueness is enforced case-insensitively in code, treating "" as absent.
     email: Mapped[str] = mapped_column(String(255), default="")
+    # Names are owned by an admin or the IdP - a user can never edit their own.
+    first_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # sso_user  = JIT-created by the IdP, never has a local password.
+    # breakglass = may password-login even when SSO mode is "required" (loud
+    #              audit). external = contractor/vendor or an MSP's own client,
+    #              not in the org IdP: password-login allowed under required,
+    #              but MFA becomes mandatory. Deliberately separate concepts.
+    sso_user: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    breakglass: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    external: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    scim_external_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(300), default="")  # scrypt salt$hash
     role: Mapped[str] = mapped_column(String(20), default="user")  # admin | user | org_admin | org_viewer
     org_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # scope for org_* roles
@@ -308,3 +325,40 @@ class Job(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PushGroup(Base):
+    """A group PUSHED to us by the identity provider over SCIM.
+
+    Deliberately NOT the same thing as an Org. Orgs are MSP client companies -
+    customer entities that own tenants and scope org_admin/org_viewer users.
+    Push groups are directory groups belonging to the CUSTOMER'S OWN staff
+    directory. Mapping one onto the other would let an IdP administrator
+    reshape MSP client scoping, which must never happen.
+
+    Read-only in the app: only the SCIM endpoints ever create these or change
+    their membership. The one thing an admin sets here is scim_role.
+    """
+    __tablename__ = "push_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    # Set ONLY by SCIM. Its presence is what marks a group as IdP-owned.
+    scim_external_id: Mapped[str | None] = mapped_column(String(200),
+                                                         nullable=True,
+                                                         index=True)
+    # Optional role mapping: members get the HIGHEST mapped role across all
+    # their push groups. NULL = this group grants nothing.
+    scim_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PushGroupMember(Base):
+    __tablename__ = "push_group_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("push_groups.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

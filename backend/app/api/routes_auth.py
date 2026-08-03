@@ -2,6 +2,7 @@
 first-run setup, self-service password change + TOTP MFA management."""
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
+from sqlalchemy import func
 
 from app.core import crypto, deploy, security, totp
 from app.models.db import AuditLog, MfaTrust, SessionLocal, Setting, User
@@ -68,6 +69,23 @@ def _login_policy(db):
     return _i("login_max_attempts", 5), _i("login_lockout_minutes", 15)
 
 
+def _by_identifier(db, ident: str):
+    """Resolve a sign-in identifier: EMAIL first (the identifier from v1.4 on),
+    then legacy username.
+
+    The username fallback is not decoration - every install created before
+    v1.4 has a first-run admin whose email is "", and that account has to keep
+    signing in exactly as it always has.
+    """
+    ident = (ident or "").strip()
+    if not ident:
+        return None
+    u = (db.query(User)
+         .filter(func.lower(User.email) == ident.lower(), User.email != "")
+         .first())
+    return u or db.query(User).filter(User.username == ident).first()
+
+
 @router.post("/auth/login")
 def login(body: LoginIn, request: Request, response: Response) -> dict:
     import secrets as pysecrets
@@ -75,7 +93,7 @@ def login(body: LoginIn, request: Request, response: Response) -> dict:
     now = datetime.now(timezone.utc)
     new_trust = None
     with SessionLocal() as db:
-        u = db.query(User).filter(User.username == body.username).first()
+        u = _by_identifier(db, body.username)
 
         if u and u.locked_until and u.locked_until > now:
             mins = int((u.locked_until - now).total_seconds()) // 60 + 1

@@ -13,7 +13,11 @@
   <div class="logincard" id="logincard">
     <img src="/IdPVault_light_logo.png" alt="IdPVault">
     <h3>Sign in</h3>
-    <div><span class="lbl">Username</span><input id="l_user" autocomplete="username"></div>
+    <div id="ssowrap" class="hidden">
+      <button id="ssobtn" class="primary" onclick="ssoLogin()">Sign in with SSO</button>
+      <p class="muted" style="text-align:center;font-size:.74rem;margin:8px 0">or sign in with your password</p>
+    </div>
+    <div><span class="lbl">Email or username</span><input id="l_user" autocomplete="username"></div>
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
     <div id="l_mfawrap" class="hidden"><span class="lbl">Authenticator code</span><input id="l_totp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
     <button class="primary" onclick="doLogin()">Sign in</button>
@@ -463,6 +467,54 @@
   </section>
 </main>
 <main id="view-settings" class="hidden">
+  <section class="panel" id="ssopanel">
+    <h2>Single sign-on <span class="tipi" title="Let people sign in with your identity provider instead of an IdPVault password. Available on Business and MSP licenses.">ⓘ</span></h2>
+    <div class="setsec">
+      <div><div class="sst">OpenID Connect</div><div class="ssd">Point IdPVault at your IdP's issuer URL and it reads the rest from the provider's discovery document. Paste the redirect URI below into the IdP when you create the application.</div></div>
+      <div class="formgrid">
+        <div><label>Mode</label><select id="so_mode">
+          <option value="off">Off</option>
+          <option value="optional">Optional - SSO button plus password sign-in</option>
+          <option value="required">Required - SSO only</option></select></div>
+        <div><label>Default role for new SSO users</label><select id="so_role"></select></div>
+        <div><label>Issuer URL</label><input id="so_issuer" placeholder="https://authentik.example.com/application/o/idpvault/"></div>
+        <div><label>Client ID</label><input id="so_client" autocomplete="off"></div>
+        <div><label>Client secret</label><input id="so_secret" type="password" autocomplete="new-password" placeholder="leave blank to keep the saved one"></div>
+        <div><label>Scopes</label><input id="so_scopes" placeholder="openid profile email"></div>
+        <div><label>Sign-in button label</label><input id="so_label" placeholder="Sign in with SSO"></div>
+        <div><label>Redirect URI (paste this into your IdP)</label><input id="so_redirect" readonly></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <button class="primary" onclick="saveSso()">Save single sign-on</button>
+        <button onclick="testSso()">Test connection</button>
+      </div>
+      <p id="so_state" class="muted" style="font-size:.8rem"></p>
+      <p id="so_err" class="muted" style="font-size:.8rem"></p>
+    </div>
+
+    <div class="setsec">
+      <div><div class="sst">SCIM provisioning</div><div class="ssd">Let your identity provider create, update and deactivate IdPVault accounts automatically. Deactivating in your directory disables the account here - it is never deleted, so the audit trail survives.</div></div>
+      <div class="formgrid">
+        <div><label>SCIM base URL (paste this into your IdP)</label><input id="sc_base" readonly></div>
+        <div><label>Status</label><input id="sc_status" readonly></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <button class="primary" onclick="scimToken()">Generate bearer token</button>
+        <button id="sc_toggle" onclick="scimToggle()">Enable SCIM</button>
+      </div>
+      <div id="sc_tokwrap" class="hidden" style="margin-top:10px">
+        <label>Bearer token - copy it now, it is never shown again</label>
+        <input id="sc_token" readonly onclick="this.select()">
+      </div>
+      <p id="sc_err" class="muted" style="font-size:.8rem"></p>
+    </div>
+
+    <div class="setsec">
+      <div><div class="sst">Push Groups</div><div class="ssd">Groups your identity provider has pushed over SCIM. They are managed entirely in your directory - names and membership are read-only here. Map a group to a role and its members get the highest role they are mapped to; leaving every mapped group returns them to the default role for SSO users.</div></div>
+      <div id="pg_table"><p class="muted" style="font-size:.85rem">No groups pushed yet.</p></div>
+    </div>
+  </section>
+
   <section class="panel">
     <h2>General</h2>
     <div class="setsec">

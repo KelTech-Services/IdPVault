@@ -3,6 +3,42 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.4.0] - 2026-08-03
+### Added
+- Sign in with your identity provider. IdPVault now supports OpenID Connect
+  single sign-on (authorization code with PKCE), configured in Administration >
+  System settings > Single sign-on. Point it at your provider's issuer URL and
+  it reads the rest from the discovery document; a Test connection button
+  checks the provider before you turn anything on. Available on Business and
+  MSP licenses.
+- SCIM 2.0 provisioning. Your identity provider can create, update and
+  deactivate IdPVault accounts automatically. Deactivating someone in your
+  directory disables their IdPVault account - it is never deleted, so the
+  audit trail survives.
+- Push Groups. Groups your provider pushes over SCIM appear in their own
+  section, and each can be mapped to a role. A person gets the highest role
+  they are mapped to across their groups, re-evaluated whenever their
+  membership changes. Leaving every mapped group returns them to the default
+  role for SSO users.
+- People can now sign in with their email address. Names (first and last) were
+  added to accounts and are shown as "First Last (email)" throughout.
+
+### Changed
+- Accounts created before this release keep signing in with their username
+  exactly as before. Nothing needs to be changed on an existing install.
+- Your identity provider owns the names of anyone who signs in through it -
+  they refresh at every sign-in.
+
+### Security
+- New accounts created by a provider are never placed inside an MSP client
+  organization, and group role mapping only ever grants the global
+  administrator or user roles. Client organization roles stay assigned inside
+  IdPVault.
+- Role mapping will not demote the last active administrator and never changes
+  a break-glass account, and provisioning will not deactivate the last active
+  administrator. Every skipped change is recorded in the audit log with its
+  reason.
+
 ## [1.3.4 - 1.3.5] - 2026-07-29
 
 - A snapshot whose provider refused one or more resource types now says so in

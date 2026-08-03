@@ -305,6 +305,8 @@ async function openDoc(key){
 }
 
 async function loadSettings(){
+  loadSso();
+  loadScim();
   try {
     const s = await api('/settings');
     const smtp = s.smtp || {};
@@ -412,3 +414,132 @@ async function loadAudit(){
   } catch(e){ tb.innerHTML=`<tr><td colspan="4" class="muted">${esc(e.message)}</td></tr>`; }
 }
 
+
+
+/* ---------- single sign-on (Business + MSP) ---------- */
+async function loadSso(){
+  const panel = document.getElementById('ssopanel');
+  if(!panel) return;
+  try{
+    const c = await api('/sso');
+    // Not licensed = the whole panel is hidden rather than shown as a
+    // teaser that 402s on save. (Standing rule: never a 402 out of a form.)
+    if(!c.licensed){ panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+    document.getElementById('so_mode').value = c.mode || 'off';
+    document.getElementById('so_issuer').value = c.issuer || '';
+    document.getElementById('so_client').value = c.client_id || '';
+    document.getElementById('so_secret').value = '';
+    document.getElementById('so_secret').placeholder =
+      c.has_secret ? 'leave blank to keep the saved one' : 'client secret';
+    document.getElementById('so_scopes').value = c.scopes || '';
+    document.getElementById('so_label').value = c.button_label || '';
+    const role = document.getElementById('so_role');
+    role.innerHTML = (c.jit_roles || ['user','admin'])
+      .map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+    role.value = c.jit_default_role || 'user';
+    const st = document.getElementById('so_state');
+    st.textContent = c.effective_mode === 'off' && c.mode !== 'off'
+      ? 'Saved as "' + c.mode + '" but not active yet - finish the configuration below.'
+      : (c.configured ? 'Configured. Effective mode: ' + c.effective_mode : 'Not configured yet.');
+    try{
+      const r = await api('/auth/sso/redirect-uri');
+      document.getElementById('so_redirect').value = r.redirect_uri || '';
+    }catch{}
+  }catch{ panel.classList.add('hidden'); }
+}
+
+async function saveSso(){
+  const err = document.getElementById('so_err');
+  err.textContent = '';
+  const body = {
+    mode: v('so_mode'), protocol: 'oidc',
+    issuer: v('so_issuer'), client_id: v('so_client'),
+    scopes: v('so_scopes'), button_label: v('so_label'),
+    jit_default_role: v('so_role'),
+  };
+  const sec = document.getElementById('so_secret').value.trim();
+  if(sec) body.client_secret = sec;
+  try{
+    await api('/sso', {method:'PUT', body: JSON.stringify(body)});
+    toast('Single sign-on saved.');
+    loadSso();
+  }catch(e){ err.textContent = e.message; }
+}
+
+async function testSso(){
+  const err = document.getElementById('so_err');
+  err.textContent = 'Testing…';
+  try{
+    const r = await api('/sso/test', {method:'POST'});
+    err.textContent = 'Reached the identity provider. Issuer: ' + r.issuer +
+      (r.userinfo ? ' (userinfo available)' : '');
+  }catch(e){ err.textContent = e.message; }
+}
+
+
+/* ---------- SCIM provisioning + push groups ---------- */
+async function loadScim(){
+  try{
+    const c = await api('/scim');
+    if(!c.licensed) return;
+    document.getElementById('sc_base').value = c.base_url || '';
+    document.getElementById('sc_status').value = c.enabled
+      ? 'Enabled' : (c.has_token ? 'Token generated, not enabled' : 'Not set up');
+    document.getElementById('sc_toggle').textContent =
+      c.enabled ? 'Disable SCIM' : 'Enable SCIM';
+    document.getElementById('sc_toggle').dataset.on = c.enabled ? '1' : '';
+  }catch{}
+  loadPushGroups();
+}
+
+async function scimToken(){
+  const err = document.getElementById('sc_err'); err.textContent = '';
+  if(!confirm('Generate a new SCIM bearer token?\n\nAny existing token stops working immediately, and the new one is shown only once.')) return;
+  try{
+    const r = await api('/scim/token', {method:'POST'});
+    document.getElementById('sc_token').value = r.token;
+    document.getElementById('sc_tokwrap').classList.remove('hidden');
+    err.textContent = r.rotated
+      ? 'Token rotated - update your IdP now, the old one no longer works.'
+      : 'Token created. Copy it into your IdP now.';
+    loadScim();
+  }catch(e){ err.textContent = e.message; }
+}
+
+async function scimToggle(){
+  const err = document.getElementById('sc_err'); err.textContent = '';
+  const on = !!document.getElementById('sc_toggle').dataset.on;
+  try{
+    await api('/scim', {method:'PUT', body: JSON.stringify({enabled: !on})});
+    loadScim();
+  }catch(e){ err.textContent = e.message; }
+}
+
+async function loadPushGroups(){
+  const host = document.getElementById('pg_table');
+  if(!host) return;
+  try{
+    const gs = await api('/push-groups');
+    if(!gs.length){
+      host.innerHTML = '<p class="muted" style="font-size:.85rem">No groups pushed yet. Add groups to your IdP\'s SCIM provider scope and they appear here.</p>';
+      return;
+    }
+    const roles = ['', 'user', 'admin'];
+    host.innerHTML = '<table class="utable"><tr><th>Group</th><th>Members</th><th>Grants role</th></tr>' +
+      gs.map(g => `<tr><td>${esc(g.display_name)} <span class="tag" style="background:var(--tag-blue-bg);color:var(--accent)">SCIM</span></td>` +
+        `<td>${g.members}</td><td>` +
+        `<select onchange="setGroupRole(${g.id}, this.value)">` +
+        roles.map(r => `<option value="${r}"${(g.scim_role||'')===r?' selected':''}>${r || 'no mapping'}</option>`).join('') +
+        '</select></td></tr>').join('') + '</table>';
+  }catch{ host.innerHTML = '<p class="muted" style="font-size:.85rem">Could not load push groups.</p>'; }
+}
+
+async function setGroupRole(id, role){
+  try{
+    await api('/push-groups/' + id + '/role', {method:'POST',
+      body: JSON.stringify({role: role || null})});
+    toast('Role mapping updated - members are being re-evaluated.');
+    loadPushGroups();
+  }catch(e){ toast(e.message, true); loadPushGroups(); }
+}

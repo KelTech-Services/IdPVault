@@ -163,6 +163,27 @@ function showLogin(){
   document.getElementById('loginview').classList.remove('hidden');
   document.getElementById('invitecard').classList.add('hidden');
   document.getElementById('logincard').classList.remove('hidden');
+  ssoInit();
+}
+
+/* ---------- SSO ---------- */
+function ssoLogin(){ location.href = '/api/v1/auth/sso/login'; }
+
+async function ssoInit(){
+  // A failed SSO round trip comes back as #sso_error=... so the reason is
+  // readable on the login screen instead of a blank redirect.
+  const err = (location.hash.match(/sso_error=([^&]+)/)||[])[1];
+  if(err){
+    document.getElementById('l_err').textContent = decodeURIComponent(err);
+    history.replaceState(null, '', location.pathname);
+  }
+  try{
+    const s = await api('/auth/sso/public');
+    const wrap = document.getElementById('ssowrap');
+    if(!s.enabled){ wrap.classList.add('hidden'); return; }
+    document.getElementById('ssobtn').textContent = s.label || 'Sign in with SSO';
+    wrap.classList.remove('hidden');
+  }catch{ /* SSO unavailable - the password form is already the default */ }
 }
 function showInvite(){
   document.getElementById('appview').classList.add('hidden');
