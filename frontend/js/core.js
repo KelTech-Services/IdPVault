@@ -183,7 +183,19 @@ async function ssoInit(){
     if(!s.enabled){ wrap.classList.add('hidden'); return; }
     document.getElementById('ssobtn').textContent = s.label || 'Sign in with SSO';
     wrap.classList.remove('hidden');
+    // Required mode: SSO is the only way in for ordinary people, so the
+    // password form starts hidden behind a link. Break-glass admins and
+    // external users still need it, so it is never removed - just tucked away.
+    const required = s.mode === 'required';
+    document.getElementById('ssodivider').classList.toggle('hidden', required);
+    document.getElementById('ssopwlink').classList.toggle('hidden', !required);
+    document.getElementById('pwlogin').classList.toggle('hidden', required);
   }catch{ /* SSO unavailable - the password form is already the default */ }
+}
+function showPasswordLogin(){
+  document.getElementById('pwlogin').classList.remove('hidden');
+  document.getElementById('ssopwlink').classList.add('hidden');
+  document.getElementById('l_user').focus();
 }
 function showInvite(){
   document.getElementById('appview').classList.add('hidden');

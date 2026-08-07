@@ -14,14 +14,17 @@
     <img src="/IdPVault_light_logo.png" alt="IdPVault">
     <h3>Sign in</h3>
     <div id="ssowrap" class="hidden">
-      <button id="ssobtn" class="primary" onclick="ssoLogin()">Sign in with SSO</button>
-      <p class="muted" style="text-align:center;font-size:.74rem;margin:8px 0">or sign in with your password</p>
+      <button id="ssobtn" class="primary" style="width:100%" onclick="ssoLogin()">Sign in with SSO</button>
+      <p class="muted" id="ssodivider" style="text-align:center;font-size:.74rem;margin:8px 0">or sign in with your password</p>
+      <p class="muted hidden" id="ssopwlink" style="text-align:center;font-size:.78rem;margin:10px 0"><a href="#" onclick="showPasswordLogin();return false">Sign in with your password</a></p>
     </div>
+    <div id="pwlogin">
     <div><span class="lbl">Email or username</span><input id="l_user" autocomplete="username"></div>
     <div><span class="lbl">Password</span><input id="l_pass" type="password" autocomplete="current-password"></div>
     <div id="l_mfawrap" class="hidden"><span class="lbl">Authenticator code</span><input id="l_totp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
     <button class="primary" onclick="doLogin()">Sign in</button>
     <button onclick="showForgot()" style="background:none;border:none;color:var(--accent);font-size:.8rem;cursor:pointer;padding:0">Forgot password?</button>
+    </div>
     <div id="forgotwrap" class="hidden" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
       <span class="lbl">Username or email</span><input id="fg_id" placeholder="enter your username or email">
       <button class="primary" style="margin-top:8px" onclick="doForgot()">Send reset link</button>
