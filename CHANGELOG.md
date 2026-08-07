@@ -3,7 +3,7 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
-## [1.4.0] - 2026-08-03
+## [1.4.0] - 2026-08-07
 ### Added
 - Sign in with your identity provider. IdPVault now supports OpenID Connect
   single sign-on (authorization code with PKCE), configured in Administration >
