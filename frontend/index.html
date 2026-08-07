@@ -403,6 +403,8 @@
       <div class="formgrid">
         <div><label>Username</label><input id="u_name"></div>
         <div><label>Email</label><input id="u_email" type="email"></div>
+        <div><label>First name</label><input id="u_first"></div>
+        <div><label>Last name</label><input id="u_last"></div>
         <div><label>Role</label><select id="u_role" onchange="onUserRoleChange()"><option value="user">User (read-only, all tenants)</option><option value="admin">Admin (full control)</option><option value="org_viewer">Org viewer (read-only, one org)</option><option value="org_admin">Org admin (backup &amp; restore, one org)</option></select></div>
         <div id="ud_org" class="hidden"><label>Client org</label><select id="u_org"></select></div>
         <div><label>Password setup</label><select id="u_mode" onchange="document.getElementById('u_pwwrap').classList.toggle('hidden', this.value!=='password')"><option value="invite">Send invite link</option><option value="password">Set password now</option></select></div>
@@ -418,7 +420,7 @@
       <p class="muted" style="margin-top:8px;font-size:.78rem">Invite link: emailed if SMTP is configured; either way you get a copyable link. Set password now: no email needed, the account is active immediately - share the password securely.</p>
     </div>
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th style="width:300px">Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>MFA</th><th>Status</th><th style="width:340px">Actions</th></tr></thead>
       <tbody id="userbody"></tbody>
     </table>
   </section>
@@ -630,6 +632,24 @@
   </section>
 </main>
 </div>
+</div>
+<div id="usermodal" class="modal hidden">
+  <div class="box" style="width:520px">
+    <h2 id="um_title">Edit user</h2>
+    <div class="formgrid">
+      <div><label>First name</label><input id="um_first" autocomplete="off"></div>
+      <div><label>Last name</label><input id="um_last" autocomplete="off"></div>
+      <div style="grid-column:span 2"><label>Email <span class="muted" style="font-size:.76rem">(they can sign in with this)</span></label><input id="um_email" type="email" autocomplete="off"></div>
+      <div id="um_rolerow"><label>Role</label><select id="um_role" onchange="umRoleChange()"></select></div>
+      <div id="um_orgrow" class="hidden"><label>Client org</label><select id="um_org"></select></div>
+    </div>
+    <label class="cbrow" style="margin-top:12px"><input id="um_ext" type="checkbox"> Client user (external)
+      <span class="muted" style="font-size:.76rem">- not in your directory, so password sign-in stays available when SSO is Required</span></label>
+    <label class="cbrow hidden" id="um_bgrow" style="margin-top:8px"><input id="um_bg" type="checkbox"> Break-glass account
+      <span class="muted" style="font-size:.76rem">- keeps password sign-in when SSO is Required. Needs MFA on the account.</span></label>
+    <p id="um_err" class="muted" style="font-size:.8rem;margin-top:10px"></p>
+    <div style="margin-top:16px;text-align:right"><button onclick="closeUserModal()">Cancel</button> <button class="primary" onclick="saveUserModal()">Save changes</button></div>
+  </div>
 </div>
 <div id="confirmdelmodal" class="modal hidden">
   <div class="box" style="width:460px">

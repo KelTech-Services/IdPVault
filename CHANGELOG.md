@@ -36,6 +36,13 @@ All notable changes to IdPVault are documented here. Format loosely follows
   roles are external automatically.
 - System settings sections are collapsible, each with a status chip showing
   what is configured without opening it.
+- App users can now be edited. Edit on any row opens first and last name,
+  email, role, client org, and the external and break-glass flags. The table
+  gained a Name column showing "First Last (email)" and an MFA column, and
+  Reset MFA only appears on accounts that actually have it on.
+- Your own row is editable - on a single-admin install that is the only way to
+  flag the first break-glass account. Changing your own role or client org, or
+  disabling yourself, still needs another administrator.
 
 ### Changed
 - Accounts created before this release keep signing in with their username
@@ -61,6 +68,11 @@ All notable changes to IdPVault are documented here. Format loosely follows
   by any route.
 - Accounts created by your identity provider cannot sign in with a password at
   all, in any mode.
+- Deleting a user is now two deliberate steps: disable first, then delete. The
+  Delete button only appears on an account that is already disabled.
+- Email addresses are unique across accounts, compared case-insensitively.
+- Deleting a user now also removes their trusted-device records, which
+  previously could refuse the delete outright.
 
 ## [1.3.4 - 1.3.5] - 2026-07-29
 

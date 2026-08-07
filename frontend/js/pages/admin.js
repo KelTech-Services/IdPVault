@@ -14,17 +14,101 @@ async function resetUserMfa(id, name){
   catch(e){ toast(e.message, true); }
 }
 /* ---------- users admin ---------- */
-function bgBtn(u){
-  // Break-glass toggle. Available on your own row too - on a single-admin
-  // install that is the only way to flag the first one.
-  return `<button onclick="patchUser(${u.id}, {breakglass: ${!u.breakglass}})" title="${
-    u.breakglass ? 'Stop allowing password sign-in for this admin when SSO is Required.'
-                 : 'Allow password sign-in for this admin when SSO is Required. The account needs MFA enabled.'
-  }">${u.breakglass ? 'Clear break-glass' : 'Make break-glass'}</button>`;
+let _users = [], _umId = null;
+
+const ROLE_LABELS = {
+  user: 'User (read-only, all tenants)',
+  admin: 'Admin (full control)',
+  org_viewer: 'Org viewer (read-only, one org)',
+  org_admin: 'Org admin (backup & restore, one org)',
+};
+
+/* Edit modal. Reachable on every row including your own - on a single-admin
+   install that is the only way to flag the first break-glass account. The
+   server refuses role/org/active changes to yourself, so those inputs are
+   disabled here rather than failing on save. */
+function userModal(id){
+  const u = _users.find(x => x.id === id);
+  if(!u) return;
+  _umId = id;
+  const isMe = u.username === me.username;
+  document.getElementById('um_title').textContent = 'Edit ' + (u.display || u.username);
+  document.getElementById('um_first').value = u.first_name || '';
+  document.getElementById('um_last').value = u.last_name || '';
+  document.getElementById('um_email').value = u.email || '';
+  document.getElementById('um_ext').checked = !!u.external;
+  const msp = (me.features||[]).includes('msp');
+  const roles = msp ? ['user','admin','org_viewer','org_admin'] : ['user','admin'];
+  const rs = document.getElementById('um_role');
+  rs.innerHTML = roles.map(r=>`<option value="${r}">${esc(ROLE_LABELS[r])}</option>`).join('');
+  rs.value = u.role;
+  rs.disabled = isMe;
+  document.getElementById('um_rolerow').title = isMe
+    ? 'You cannot change your own role - ask another administrator.' : '';
+  const bgrow = document.getElementById('um_bgrow');
+  bgrow.classList.toggle('hidden', u.role !== 'admin');
+  document.getElementById('um_bg').checked = !!u.breakglass;
+  umRoleChange(u.org_id);
+  document.getElementById('um_err').textContent = u.sso_user
+    ? 'This account was created by your identity provider. Names and email are refreshed from it at every sign-in.' : '';
+  document.getElementById('usermodal').classList.remove('hidden');
+  document.getElementById('um_first').focus();
+}
+function closeUserModal(){
+  document.getElementById('usermodal').classList.add('hidden');
+  _umId = null;
+}
+function umRoleChange(preselect){
+  const r = document.getElementById('um_role').value;
+  const isOrg = r==='org_admin' || r==='org_viewer';
+  document.getElementById('um_orgrow').classList.toggle('hidden', !isOrg);
+  document.getElementById('um_bgrow').classList.toggle('hidden', r !== 'admin');
+  if(r !== 'admin') document.getElementById('um_bg').checked = false;
+  const ext = document.getElementById('um_ext');
+  if(isOrg) ext.checked = true;
+  ext.disabled = isOrg;
+  if(isOrg){
+    const sel = document.getElementById('um_org');
+    sel.innerHTML = _orgs.length
+      ? _orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')
+      : '<option value="">no orgs yet - create one on the Orgs page</option>';
+    if(preselect) sel.value = preselect;
+  }
+}
+async function saveUserModal(){
+  const u = _users.find(x => x.id === _umId);
+  if(!u) return;
+  const err = document.getElementById('um_err');
+  const isMe = u.username === me.username;
+  const body = {
+    first_name: v('um_first') || null,
+    last_name: v('um_last') || null,
+    email: v('um_email'),
+    external: document.getElementById('um_ext').checked,
+  };
+  if(u.role === 'admin' || document.getElementById('um_role').value === 'admin')
+    body.breakglass = document.getElementById('um_bg').checked;
+  // Role and org are the server's self-edit refusal - never send them for
+  // your own account, even unchanged.
+  if(!isMe){
+    const r = v('um_role');
+    if(r !== u.role) body.role = r;
+    const isOrg = r==='org_admin' || r==='org_viewer';
+    if(isOrg){
+      if(!v('um_org')){ err.textContent = 'Org-scoped roles need a client org - create one on the Orgs page first.'; return; }
+      body.org_id = parseInt(v('um_org'));
+    } else if(u.org_id){ body.org_id = null; }
+  }
+  try {
+    await api(`/users/${_umId}`, {method:'PATCH', body: JSON.stringify(body)});
+    closeUserModal();
+    toast('User updated.');
+    loadUsers();
+  } catch(e){ err.textContent = e.message; }
 }
 async function loadUsers(){
   const ub = document.getElementById('userbody');
-  ub.innerHTML = skelRows(5);
+  ub.innerHTML = skelRows(6);
   try {
     const us = await api('/users');
     const msp = (me.features||[]).includes('msp');
@@ -37,31 +121,29 @@ async function loadUsers(){
       ab.title = atUserCap ? 'User limit reached for your license - the free Community tier includes a single admin account. Add a license in Administration > License' : '';
       ab.innerHTML = '+ Add user' + (atUserCap ? ' ' + TIPI : '');
       if(atUserCap) document.getElementById('userform').classList.add('hidden'); }
-    ub.innerHTML = us.map(u => `<tr>
-      <td>${esc(u.username)}${u.username===me.username?' <span class="muted">(you)</span>':''}</td>
-      <td class="muted">${esc(u.email||'-')}</td>
-      <td><span class="tag ${u.role}">${u.role}</span>${u.org_name?` <span class="muted" style="font-size:.72rem">${esc(u.org_name)}</span>`:''}</td>
-      <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}${
+    _users = us;
+    ub.innerHTML = us.map(u => { const isMe = u.username===me.username; return `<tr>
+      <td><b>${esc(u.display||u.username)}</b>${isMe?' <span class="muted">(you)</span>':''}${
         u.breakglass ? ' <span class="tag warn" title="Password sign-in stays available for this admin when SSO is set to Required.">break-glass</span>' : ''}${
         u.sso_user ? ' <span class="tag info" title="Created by your identity provider - signs in with SSO only.">SSO</span>' : ''}${
         u.external && !u.org_name ? ' <span class="tag info" title="Client user - not in your directory, so password sign-in stays available when SSO is Required.">external</span>' : ''}</td>
-      <td style="white-space:nowrap">${
-        // Your own row: break-glass only. Role, active status and delete are
-        // blocked on yourself so nobody can strand the install from here.
-        u.username===me.username ? (u.role==='admin' ? bgBtn(u)
-          : '<span class="muted">-</span>') : `
-        <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
-        ${u.role==='admin' ? bgBtn(u) : ''}
+      <td class="muted">${esc(u.email||'-')}</td>
+      <td><span class="tag ${u.role}">${u.role}</span>${u.org_name?` <span class="muted" style="font-size:.72rem">${esc(u.org_name)}</span>`:''}</td>
+      <td class="muted">${u.mfa_enabled?'on':'off'}</td>
+      <td>${u.pending_invite ? '<span class="tag pending">invite pending</span>' : u.is_active ? '<span class="tag ok">active</span>' : '<span class="tag off">disabled</span>'}</td>
+      <td style="white-space:nowrap">
+        <button onclick="userModal(${u.id})">Edit</button>${isMe ? '' : `
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
         <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
-        <button onclick="resetUserMfa(${u.id}, '${esc(u.username)}')">Reset MFA</button>
-        <button class="del" onclick="delUser(${u.id}, '${esc(u.username)}')">Delete</button>`}
-      </td></tr>`).join('');
-  } catch(e){ ub.innerHTML = `<tr><td colspan="5" class="muted">${esc(e.message)}</td></tr>`; }
+        ${u.mfa_enabled ? `<button onclick="resetUserMfa(${u.id}, '${esc(u.username)}')">Reset MFA</button>` : ''}
+        ${u.is_active ? '' : `<button class="del" onclick="delUser(${u.id}, '${esc(u.username)}')">Delete</button>`}`}
+      </td></tr>`; }).join('');
+  } catch(e){ ub.innerHTML = `<tr><td colspan="6" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function createUser(){
   try {
-    const body = {username: v('u_name'), email: v('u_email'), role: v('u_role')};
+    const body = {username: v('u_name'), email: v('u_email'), role: v('u_role'),
+                  first_name: v('u_first') || null, last_name: v('u_last') || null};
     if(body.role==='org_admin' || body.role==='org_viewer'){
       if(!v('u_org')) return toast('Org-scoped roles need a client org - create one on the Orgs page first.', true);
       body.org_id = parseInt(v('u_org'));
@@ -80,7 +162,7 @@ async function createUser(){
     } else {
       toast('User created and active - they can sign in now.');
     }
-    ['u_name','u_email','u_pw'].forEach(i=>document.getElementById(i).value='');
+    ['u_name','u_email','u_pw','u_first','u_last'].forEach(i=>document.getElementById(i).value='');
     ['u_bg','u_ext'].forEach(i=>document.getElementById(i).checked=false);
     loadUsers();
   } catch(e){ toast('Create failed: '+e.message, true); }
@@ -90,7 +172,7 @@ async function patchUser(id, body){
   catch(e){ toast(e.message, true); }
 }
 async function delUser(id, name){
-  if(!confirm(`Delete user "${name}"?`)) return;
+  if(!confirm(`Permanently delete the disabled account "${name}"? Their audit log entries keep the username and are not removed.`)) return;
   try { await api(`/users/${id}`, {method:'DELETE'}); toast(`User "${name}" deleted.`); loadUsers(); }
   catch(e){ toast(e.message, true); }
 }

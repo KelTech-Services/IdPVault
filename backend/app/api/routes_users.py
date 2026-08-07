@@ -4,7 +4,7 @@ import secrets as pysecrets
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from app.core import deploy
+from app.core import deploy, security
 from app.core.security import hash_password, require_admin
 from app.models.db import AuditLog, AuthSession, MfaTrust, SessionLocal, User
 
@@ -46,6 +46,8 @@ def list_users() -> list[dict]:
     with SessionLocal() as db:
         org_names = {o.id: o.name for o in db.query(Org).all()}
         return [{"id": u.id, "username": u.username, "email": u.email, "role": u.role,
+                 "first_name": u.first_name, "last_name": u.last_name,
+                 "display": security.display_name(u),
                  "org_id": u.org_id, "org_name": org_names.get(u.org_id),
                  "is_active": u.is_active, "pending_invite": bool(u.invite_token),
                  "sso_user": bool(u.sso_user), "breakglass": bool(u.breakglass),
@@ -56,6 +58,8 @@ def list_users() -> list[dict]:
 class UserIn(BaseModel):
     username: str
     email: str
+    first_name: str | None = None
+    last_name: str | None = None
     role: str = "user"
     org_id: int | None = None    # required for org_admin / org_viewer roles
     password: str | None = None  # set directly instead of sending an invite
@@ -92,7 +96,12 @@ def create_user(body: UserIn, request: Request) -> dict:
     with SessionLocal() as db:
         if db.query(User).filter(User.username == body.username).first():
             raise HTTPException(409, "username already exists")
-        u = User(username=body.username, email=body.email, role=body.role,
+        email = security.normalize_email(body.email)
+        if security.email_taken(db, email):
+            raise HTTPException(409, "that email is already on another account")
+        u = User(username=body.username, email=email, role=body.role,
+                 first_name=(body.first_name or "").strip() or None,
+                 last_name=(body.last_name or "").strip() or None,
                  org_id=org_id, is_active=direct,
                  password_hash=hash_password(body.password) if direct else None,
                  invite_token=invite,
@@ -126,6 +135,9 @@ def create_user(body: UserIn, request: Request) -> dict:
 
 
 class UserPatch(BaseModel):
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     role: str | None = None
     org_id: int | None = None
     is_active: bool | None = None
@@ -150,6 +162,16 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
                         or body.is_active is not None):
             raise HTTPException(422, "you cannot change your own role, org or "
                                      "active status - ask another administrator")
+        data = body.model_dump(exclude_unset=True)
+        if "email" in data:
+            email = security.normalize_email(data["email"])
+            if security.email_taken(db, email, exclude_id=u.id):
+                raise HTTPException(409, "that email is already on another account")
+            u.email = email
+        if "first_name" in data:
+            u.first_name = (data["first_name"] or "").strip() or None
+        if "last_name" in data:
+            u.last_name = (data["last_name"] or "").strip() or None
         if body.role in VALID_ROLES:
             if body.role in ("org_admin", "org_viewer") and not lic.has_feature("msp"):
                 raise HTTPException(402, "org-scoped roles require an MSP license")
@@ -166,10 +188,17 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
                 u.org_id = None
             if body.role in ("org_admin", "org_viewer"):
                 u.external = True
-        if body.org_id is not None:
-            if db.get(Org, body.org_id) is None:
-                raise HTTPException(404, "org not found")
-            u.org_id = body.org_id
+        if "org_id" in data:
+            # Explicit null clears the scope; the modal always sends the field.
+            if data["org_id"] is None:
+                if u.role in ("org_admin", "org_viewer"):
+                    raise HTTPException(422, "org-scoped roles need an org - "
+                                             "change the role first")
+                u.org_id = None
+            else:
+                if db.get(Org, data["org_id"]) is None:
+                    raise HTTPException(404, "org not found")
+                u.org_id = data["org_id"]
         if body.breakglass is not None:
             if not body.breakglass and u.breakglass:
                 _guard_last_breakglass(db, u)
@@ -191,8 +220,7 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
             if not body.is_active:
                 db.query(AuthSession).filter(AuthSession.user_id == u.id).delete()
         db.add(AuditLog(actor=request.state.user["username"], action="user.update",
-                        detail={"username": u.username,
-                                **body.model_dump(exclude_unset=True)}))
+                        detail={"username": u.username, **data}))
         db.commit()
         return {"id": u.id}
 
@@ -253,12 +281,21 @@ def delete_user(user_id: int, request: Request) -> dict:
             raise HTTPException(404, "user not found")
         if u.username == request.state.user["username"]:
             raise HTTPException(422, "cannot delete yourself")
+        # Disable first, delete second - same two-step as StackMerger. It makes
+        # deletion deliberate and gives sessions a chance to be revoked.
+        if u.is_active is not False:
+            raise HTTPException(409, "disable the account first - only disabled "
+                                     "accounts can be deleted")
         if u.role == "admin" and u.is_active is not False \
                 and not _other_active_admins(db, u.id):
             raise HTTPException(422, "cannot delete the last active administrator")
         _guard_last_breakglass(db, u)
         name = u.username
+        # auth_sessions and mfa_trusts have NO ondelete=CASCADE on their FK, so
+        # they must be cleared by hand or the delete fails. push_group_members
+        # does cascade.
         db.query(AuthSession).filter(AuthSession.user_id == u.id).delete()
+        db.query(MfaTrust).filter(MfaTrust.user_id == u.id).delete()
         db.delete(u)
         db.add(AuditLog(actor=request.state.user["username"], action="user.delete",
                         detail={"username": name}))
