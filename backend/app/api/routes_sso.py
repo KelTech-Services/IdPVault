@@ -38,17 +38,24 @@ def sso_public() -> dict:
 
 @router.get("/auth/sso/login")
 def sso_login(request: Request):
-    """Start the flow: redirect to the IdP and drop the encrypted txn cookie."""
+    """Start the flow: redirect to the IdP and drop the encrypted txn cookie.
+
+    Dispatches on the configured protocol so the sign-in button never has to
+    change - it always points here, and here decides OIDC or SAML.
+    """
     if oidc.mode() == "off":
         raise HTTPException(404, "single sign-on is not enabled")
+    if oidc.protocol() == "saml":
+        from app.api.routes_saml import saml_login
+        return saml_login(request)
     try:
         url, txn = oidc.auth_request(_redirect_uri(request))
     except Exception as e:
         raise HTTPException(502, f"could not reach the identity provider: {e}")
     r = RedirectResponse(url, status_code=302)
     # SameSite=lax is correct for OIDC: the IdP sends the user back with a GET
-    # redirect, which lax allows. (SAML's POST binding is the case that needs
-    # SameSite=none - handled separately when that lands.)
+    # redirect, which lax allows. SAML's POST binding needs SameSite=none and
+    # sets its own cookie in routes_saml.saml_login.
     r.set_cookie(oidc.TXN_COOKIE, txn, httponly=True, samesite="lax",
                  secure=deploy.is_secure(request), max_age=oidc.TXN_MAX_AGE)
     return r
