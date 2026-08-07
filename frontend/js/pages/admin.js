@@ -14,6 +14,14 @@ async function resetUserMfa(id, name){
   catch(e){ toast(e.message, true); }
 }
 /* ---------- users admin ---------- */
+function bgBtn(u){
+  // Break-glass toggle. Available on your own row too - on a single-admin
+  // install that is the only way to flag the first one.
+  return `<button onclick="patchUser(${u.id}, {breakglass: ${!u.breakglass}})" title="${
+    u.breakglass ? 'Stop allowing password sign-in for this admin when SSO is Required.'
+                 : 'Allow password sign-in for this admin when SSO is Required. The account needs MFA enabled.'
+  }">${u.breakglass ? 'Clear break-glass' : 'Make break-glass'}</button>`;
+}
 async function loadUsers(){
   const ub = document.getElementById('userbody');
   ub.innerHTML = skelRows(5);
@@ -37,9 +45,13 @@ async function loadUsers(){
         u.breakglass ? ' <span class="tag warn" title="Password sign-in stays available for this admin when SSO is set to Required.">break-glass</span>' : ''}${
         u.sso_user ? ' <span class="tag info" title="Created by your identity provider - signs in with SSO only.">SSO</span>' : ''}${
         u.external && !u.org_name ? ' <span class="tag info" title="Client user - not in your directory, so password sign-in stays available when SSO is Required.">external</span>' : ''}</td>
-      <td style="white-space:nowrap">${u.username===me.username ? '<span class="muted">-</span>' : `
+      <td style="white-space:nowrap">${
+        // Your own row: break-glass only. Role, active status and delete are
+        // blocked on yourself so nobody can strand the install from here.
+        u.username===me.username ? (u.role==='admin' ? bgBtn(u)
+          : '<span class="muted">-</span>') : `
         <button onclick="patchUser(${u.id}, {role: '${u.role==='admin'?'user':'admin'}'})">Make ${u.role==='admin'?'user':'admin'}</button>
-        ${u.role==='admin' ? `<button onclick="patchUser(${u.id}, {breakglass: ${!u.breakglass}})" title="${u.breakglass?'Stop allowing password sign-in for this admin when SSO is Required.':'Allow password sign-in for this admin when SSO is Required. The account needs MFA enabled.'}">${u.breakglass?'Clear break-glass':'Make break-glass'}</button>` : ''}
+        ${u.role==='admin' ? bgBtn(u) : ''}
         <button onclick="patchUser(${u.id}, {is_active: ${!u.is_active}})">${u.is_active?'Disable':'Enable'}</button>
         <button onclick="resetUserPw(${u.id}, '${esc(u.username)}')">Reset password</button>
         <button onclick="resetUserMfa(${u.id}, '${esc(u.username)}')">Reset MFA</button>

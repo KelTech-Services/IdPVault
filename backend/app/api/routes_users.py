@@ -141,8 +141,15 @@ def update_user(user_id: int, body: UserPatch, request: Request) -> dict:
         u = db.get(User, user_id)
         if u is None:
             raise HTTPException(404, "user not found")
-        if u.username == request.state.user["username"]:
-            raise HTTPException(422, "cannot modify your own account here")
+        # An admin may edit their own row - that is how the first break-glass
+        # account gets flagged on a single-admin install. What they may NOT do
+        # to themselves is the set that can strand the install: change their
+        # own role, their own org scope, or disable themselves.
+        is_self = u.username == request.state.user["username"]
+        if is_self and (body.role is not None or body.org_id is not None
+                        or body.is_active is not None):
+            raise HTTPException(422, "you cannot change your own role, org or "
+                                     "active status - ask another administrator")
         if body.role in VALID_ROLES:
             if body.role in ("org_admin", "org_viewer") and not lic.has_feature("msp"):
                 raise HTTPException(402, "org-scoped roles require an MSP license")
