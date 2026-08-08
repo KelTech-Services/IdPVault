@@ -3,6 +3,17 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.4.2] - 2026-08-08
+
+### Changed
+- With single sign-on configured, a user created by hand is now **external**
+  automatically - the checkbox is ticked and locked, with the reason shown.
+  Once SSO is on, staff accounts arrive from your identity provider at first
+  sign-in or over SCIM, so anyone still being typed into the create form is by
+  definition someone outside your directory: a contractor or a client contact.
+  Role and password are unchanged - external users sign in with a password, so
+  they still need both. Enforced server-side, not just in the form.
+
 ## [1.4.1] - 2026-08-07
 ### Fixed
 - Browse on a backup now opens directly beneath that backup's row instead of

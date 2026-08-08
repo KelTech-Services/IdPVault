@@ -14,6 +14,13 @@ router = APIRouter(tags=["users"], dependencies=[Depends(require_admin)])
 VALID_ROLES = ("admin", "user", "org_admin", "org_viewer")
 
 
+def _sso_configured() -> bool:
+    """Any effective SSO mode other than "off". Used to decide whether a
+    hand-created account must be external."""
+    from app.core import oidc
+    return oidc.mode() != "off"
+
+
 def _other_active_admins(db, than_user_id: int) -> int:
     return len([u for u in db.query(User).all()
                 if u.role == "admin" and u.is_active is not False
@@ -106,9 +113,14 @@ def create_user(body: UserIn, request: Request) -> dict:
                  password_hash=hash_password(body.password) if direct else None,
                  invite_token=invite,
                  breakglass=body.breakglass or None,
-                 # org-scoped roles are client people by definition
+                 # Hand-created accounts are EXTERNAL by definition once SSO is
+                 # configured: staff arrive by JIT or SCIM, so anyone still
+                 # being typed in here is someone outside your directory. The
+                 # UI locks the checkbox; this is what actually enforces it.
+                 # Org-scoped roles are client people by definition too.
                  external=(body.external
-                           or body.role in ("org_admin", "org_viewer")) or None)
+                           or body.role in ("org_admin", "org_viewer")
+                           or _sso_configured()) or None)
         db.add(u)
         db.add(AuditLog(actor=request.state.user["username"], action="user.create",
                         detail={"username": body.username, "role": body.role,

@@ -416,7 +416,7 @@
           <div class="muted" style="font-size:.76rem;margin-top:5px">The way back in if your identity provider is down. Needs MFA enabled on the account. Break-glass sign-ins are called out in the audit log.</div></div>
         <div><label>Client user (external)</label>
           <label class="cbrow"><input id="u_ext" type="checkbox"> This person is not in your directory</label>
-          <div class="muted" style="font-size:.76rem;margin-top:5px">External users keep password sign-in when SSO is Required. Org-scoped roles are always external.</div></div>
+          <div class="muted" id="u_exthint" style="font-size:.76rem;margin-top:5px">External users keep password sign-in when SSO is Required. Org-scoped roles are always external.</div></div>
       </div>
       <button class="primary" onclick="createUser()">Create user</button>
       <p class="muted" style="margin-top:8px;font-size:.78rem">Invite link: emailed if SMTP is configured; either way you get a copyable link. Set password now: no email needed, the account is active immediately - share the password securely.</p>

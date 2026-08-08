@@ -14,7 +14,24 @@ async function resetUserMfa(id, name){
   catch(e){ toast(e.message, true); }
 }
 /* ---------- users admin ---------- */
-let _users = [], _umId = null;
+let _users = [], _umId = null, _ssoOn = false;
+
+/* With SSO configured, everyone real arrives through the identity provider by
+   JIT or SCIM. The only account you should still be creating by hand is an
+   EXTERNAL one - a contractor or client contact who is not in your directory.
+   So the flag is forced on and locked rather than left as a trap.
+   Role and password stay exactly as they are: external users sign in with a
+   password, so they still need both. */
+function applySsoUserForm(){
+  const ext = document.getElementById('u_ext'), hint = document.getElementById('u_exthint');
+  if(!ext) return;
+  const r = v('u_role'), isOrg = r==='org_admin' || r==='org_viewer';
+  if(_ssoOn){ ext.checked = true; }
+  ext.disabled = _ssoOn || isOrg;
+  if(hint) hint.textContent = _ssoOn
+    ? 'Single sign-on is configured, so staff accounts are created automatically at first sign-in (or by SCIM). Accounts added here are external by definition - people who are not in your directory and sign in with a password.'
+    : 'External users keep password sign-in when SSO is Required. Org-scoped roles are always external.';
+}
 
 const ROLE_LABELS = {
   user: 'User (read-only, all tenants)',
@@ -115,6 +132,8 @@ async function loadUsers(){
     if(!msp) document.querySelectorAll("#u_role option[value='org_admin'],#u_role option[value='org_viewer']").forEach(o=>o.remove());
     if(msp){ try { _orgs = await api('/orgs'); } catch {} }
     try { _license = await api('/license'); } catch {}
+    try { const s = await api('/auth/sso/public'); _ssoOn = !!s.enabled; } catch { _ssoOn = false; }
+    applySsoUserForm();
     const atUserCap = _license && _license.max_users != null && us.length >= _license.max_users;
     const ab = document.getElementById('adduserbtn');
     if(ab){ ab.disabled = !!atUserCap;
@@ -164,6 +183,7 @@ async function createUser(){
     }
     ['u_name','u_email','u_pw','u_first','u_last'].forEach(i=>document.getElementById(i).value='');
     ['u_bg','u_ext'].forEach(i=>document.getElementById(i).checked=false);
+    applySsoUserForm();   // re-assert the lock after clearing the form
     loadUsers();
   } catch(e){ toast('Create failed: '+e.message, true); }
 }
@@ -187,7 +207,8 @@ function onUserRoleChange(){
   if(bg){ bg.classList.toggle('hidden', r!=='admin');
     if(r!=='admin') document.getElementById('u_bg').checked = false; }
   const ext = document.getElementById('u_ext');
-  if(ext){ if(isOrg) ext.checked = true; ext.disabled = isOrg; }
+  if(ext && isOrg) ext.checked = true;
+  applySsoUserForm();   // owns the disabled state - SSO lock must survive this
   if(isOrg) document.getElementById('u_org').innerHTML =
     _orgs.length ? _orgs.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')
                  : '<option value="">no orgs yet - create one on the Orgs page</option>';
