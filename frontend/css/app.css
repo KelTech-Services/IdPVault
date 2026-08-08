@@ -134,6 +134,12 @@ button{transition:background .13s,border-color .13s,color .13s}
 #toast{position:fixed;bottom:24px;right:24px;background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--green);padding:14px 18px;border-radius:var(--radius-sm);font-size:.85rem;max-width:460px;box-shadow:var(--shadow);z-index:99;word-break:break-word}
 #toast.err{border-left-color:var(--red)}
 .snaprow{cursor:pointer}.snaprow:hover td{background:var(--panel2)}
+/* Inline panel row: a panel opened from a row renders directly beneath it,
+   never appended at the bottom of the page where it can be below the fold. */
+tr#inlinerow>td.inlinecell{padding:0 0 14px;border-bottom:none;background:var(--bg)}
+tr#inlinerow:hover>td.inlinecell{background:var(--bg)}
+tr#inlinerow .panel{margin-top:2px;border-color:var(--accent)}
+tr#inlinerow .panel+.panel{margin-top:12px}
 .snaprow.sel td{background:var(--tag-blue-bg)}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow:auto;font-size:.78rem;max-height:480px;line-height:1.55}
 .diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}

@@ -3,6 +3,18 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.4.1] - 2026-08-07
+### Fixed
+- Browse on a backup now opens directly beneath that backup's row instead of
+  at the bottom of the page. On a tenant with restore history and search
+  results below the snapshot list, the panel could open entirely off-screen
+  and clicking Browse looked like it had done nothing. Clicking Browse again
+  on the same row closes it.
+- Viewing an object from Browse shows it in the same place, under the snapshot
+  being browsed.
+- Compare now opens immediately below the Snapshots list rather than below
+  every other panel on the page.
+
 ## [1.4.0] - 2026-08-07
 ### Added
 - Sign in with your identity provider. IdPVault now supports OpenID Connect

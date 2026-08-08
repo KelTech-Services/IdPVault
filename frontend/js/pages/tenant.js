@@ -476,6 +476,8 @@ async function showSnaps(id, slug){
         + '\n\nEverything else in this snapshot is complete and restorable.';
       return ` <span class="tag" style="background:var(--tag-amber-bg);color:var(--amber)" title="${esc(why)}">partial ${TIPI}</span>`;
     };
+    // Re-rendering the tbody would destroy any panel mounted inside it.
+    closeInline();
     sb.innerHTML = snaps.slice().reverse().map(s => s.status === 'failed'
       ? `<tr class="snaprow" data-ts="${s.ts}" data-failed="1">
         <td><input type="checkbox" tabindex="-1" onchange="selSnap(this)"></td>
@@ -585,10 +587,14 @@ const DIFF_TAG = {added:'<span class="tag ok">added</span>', removed:'<span clas
 async function runDiff(){
   const [a,b] = selectedSnaps.slice().sort();
   document.getElementById('difflabel').textContent = `${fmtSnap(a)} → ${fmtSnap(b)}`;
-  document.getElementById('diffpanel').classList.remove('hidden');
+  // Compare spans two rows, so it opens immediately under the Snapshots panel
+  // rather than below Restore history and Find in backups.
+  closeInline();
+  mountPanelAfter('diffpanel', document.getElementById('snappanel'))
+    || document.getElementById('diffpanel').classList.remove('hidden');
   document.getElementById('difftablewrap').classList.remove('hidden');
   document.getElementById('diffout').classList.add('hidden');
-  document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
+  document.getElementById('diffpanel').scrollIntoView({behavior:'smooth', block:'nearest'});
   const rows = document.getElementById('diffrows');
   rows.innerHTML = skelRows(5);
   try {
@@ -1016,14 +1022,75 @@ async function fulldrApply(){
   }
 }
 
+/* ---------- inline panel mounting ----------
+   A panel that answers a click must open WHERE the click was. Appending it at
+   the bottom of the page means that on a long tenant view the whole thing can
+   land below the fold, and clicking the button looks like it did nothing.
+
+   These helpers relocate an existing panel node rather than duplicating it, so
+   all the ids inside keep working. _panelHome remembers where each panel came
+   from: a table re-render would destroy a panel parked inside the tbody, so
+   every path that re-renders unmounts first. */
+const _panelHome = {};
+function mountPanel(id, host){
+  const p = document.getElementById(id);
+  if(!p || !host) return null;
+  if(!_panelHome[id]) _panelHome[id] = p.parentNode;
+  host.appendChild(p);
+  p.classList.remove('hidden');
+  return p;
+}
+function mountPanelAfter(id, sibling){
+  const p = document.getElementById(id);
+  if(!p || !sibling) return null;
+  if(!_panelHome[id]) _panelHome[id] = p.parentNode;
+  sibling.insertAdjacentElement('afterend', p);
+  p.classList.remove('hidden');
+  return p;
+}
+function unmountPanel(id){
+  const p = document.getElementById(id);
+  if(!p) return;
+  p.classList.add('hidden');
+  const home = _panelHome[id];
+  if(home && p.parentNode !== home) home.appendChild(p);
+}
+/* A full-width row inserted directly beneath the clicked one. */
+function inlineRowHost(ts, colspan){
+  const row = Array.from(document.querySelectorAll('#snapbody tr.snaprow'))
+                   .find(r => r.dataset.ts === ts);
+  if(!row) return null;
+  let host = document.getElementById('inlinerow');
+  if(!host){
+    host = document.createElement('tr');
+    host.id = 'inlinerow';
+    host.innerHTML = `<td colspan="${colspan}" class="inlinecell"></td>`;
+  }
+  row.insertAdjacentElement('afterend', host);
+  return host.firstElementChild;
+}
+function closeInline(){
+  unmountPanel('browsepanel');
+  unmountPanel('diffpanel');
+  const h = document.getElementById('inlinerow');
+  if(h) h.remove();
+}
+
 /* ---------- snapshot browser ---------- */
 let _browse = null;
 async function openBrowse(ts){
+  const p = document.getElementById('browsepanel');
+  // Clicking Browse again on the same row closes it.
+  if(_browse && _browse.snap === ts && !p.classList.contains('hidden')){
+    closeInline(); _browse = null; return;
+  }
+  closeInline();
   _browse = { tenantId: snapTenantId, snap: ts, type: null };
   document.getElementById('b_label').textContent = fmtSnap(ts);
   document.getElementById('b_search').value = '';
   document.getElementById('b_objects').innerHTML = '';
-  document.getElementById('browsepanel').classList.remove('hidden');
+  mountPanel('browsepanel', inlineRowHost(ts, 9)) || p.classList.remove('hidden');
+  p.scrollIntoView({behavior:'smooth', block:'nearest'});
   try {
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${ts}/objects`);
     document.getElementById('b_types').innerHTML = d.types.map(t=>
@@ -1052,8 +1119,12 @@ async function viewObject(oid){
     document.getElementById('difftablewrap').classList.add('hidden');
     document.getElementById('diffout').classList.remove('hidden');
     document.getElementById('diffout').textContent = JSON.stringify(d.object, null, 2);
-    document.getElementById('diffpanel').classList.remove('hidden');
-    document.getElementById('diffpanel').scrollIntoView({behavior:'smooth'});
+    // Opened from inside Browse, so it belongs in the same inline cell - right
+    // under the snapshot being browsed, not at the bottom of the page.
+    const cell = document.querySelector('#inlinerow .inlinecell');
+    const p = mountPanel('diffpanel', cell);
+    if(!p) document.getElementById('diffpanel').classList.remove('hidden');
+    document.getElementById('diffpanel').scrollIntoView({behavior:'smooth', block:'nearest'});
   } catch(e){ toast(e.message, true); }
 }
 
