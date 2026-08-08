@@ -20,14 +20,44 @@ import os
 import time
 import zlib
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import httpx
 from lxml import etree
 
 from app.core import crypto
 
+# XXE / billion-laughs hardening. EVERY parse in this module goes through this
+# parser - never bare etree.fromstring().
+#
+# This is not theoretical here: validate_response() parses the POSTed
+# SAMLResponse to read its StatusCode BEFORE the signature is checked, so that
+# one parse is fully attacker-controlled. With lxml's default parser a crafted
+# response could read local files (file:// entities), reach internal hosts, or
+# expand entities until the process died.
+#   resolve_entities=False -> no entity substitution (XXE + billion laughs)
+#   no_network=True        -> never fetch a remote DTD/entity
+#   load_dtd / dtd_validation False -> no DTD processing at all
+#   huge_tree=False        -> keep libxml2's built-in size limits
+_XML_PARSER = etree.XMLParser(resolve_entities=False, no_network=True,
+                              load_dtd=False, dtd_validation=False,
+                              huge_tree=False)
+
+
+def _parse_xml(data: bytes):
+    """The ONLY way XML enters this module."""
+    doc = etree.fromstring(data, parser=_XML_PARSER)
+    # A DOCTYPE has no legitimate place in SAML metadata or a SAML response,
+    # and its only real use against us is entity trickery. Refuse outright
+    # rather than rely solely on the parser flags.
+    if doc.getroottree().docinfo.internalDTD is not None \
+            or doc.getroottree().docinfo.externalDTD is not None:
+        raise ValueError("XML with a DOCTYPE is not accepted")
+    return doc
+
 TXN_COOKIE = "idpvault_saml_txn"
 TXN_MAX_AGE = 600
+_MAX_METADATA_BYTES = 2 * 1024 * 1024   # generous for metadata, bounded
 SKEW = 300                      # seconds of clock-skew tolerance
 _UA = {"User-Agent": "Mozilla/5.0 (compatible; IdPVault-SSO)"}
 
@@ -65,10 +95,21 @@ def acs_url(base_url: str) -> str:
 def fetch_metadata(url: str) -> dict:
     """Fetch + parse IdP metadata: entity id, HTTP-Redirect SSO endpoint,
     signing certificate (PEM). Raises ValueError with a safe message."""
-    r = httpx.get(url, headers=_UA, timeout=15, follow_redirects=True)
+    # SSRF surface, deliberately NOT blocked by IP range: a self-hosted IdP is
+    # very often on a private address (Eric's own authentik is), so refusing
+    # RFC1918 would break the primary use case. What is constrained instead:
+    # the caller must be an ADMIN, the scheme is allow-listed (no file://,
+    # gopher://, etc), redirects are capped, and the body is size-capped so a
+    # hostile endpoint cannot stream until we run out of memory.
+    if urlparse(url).scheme not in ("http", "https"):
+        raise ValueError("the metadata URL must be http or https")
+    r = httpx.get(url, headers=_UA, timeout=15, follow_redirects=True,
+                  max_redirects=3)
     r.raise_for_status()
+    if len(r.content) > _MAX_METADATA_BYTES:
+        raise ValueError("that metadata document is unreasonably large")
     try:
-        root = etree.fromstring(r.content)
+        root = _parse_xml(r.content)
     except etree.XMLSyntaxError:
         raise ValueError("that URL did not return XML metadata")
     if root.tag != "{%s}EntityDescriptor" % NS["md"]:
@@ -144,7 +185,7 @@ def _verified_tree(doc_bytes: bytes, cert_pem: str):
     Assertion-level signature (returns the verified assertion). Everything
     downstream reads ONLY from what this returns."""
     from signxml import XMLVerifier
-    root = etree.fromstring(doc_bytes)
+    root = _parse_xml(doc_bytes)
     try:
         return XMLVerifier().verify(root, x509_cert=cert_pem).signed_xml
     except Exception:
@@ -172,7 +213,7 @@ def validate_response(cfg: dict, saml_response_b64: str, request_id: str,
     except Exception:
         raise ValueError("malformed SAML response")
     # Status check on the raw response (status itself is not attacker-useful).
-    raw = etree.fromstring(doc)
+    raw = _parse_xml(doc)
     status = raw.find(".//samlp:StatusCode", NS)
     if status is None or not status.get("Value", "").endswith("Success"):
         raise ValueError("the identity provider reported sign-in failure")

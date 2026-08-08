@@ -151,8 +151,32 @@ def auth_request(redirect_uri: str) -> tuple[str, str]:
          "scope": v.get("scopes") or "openid profile email",
          "state": state, "nonce": nonce,
          "code_challenge": challenge, "code_challenge_method": "S256"}
-    return (doc["authorization_endpoint"] + "?" + urlencode(q),
+    return (_safe_authorize(v["issuer"], doc.get("authorization_endpoint", ""))
+            + "?" + urlencode(q),
             make_txn_cookie(state, nonce, verifier))
+
+
+def _safe_authorize(issuer: str, endpoint: str) -> str:
+    """The authorize URL comes from the IdP's DISCOVERY DOCUMENT - remote data.
+    We then 302 the user's browser to it, so an issuer serving a hostile
+    discovery doc could bounce people anywhere. Constrain it to https on the
+    SAME HOST as the configured issuer: an admin chose that host deliberately,
+    nothing downstream of it gets to change where we send people.
+    (http is tolerated only when the issuer itself is http - a lab setup.)"""
+    from urllib.parse import urlparse
+    iu, eu = urlparse(issuer), urlparse(endpoint)
+    if not eu.scheme or not eu.netloc:
+        raise ValueError("the identity provider did not advertise a usable "
+                         "authorization endpoint")
+    if eu.scheme not in ("http", "https") or (eu.scheme == "http"
+                                              and iu.scheme == "https"):
+        raise ValueError("the identity provider's authorization endpoint is "
+                         "not a valid https URL")
+    if eu.netloc.lower() != iu.netloc.lower():
+        raise ValueError("the identity provider's authorization endpoint is "
+                         f"on a different host ({eu.netloc}) than its issuer "
+                         f"({iu.netloc}) - refusing to redirect there")
+    return endpoint
 
 
 def _jwt_payload(token: str) -> dict:

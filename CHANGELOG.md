@@ -3,6 +3,27 @@
 All notable changes to IdPVault are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions are the deployed image tags.
 
+## [1.4.3] - 2026-08-08
+
+### Security
+- SAML documents are now parsed with entity resolution, DTD loading, and
+  network access all switched off, and any document carrying a `<!DOCTYPE>`
+  is refused outright. A SAML response arrives at the assertion consumer
+  endpoint before anyone has proved who they are, and its status is read
+  before its signature is checked, so that parse was reachable by anybody who
+  could reach the endpoint. A crafted document could have been used to read
+  files off the IdPVault host or to make it fetch a URL of the sender's
+  choosing. No standards-compliant identity provider sends a DOCTYPE, so this
+  changes nothing about normal sign-in.
+- Fetching identity provider metadata by URL is now restricted to http and
+  https, follows at most three redirects, and refuses a document larger than
+  2 MB. Local addresses are unaffected - metadata hosted on your own network,
+  including a self-hosted authentik, works exactly as before.
+- The authorization endpoint advertised in an OpenID Connect discovery
+  document must now live on the same host as the issuer and cannot downgrade
+  an https issuer to http. A tampered or hostile discovery document can no
+  longer bounce a sign-in attempt to an unrelated site.
+
 ## [1.4.2] - 2026-08-08
 
 ### Changed
