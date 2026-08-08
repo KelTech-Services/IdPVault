@@ -14,6 +14,16 @@ All notable changes to IdPVault are documented here. Format loosely follows
   being browsed.
 - Compare now opens immediately below the Snapshots list rather than below
   every other panel on the page.
+- The Live State view now honours the **Live view refresh interval** setting.
+  It was caching the live provider config for a fixed two minutes regardless
+  of what you had configured, so leaving a tenant Overview and coming back
+  re-queried the provider from scratch. Set the interval to 30 minutes and the
+  provider is now queried at most every 30 minutes, however many times you
+  navigate away and back. **Refresh Config from provider** still fetches
+  immediately.
+- Opening a tenant Overview cost two full provider exports - one for the
+  drift summary and another for the Live State category list. The summary's
+  export is now reused, halving the provider calls on every Overview load.
 
 ## [1.4.0] - 2026-08-07
 ### Added

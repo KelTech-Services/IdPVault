@@ -17,20 +17,32 @@ from datetime import datetime, timezone
 log = logging.getLogger(__name__)
 
 _REFRESH_DEBOUNCE_S = 60
-_LIVE_CACHE_TTL_S = 120
+# Used only when the operator has turned background polling OFF (0 minutes).
+# "Off" means do not poll on a schedule - it does not mean re-fetch the whole
+# tenant every time somebody navigates back to the Overview.
+_LIVE_CACHE_FALLBACK_TTL_S = 120
 _live_cache: dict[int, tuple[float, dict]] = {}
 
 
-def get_live_export(tenant_id: int) -> dict:
+def _live_ttl_s() -> int:
+    """The live config cache honours `state_poll_minutes` - the same setting
+    the Overview describes as "how often IdPVault compares live provider state
+    against the latest backups". Set it to 30 and the provider is queried at
+    most every 30 minutes, however many times you leave and return."""
+    m = _ttl_minutes()
+    return m * 60 if m > 0 else _LIVE_CACHE_FALLBACK_TTL_S
+
+
+def get_live_export(tenant_id: int, force: bool = False) -> dict:
     """Current provider config for Explorer's "Current (live)" view. Cached in
-    memory for a couple of minutes so category clicks don't hammer the API;
-    plaintext config never touches the database."""
+    memory for the configured interval so navigating away and back does not
+    re-query the provider; plaintext config never touches the database."""
     import time as _t
     from app.core import crypto
     from app.models.db import SessionLocal, Tenant
     from app.providers import get_adapter
     hit = _live_cache.get(tenant_id)
-    if hit and _t.monotonic() - hit[0] < _LIVE_CACHE_TTL_S:
+    if hit and not force and _t.monotonic() - hit[0] < _live_ttl_s():
         return hit[1]
     with SessionLocal() as db:
         t = db.get(Tenant, tenant_id)
@@ -119,6 +131,11 @@ def poll_tenant(tenant_id: int, force: bool = False) -> dict | None:
     # Strip BEFORE counting or diffing: a live export carrying the metadata key
     # would diff against a stored snapshot as a phantom added resource type.
     live, unavailable = split_unavailable(adapter.export())
+    # Same export the Explorer's live view needs. Without this the Overview
+    # cost two full provider exports: one here for the drift summary and
+    # another seconds later for the category rail.
+    import time as _t
+    _live_cache[tenant_id] = (_t.monotonic(), live)
     counts = {k: len(v) for k, v in live.items()}
     summary = {"source": "live", "latest_snapshot": latest,
                "counts": counts, "unavailable": unavailable, "categories": {},
