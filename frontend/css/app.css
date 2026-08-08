@@ -140,6 +140,16 @@ tr#inlinerow>td.inlinecell{padding:0 0 14px;border-bottom:none;background:var(--
 tr#inlinerow:hover>td.inlinecell{background:var(--bg)}
 tr#inlinerow .panel{margin-top:2px;border-color:var(--accent)}
 tr#inlinerow .panel+.panel{margin-top:12px}
+/* Inline JSON viewer: opens under the row that was clicked, headed by the
+   object's name. Not uppercased - these are real provider object names. */
+tr#objrow>td.objcell{padding:0 0 10px;background:transparent}
+tr#objrow:hover>td.objcell{background:transparent}
+.objbox{border:1px solid var(--accent);border-radius:var(--radius-sm);background:var(--panel)}
+.objhead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}
+.objhead .objname{font-size:.9rem;text-transform:none;letter-spacing:0;word-break:break-word}
+.objhead .objid{color:var(--dim);font-size:.74rem;text-transform:none}
+.objhead .spacer{flex:1}
+.objbox pre.objjson{border:0;border-radius:0 0 var(--radius-sm) var(--radius-sm);margin:0;max-height:420px}
 .snaprow.sel td{background:var(--tag-blue-bg)}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow:auto;font-size:.78rem;max-height:480px;line-height:1.55}
 .diffstat{display:flex;gap:16px;margin-bottom:12px;font-size:.85rem}

@@ -593,7 +593,6 @@ async function runDiff(){
   mountPanelAfter('diffpanel', document.getElementById('snappanel'))
     || document.getElementById('diffpanel').classList.remove('hidden');
   document.getElementById('difftablewrap').classList.remove('hidden');
-  document.getElementById('diffout').classList.add('hidden');
   document.getElementById('diffpanel').scrollIntoView({behavior:'smooth', block:'nearest'});
   const rows = document.getElementById('diffrows');
   rows.innerHTML = skelRows(5);
@@ -601,9 +600,9 @@ async function runDiff(){
     const d = await api(`/tenants/${snapTenantId}/diff?old=${a}&new=${b}`);
     window._diffData = d;
     let add=0, rem=0, chg=0; const out=[];
-    const mk = (kind, rt, obj, fields, ref) => `<tr>
+    const mk = (kind, rt, obj, fields, ref) => `<tr data-ref="${ref}">
       <td>${DIFF_TAG[kind]}</td><td>${esc(rt.replace(/_/g,' '))}</td>
-      <td>${esc(objLabel(obj))}</td>
+      <td data-name>${esc(objLabel(obj))}</td>
       <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length>8 ? ' …' : '') : '-'}</td>
       <td><button onclick="diffView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button></td></tr>`;
     Object.keys(d).sort().forEach(rt => {
@@ -620,20 +619,19 @@ async function runDiff(){
   } catch(e){ rows.innerHTML = `<tr><td colspan="5" class="muted">Compare failed: ${esc(e.message)}</td></tr>`; }
 }
 function diffView(ref){
-  const pre0 = document.getElementById('diffout');
-  if(window._diffOpenRef === ref && !pre0.classList.contains('hidden')){
-    pre0.classList.add('hidden'); window._diffOpenRef = null; return;   // second click collapses
-  }
-  window._diffOpenRef = ref;
+  const row = Array.from(document.querySelectorAll('#diffrows tr[data-ref]'))
+                   .find(r => r.dataset.ref === ref);
+  if(jsonRowOpenOn(row)){ closeJsonRow(); return; }   // second click collapses
   const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
   const kind = ref.slice(0, i1), rt = ref.slice(i1+1, i2), i = +ref.slice(i2+1);
   const x = (window._diffData || {})[rt]; if(!x) return;
   const payload = kind === 'a' ? x.added[i] : kind === 'r' ? x.removed[i]
     : {before: x.changed[i].before, after: x.changed[i].after};
-  const pre = document.getElementById('diffout');
-  pre.textContent = JSON.stringify(payload, null, 2);
-  pre.classList.remove('hidden');
-  pre.scrollIntoView({behavior:'smooth'});
+  const name = (row && row.querySelector('[data-name]') || {}).textContent || rt;
+  const host = jsonRow(row, 5, name, rt.replace(/_/g, ' '));
+  if(!host){ return; }
+  host.querySelector('.objjson').textContent = JSON.stringify(payload, null, 2);
+  host.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 async function fillTenantOrg(val){
@@ -1076,6 +1074,35 @@ function closeInline(){
   if(h) h.remove();
 }
 
+/* ---------- inline JSON viewer ----------
+   Clicking an object shows its JSON in a row inserted directly beneath THAT
+   object, headed by its NAME. An id on its own ("be992cdb-0565-...") tells you
+   nothing about what you opened, and a panel at the foot of the table means
+   scrolling away from the thing you clicked to read it. */
+function closeJsonRow(){
+  const r = document.getElementById('objrow');
+  if(r) r.remove();
+}
+function jsonRowOpenOn(row){
+  const o = document.getElementById('objrow');
+  return !!(row && o && o.previousElementSibling === row);
+}
+function jsonRow(row, colspan, name, sub){
+  closeJsonRow();
+  if(!row) return null;
+  const host = document.createElement('tr');
+  host.id = 'objrow';
+  host.innerHTML = `<td colspan="${colspan}" class="objcell"><div class="objbox">
+    <div class="objhead"><b class="objname"></b><span class="objid"></span>
+      <span class="spacer"></span><button onclick="closeJsonRow()">Close</button></div>
+    <pre class="objjson">Loading…</pre></div></td>`;
+  row.insertAdjacentElement('afterend', host);
+  // textContent, never innerHTML - these are provider-supplied names.
+  host.querySelector('.objname').textContent = name;
+  host.querySelector('.objid').textContent = sub;
+  return host;
+}
+
 /* ---------- snapshot browser ---------- */
 let _browse = null;
 async function openBrowse(ts){
@@ -1106,26 +1133,27 @@ async function browseObjects(){
   try {
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects?resource_type=${encodeURIComponent(_browse.type)}${q?'&q='+encodeURIComponent(q):''}`);
     if(!d.objects.length){ tb.innerHTML=emptyRow(3, EI.search, 'No matching objects.'); return; }
-    tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" onclick="viewObject('${esc(o.object_id)}')">
-      <td>${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
+    tb.innerHTML = d.objects.map(o=>`<tr class="rowlink" data-oid="${esc(o.object_id)}" onclick="viewObject('${esc(o.object_id)}')">
+      <td data-name>${esc(o.object_name||'-')}</td><td class="idcell" title="${esc(o.object_id)}">${esc(o.object_id)}</td>
       <td class="muted" style="text-align:right;font-size:.78rem">view</td></tr>`).join('');
   } catch(e){ tb.innerHTML=`<tr><td colspan="3" class="muted">${esc(e.message)}</td></tr>`; }
 }
 async function viewObject(oid){
+  const row = Array.from(document.querySelectorAll('#b_objects tr[data-oid]'))
+                   .find(r => r.dataset.oid === oid);
+  if(jsonRowOpenOn(row)){ closeJsonRow(); return; }   // second click collapses
+  const name = (row && row.querySelector('[data-name]') || {}).textContent || oid;
+  const host = jsonRow(row, 3, name, `${_browse.type} · ${oid}`);
+  if(!host) return;
   try {
     const d = await api(`/tenants/${_browse.tenantId}/snapshots/${_browse.snap}/objects/${encodeURIComponent(_browse.type)}/${encodeURIComponent(oid)}`);
-    document.getElementById('difflabel').textContent = `${_browse.type} / ${oid}`;
-    document.getElementById('diffstat').innerHTML = '';
-    document.getElementById('difftablewrap').classList.add('hidden');
-    document.getElementById('diffout').classList.remove('hidden');
-    document.getElementById('diffout').textContent = JSON.stringify(d.object, null, 2);
-    // Opened from inside Browse, so it belongs in the same inline cell - right
-    // under the snapshot being browsed, not at the bottom of the page.
-    const cell = document.querySelector('#inlinerow .inlinecell');
-    const p = mountPanel('diffpanel', cell);
-    if(!p) document.getElementById('diffpanel').classList.remove('hidden');
-    document.getElementById('diffpanel').scrollIntoView({behavior:'smooth', block:'nearest'});
-  } catch(e){ toast(e.message, true); }
+    if(document.getElementById('objrow') !== host) return;   // clicked away
+    host.querySelector('.objjson').textContent = JSON.stringify(d.object, null, 2);
+    host.scrollIntoView({behavior:'smooth', block:'nearest'});
+  } catch(e){
+    if(document.getElementById('objrow') === host)
+      host.querySelector('.objjson').textContent = e.message;
+  }
 }
 
 
@@ -1892,7 +1920,6 @@ async function openChanges(t){
   document.getElementById('chg_rows').innerHTML = '';
   document.getElementById('chg_stat').innerHTML = '';
   document.getElementById('chg_cats').innerHTML = '';
-  document.getElementById('chg_out').classList.add('hidden');
   try{
     const snaps = await api(`/tenants/${t.id}/snapshots`);
     if(!snaps.length){ document.getElementById('chg_stat').innerHTML = '<span class="muted">No backups yet - run a backup first, then investigate changes here.</span>'; return; }
@@ -1914,7 +1941,6 @@ async function runChanges(){
   if(!_chg) return;
   const a = v('chg_from'), b = v('chg_to');
   const rows = document.getElementById('chg_rows');
-  document.getElementById('chg_out').classList.add('hidden'); window._chgOpenRef = null;
   if(a === b){
     document.getElementById('chg_stat').innerHTML = '<span class="muted">Same point on both sides - pick two different points.</span>';
     rows.innerHTML = ''; document.getElementById('chg_cats').innerHTML = ''; return;
@@ -1947,9 +1973,9 @@ function renderChanges(){
   const inactive = _tenants.find(x => x.id === _chg.tenantId)?.active === false;
   const restoreOk = canW && !inactive && _chg.from !== 'current';
   const out = [];
-  const mk = (kind, rt, o, fields, ref) => `<tr>
+  const mk = (kind, rt, o, fields, ref) => `<tr data-ref="${ref}">
       <td>${DIFF_TAG[kind]}</td><td>${esc(ovLabel(rt))}</td>
-      <td>${esc(objLabel(o))}</td>
+      <td data-name>${esc(objLabel(o))}</td>
       <td class="muted" style="font-size:.78rem">${fields && fields.length ? esc(fields.slice(0,8).join(', ')) + (fields.length > 8 ? ' …' : '') : '-'}</td>
       <td style="white-space:nowrap;text-align:right"><button onclick="chgView('${ref}')" title="See the full object JSON (before and after for changed objects)">View ${TIPI}</button>${restoreOk && kind !== 'added' ? ` <button class="ghost" onclick="chgRestore('${esc(rt)}', '${ref}')" title="Preview restoring this object from the From backup (dry-run first, nothing is written until you apply)">Restore… ${TIPI}</button>` : ''}</td></tr>`;
   Object.keys(d).sort().forEach(rt => {
@@ -1981,17 +2007,19 @@ function chgPage(dir){
 }
 function chgFilter(rt){ _chg.cat = rt; _chg.page = 0; renderChanges(); }
 function chgView(ref){
-  const pre = document.getElementById('chg_out');
-  if(window._chgOpenRef === ref && !pre.classList.contains('hidden')){ pre.classList.add('hidden'); window._chgOpenRef = null; return; }
-  window._chgOpenRef = ref;
+  const row = Array.from(document.querySelectorAll('#chg_rows tr[data-ref]'))
+                   .find(r => r.dataset.ref === ref);
+  if(jsonRowOpenOn(row)){ closeJsonRow(); return; }   // second click collapses
   const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');
   const kind = ref.slice(0, i1), rt = ref.slice(i1 + 1, i2), i = +ref.slice(i2 + 1);
   const x = (_chg.data || {})[rt]; if(!x) return;
   const payload = kind === 'a' ? x.added[i] : kind === 'r' ? x.removed[i]
     : {before: x.changed[i].before, after: x.changed[i].after};
-  pre.textContent = JSON.stringify(payload, null, 2);
-  pre.classList.remove('hidden');
-  pre.scrollIntoView({behavior:'smooth'});
+  const name = (row && row.querySelector('[data-name]') || {}).textContent || rt;
+  const host = jsonRow(row, 5, name, ovLabel(rt));
+  if(!host) return;
+  host.querySelector('.objjson').textContent = JSON.stringify(payload, null, 2);
+  host.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function chgRestore(rt, ref){
   const i1 = ref.indexOf(':'), i2 = ref.lastIndexOf(':');

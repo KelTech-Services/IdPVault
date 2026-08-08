@@ -10,8 +10,12 @@ All notable changes to IdPVault are documented here. Format loosely follows
   results below the snapshot list, the panel could open entirely off-screen
   and clicking Browse looked like it had done nothing. Clicking Browse again
   on the same row closes it.
-- Viewing an object from Browse shows it in the same place, under the snapshot
-  being browsed.
+- Clicking an object in Browse, Compare or Changes now opens its JSON in a row
+  directly beneath that object, and the header shows the object's **name**
+  rather than only its id. Previously the JSON appeared in a panel at the foot
+  of the table, so you had to scroll away from the row you clicked to read it,
+  and the heading gave you a bare uuid. Clicking the same object again closes
+  it.
 - Compare now opens immediately below the Snapshots list rather than below
   every other panel on the page.
 - The Live State view now honours the **Live view refresh interval** setting.
